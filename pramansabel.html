@@ -438,9 +438,10 @@ setInterval(async()=>{
       const p=D.pengumuman[D.pengumuman.length-1];
       if(p&&p.id!==_lastPngId){_lastPngId=p.id;showNotif('📢 Pengumuman Baru',p.pesan);}
     }
-    // Hanya refresh beranda, jangan ganggu tab lain
+    // Hanya refresh beranda, jangan ganggu tab lain — dan jangan ganggu kalau user sedang mengetik
     const activeScreen=document.querySelector('.screen.on')?.id?.replace('s-','');
-    if(activeScreen==='beranda')renderBeranda();
+    const sedangMengetik=document.activeElement&&['INPUT','TEXTAREA'].includes(document.activeElement.tagName)&&document.activeElement.value;
+    if(activeScreen==='beranda'&&!sedangMengetik)renderBeranda();
   });
 },5000);
 function showNotif(judul,pesan){
