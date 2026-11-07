@@ -98,6 +98,7 @@ input,select,textarea{font-family:inherit}
 /* KOMANDO */
 .komando-box{background:var(--accent);color:#fff;border-radius:var(--r);padding:14px;margin-bottom:10px;animation:pulse-border 2s infinite}
 @keyframes pulse-border{0%,100%{box-shadow:0 0 0 0 rgba(191,42,32,.4)}50%{box-shadow:0 0 0 8px rgba(191,42,32,0)}}
+@keyframes slideDown{from{opacity:0;transform:translateX(-50%) translateY(-10px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
 .komando-box h3{font-size:13px;text-transform:uppercase;letter-spacing:1px;opacity:.85;margin-bottom:6px}
 .komando-box p{font-size:15px;font-weight:600;line-height:1.5}
 .komando-box .kmeta{font-size:11px;opacity:.7;margin-top:6px}
@@ -452,7 +453,7 @@ const C={
   catat_pel:r=>r==='tatib',
   edit_adat:r=>r==='pembina',
   keuangan_edit:r=>r==='bendahara',
-  keuangan_view:r=>['bendahara','ketua','pembina','pelatih'].includes(r),
+  keuangan_view:r=>true, // semua bisa lihat, hanya bendahara yang bisa catat
   komando_kirim:r=>r==='pembina'||(r==='pelatih'&&D.config.pelatih_komando),
   pengumuman_kirim:r=>['pembina','pelatih','ketua','sekretaris'].includes(r),
   pemetaan_edit:r=>['pelatih','pembina','aspelatih1','aspelatih2'].includes(r)||r==='balonpas',
@@ -479,7 +480,6 @@ function levelPPI(s){
   return['🔍 Perlu Pembinaan','w'];
 }
 function navLabel(r){
-  // Returns nav items based on role
   const all=[
     {id:'beranda',icon:'🏠',lbl:'Beranda'},
     {id:'anggota',icon:'👥',lbl:'Anggota'},
@@ -487,7 +487,9 @@ function navLabel(r){
     {id:'laporan',icon:'📊',lbl:'Laporan'},
     {id:'pengaturan',icon:'⚙️',lbl:'Lainnya'},
   ];
-  return all; // show all, content filtered per role
+  // Sekretaris hanya bisa absen — tampilkan beranda, anggota, lainnya
+  if(r==='sekretaris') return all.filter(i=>['beranda','anggota','pengaturan'].includes(i.id));
+  return all;
 }
 
 // ═══════════════════════════════════════════
@@ -564,8 +566,9 @@ function renderBeranda(){
   const komList=D.komando.slice().reverse();
   if(komList.length){
     html+=`<div class="sec">⚡ KOMANDO CEPAT</div>`;
-    komList.slice(0,3).forEach(k=>{
-      html+=`<div class="komando-box"><h3>⚡ Komando dari ${esc(k.dari)}</h3><p>${esc(k.pesan)}</p><div class="kmeta" style="display:flex;justify-content:space-between;align-items:center">${tgl(k.tgl)} ${unreadKom?'<span class="badge badge-warn">Baru</span>':''}${C.komando_kirim(R)?`<button onclick="hapusKomando('${k.id}')" style="background:rgba(255,255,255,0.2);border:none;color:#fff;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer">🗑 Hapus</button>`:''}</div></div>`;
+    komList.forEach(k=>{
+      const bisaEdit=C.komando_kirim(R)||['ketua','tatib'].includes(R);
+      html+=`<div class="komando-box"><h3>⚡ Komando dari ${esc(k.dari)}</h3><p>${esc(k.pesan)}</p><div class="kmeta" style="display:flex;justify-content:space-between;align-items:center">${tgl(k.tgl)} ${!k.dibaca?'<span class="badge badge-warn">Baru</span>':''}<div style="display:flex;gap:4px">${bisaEdit?`<button onclick="editKomando('${k.id}')" style="background:rgba(255,255,255,0.15);border:none;color:#fff;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer">✏️</button>`:''}<button onclick="hapusKomando('${k.id}')" style="background:rgba(255,255,255,0.2);border:none;color:#fff;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer">🗑</button></div></div></div>`;
       if(!k.dibaca){k.dibaca=true;}
     });
     save();
@@ -575,8 +578,9 @@ function renderBeranda(){
   const pngList=D.pengumuman.slice().reverse();
   if(pngList.length){
     html+=`<div class="sec">📢 PENGUMUMAN</div>`;
-    pngList.slice(0,3).forEach(p=>{
-      html+=`<div class="pengumuman-box"><h3>📢 Dari ${esc(p.dari)}</h3><p style="font-size:14px">${esc(p.pesan)}</p><div style="font-size:11px;opacity:.7;margin-top:6px;display:flex;justify-content:space-between;align-items:center">${tgl(p.tgl)}${C.komando_kirim(R)?`<button onclick="hapusPengumuman('${p.id}')" style="background:rgba(255,255,255,0.2);border:none;color:#fff;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer">🗑</button>`:''}</div></div>`;
+    pngList.forEach(p=>{
+      const bisaEditPng=C.pengumuman_kirim(R);
+      html+=`<div class="pengumuman-box"><h3>📢 Dari ${esc(p.dari)}</h3><p style="font-size:14px">${esc(p.pesan)}</p><div style="font-size:11px;opacity:.7;margin-top:6px;display:flex;justify-content:space-between;align-items:center">${tgl(p.tgl)}<div style="display:flex;gap:4px">${bisaEditPng?`<button onclick="editPengumuman('${p.id}')" style="background:rgba(255,255,255,0.15);border:none;color:#fff;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer">✏️</button>`:''}<button onclick="hapusPengumuman('${p.id}')" style="background:rgba(255,255,255,0.2);border:none;color:#fff;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer">🗑</button></div></div></div>`;
       if(!p.dibaca){p.dibaca=true;}
     });
     save();
@@ -639,6 +643,39 @@ function kirimKomando(){
 }
 function hapusKomando(id){D.komando=D.komando.filter(k=>k.id!==id);save();toast('Komando dihapus');renderBeranda();}
 function hapusPengumuman(id){D.pengumuman=D.pengumuman.filter(p=>p.id!==id);save();toast('Pengumuman dihapus');renderBeranda();}
+function editKomando(id){
+  const k=D.komando.find(x=>x.id===id);if(!k)return;
+  openModal(`<div class="modal-title">Edit Komando <button class="modal-close" onclick="closeModal()">×</button></div>
+  <div class="field"><label>Pesan Komando</label><textarea id="ek-pesan" style="min-height:100px">${esc(k.pesan)}</textarea></div>
+  <div style="display:flex;gap:8px">
+    <button class="btn btn-primary btn-full" onclick="simpanEditKomando('${id}')">💾 Simpan</button>
+    <button class="btn btn-warn btn-sm" onclick="hapusKomando('${id}');closeModal()">🗑 Hapus</button>
+  </div>`);
+}
+function simpanEditKomando(id){
+  const k=D.komando.find(x=>x.id===id);if(!k)return;
+  const v=document.getElementById('ek-pesan').value.trim();
+  if(!v)return toast('Pesan tidak boleh kosong');
+  k.pesan=v;k.dieditOleh=RLBL[R];k.tglEdit=Date.now();
+  save();closeModal();toast('Komando diperbarui');renderBeranda();
+}
+function editPengumuman(id){
+  const p=D.pengumuman.find(x=>x.id===id);if(!p)return;
+  openModal(`<div class="modal-title">Edit Pengumuman <button class="modal-close" onclick="closeModal()">×</button></div>
+  <div class="field"><label>Isi Pengumuman</label><textarea id="ep-pesan" style="min-height:100px">${esc(p.pesan)}</textarea></div>
+  <div style="font-size:12px;color:var(--fg2);margin-bottom:10px">Dari: ${esc(p.dari)}</div>
+  <div style="display:flex;gap:8px">
+    <button class="btn btn-primary btn-full" onclick="simpanEditPengumuman('${id}')">💾 Simpan</button>
+    <button class="btn btn-warn btn-sm" onclick="hapusPengumuman('${id}');closeModal()">🗑 Hapus</button>
+  </div>`);
+}
+function simpanEditPengumuman(id){
+  const p=D.pengumuman.find(x=>x.id===id);if(!p)return;
+  const v=document.getElementById('ep-pesan').value.trim();
+  if(!v)return toast('Pesan tidak boleh kosong');
+  p.pesan=v;p.dieditOleh=RLBL[R];p.tglEdit=Date.now();
+  save();closeModal();toast('Pengumuman diperbarui');renderBeranda();
+}
 function kirimPengumuman(){
   const v=document.getElementById('inp-png')?.value.trim();
   if(!v)return toast('Tulis isi pengumuman dulu');
@@ -826,11 +863,32 @@ function keluarAnggota(id){
 }
 
 function renderAbsensi(){
-  if(!C.absensi_edit(R)&&!C.isAnggota(R)&&!C.komando_kirim(R)){
+  const canAccess=C.absensi_edit(R)||C.isAnggota(R)||C.komando_kirim(R)||C.isPengurus(R);
+  if(!canAccess){
     return'<div class="alert alert-warn">Hanya Sekretaris yang dapat mengisi absensi.</div>';
   }
   const sesiTabs=SESI.map((s,i)=>`<button class="tab${i===0?' on':''}" onclick="tabSesi(${i},this)">${s}</button>`).join('');
-  return`<div class="tabs">${sesiTabs}</div><div id="tab-sesi"></div>`;
+  const dlBtn=C.absensi_edit(R)?`<button class="btn btn-blue btn-sm" style="float:right;margin-bottom:8px" onclick="downloadAbsensiCSV()">📥 Download CSV</button>`:'';
+  return`${dlBtn}<div class="tabs">${sesiTabs}</div><div id="tab-sesi"></div>`;
+}
+function downloadAbsensiCSV(){
+  const today=new Date().toLocaleDateString('id-ID');
+  let csv='Nama,Kelas,Peran,';
+  csv+=SESI.join(',')+'\n';
+  D.anggota.filter(a=>a.status==='aktif').forEach(a=>{
+    const row=[a.nama,a.kelas||'-',RLBL[a.role]||a.role];
+    SESI.forEach((_,si)=>{
+      const rec=D.absensi.find(x=>x.anggotaId===a.id&&x.sesi===si&&x.tgl===today);
+      row.push(rec?.status||'-');
+    });
+    csv+=row.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')+'\n';
+  });
+  const blob=new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;a.download=`absensi_${today.replace(/\//g,'-')}.csv`;a.click();
+  URL.revokeObjectURL(url);
+  toast('📥 CSV absensi diunduh');
 }
 
 // Panggil setelah renderAbsensi
@@ -870,8 +928,19 @@ function renderSesi(si){
         </select></div>`;
     });
     html+=`</div>`;
+  } else if(C.isAnggota(R)){
+    // Anggota/balonpas lihat rekap absensi semua (read-only)
+    html+=`<div class="card"><div class="card-title" style="font-size:13px">📋 Data Absensi ${sesiNama}</div>`;
+    D.anggota.filter(a=>['pps26','pps25','purnasenior','balonpas'].includes(a.role)&&a.status==='aktif').forEach(a=>{
+      const rec=D.absensi.find(x=>x.anggotaId===a.id&&x.sesi===si&&x.tgl===today);
+      const v=rec?.status||'-';
+      const badge=v==='hadir'?'badge-ok':v==='alfa'?'badge-danger':v==='izin'?'badge-info':v==='sakit'?'badge-warn':'';
+      html+=`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border)">
+        <div style="font-size:13px">${esc(a.nama)}</div>
+        <span class="badge ${badge}">${v.toUpperCase()}</span></div>`;
+    });
+    html+=`</div><div class="alert alert-warn" style="font-size:12px">Absensi hanya bisa diubah oleh Sekretaris.</div>`;
   } else {
-    // Anggota lihat absensi diri sendiri (berdasarkan nama dari pemetaan/anggota)
     html+='<div class="alert alert-warn">Hanya Sekretaris yang dapat mengedit absensi.</div>';
   }
   el.innerHTML=html;
@@ -917,30 +986,44 @@ function renderIzin(){
   let html='';
   const isAcc=C.proker_acc(R);
 
-  // Form pengajuan izin (untuk anggota PPS/balonpas)
-  if(C.isAnggota(R)||R==='pps26'||R==='pps25'||R==='purnasenior'||R==='balonpas'){
-    html+=`<div class="sec">📝 Ajukan Izin</div>
-    <div class="card">
-      <div class="field"><label>Nama</label><input id="iz-nama" placeholder="Nama lengkap Anda"></div>
-      <div class="field"><label>Tanggal</label><input id="iz-tgl" type="date" value="${new Date().toISOString().split('T')[0]}"></div>
-      <div class="field"><label>Sesi</label><select id="iz-sesi">${SESI.map((s,i)=>`<option value="${i}">${s}</option>`).join('')}</select></div>
-      <div class="field"><label>Alasan</label><textarea id="iz-alasan" placeholder="Jelaskan alasan izin Anda..."></textarea></div>
-      <div class="field"><label>Foto Bukti (opsional)</label><input type="file" id="iz-foto" accept="image/*" onchange="prevIzinFoto(this)"><img id="iz-foto-prev" class="photo-prev" style="display:none"></div>
-      <button class="btn btn-primary btn-full" onclick="ajukanIzin()">📤 Ajukan Izin</button>
-    </div>`;
+  // Form pengajuan izin
+  if(C.isAnggota(R)){
+    const hariIni=new Date().getDay(); // 0=Minggu, 3=Rabu
+    const isRabu=hariIni===3;
+    if(R==='balonpas'&&!isRabu){
+      html+=`<div class="sec">📝 Izin Balonpas</div>
+      <div class="alert alert-warn">⛔ Balonpas hanya bisa mengajukan izin pada <strong>hari Rabu</strong>. Hari ini bukan Rabu — pengajuan izin tidak tersedia.</div>`;
+    } else {
+      const fotowajib=R==='balonpas';
+      html+=`<div class="sec">📝 Ajukan Izin${R==='balonpas'?' (Rabu — Wajib Foto Bukti)':''}</div>
+      <div class="card">
+        ${R==='balonpas'?'<div class="alert alert-warn" style="font-size:12px;margin-bottom:10px">⚠️ Izin balonpas wajib disertai foto bukti. Izin akan diteruskan ke Pengurus Inti → Pembina untuk disetujui.</div>':''}
+        <div class="field"><label>Nama</label><input id="iz-nama" placeholder="Nama lengkap Anda"></div>
+        <div class="field"><label>Tanggal</label><input id="iz-tgl" type="date" value="${new Date().toISOString().split('T')[0]}"></div>
+        <div class="field"><label>Sesi</label><select id="iz-sesi">${SESI.map((s,i)=>`<option value="${i}">${s}</option>`).join('')}</select></div>
+        <div class="field"><label>Alasan</label><textarea id="iz-alasan" placeholder="Jelaskan alasan izin Anda..."></textarea></div>
+        <div class="field"><label>Foto Bukti${fotowajib?' <span style="color:var(--danger)">*WAJIB</span>':' (opsional)'}</label><input type="file" id="iz-foto" accept="image/*" onchange="prevIzinFoto(this)"><img id="iz-foto-prev" class="photo-prev" style="display:none"></div>
+        <button class="btn btn-primary btn-full" onclick="ajukanIzin()">📤 Ajukan Izin</button>
+      </div>`;
+    }
   }
 
-  // Daftar izin (untuk pembina/pelatih)
-  if(isAcc){
+  // Daftar izin — pengurus inti lihat pending_pi, pembina lihat pending_pembina
+  const isPengurusInti=['ketua','sekretaris','bendahara','tatib','aspelatih1','aspelatih2'].includes(R);
+  const isPembinaOrPelatih=['pembina','pelatih'].includes(R);
+  if(isPengurusInti||isPembinaOrPelatih){
     html+=`<div class="sec">📋 Daftar Pengajuan Izin</div>`;
     const daftar=D.izin.slice().reverse();
     if(!daftar.length) html+='<div style="color:var(--fg3);font-size:13px;padding:12px 0">Belum ada pengajuan izin.</div>';
     daftar.forEach(iz=>{
+      const stLabel={'acc':'✅ DISETUJUI','tolak':'❌ DITOLAK','pending':'⏳ MENUNGGU','pending_pi':'📋 MENUNGGU PI','pending_pembina':'📤 DITERUSKAN KE PEMBINA'}[iz.status]||iz.status.toUpperCase();
       const st=iz.status==='acc'?'badge-ok':iz.status==='tolak'?'badge-danger':'badge-warn';
-      html+=`<div class="item"><div class="item-head"><div><div class="item-title">${esc(iz.nama)}</div><div class="item-sub">${SESI[iz.sesi]} · ${tgl(iz.tgl)}</div></div><span class="badge ${st}">${iz.status.toUpperCase()}</span></div>
+      html+=`<div class="item"><div class="item-head"><div><div class="item-title">${esc(iz.nama)}</div><div class="item-sub">${SESI[iz.sesi]||iz.sesi} · ${tgl(iz.tgl)}</div></div><span class="badge ${st}">${stLabel}</span></div>
       <div style="font-size:13px;margin-top:6px;color:var(--fg2)">${esc(iz.alasan)}</div>
-      ${iz.foto?`<img src="${iz.foto}" class="photo-prev">`:'' }
-      ${iz.status==='pending'?`<div style="margin-top:8px;display:flex;gap:8px"><button class="btn btn-ok btn-sm" onclick="accIzin('${iz.id}','acc')">✓ Setujui</button><button class="btn btn-primary btn-sm" onclick="accIzin('${iz.id}','tolak')">✗ Tolak</button></div>`:''}
+      ${iz.foto?`<img src="${iz.foto}" class="photo-prev">`:''}
+      ${iz.status==='pending_pi'&&isPengurusInti?`<div style="margin-top:8px;display:flex;gap:8px"><button class="btn btn-ok btn-sm" onclick="accIzin('${iz.id}','pending_pembina')">📤 Teruskan ke Pembina</button><button class="btn btn-warn btn-sm" onclick="accIzin('${iz.id}','tolak')">✗ Tolak</button></div>`:''}
+      ${iz.status==='pending_pembina'&&isPembinaOrPelatih?`<div style="margin-top:8px;display:flex;gap:8px"><button class="btn btn-ok btn-sm" onclick="accIzin('${iz.id}','acc')">✓ Setujui</button><button class="btn btn-primary btn-sm" onclick="accIzin('${iz.id}','tolak')">✗ Tolak</button></div>`:''}
+      ${iz.status==='pending'&&(isPengurusInti||isPembinaOrPelatih)?`<div style="margin-top:8px;display:flex;gap:8px"><button class="btn btn-ok btn-sm" onclick="accIzin('${iz.id}','acc')">✓ Setujui</button><button class="btn btn-primary btn-sm" onclick="accIzin('${iz.id}','tolak')">✗ Tolak</button></div>`:''}
       </div>`;
     });
   }
@@ -957,18 +1040,40 @@ function renderIzin(){
   return html;
 }
 
+// Kompres foto otomatis: resize max 480px, kualitas 0.55 → ~15-30KB
+function kompressFoto(file,cb){
+  const r=new FileReader();
+  r.onload=e=>{
+    const img=new Image();
+    img.onload=()=>{
+      const MAX=480;
+      let w=img.width,h=img.height;
+      if(w>h){if(w>MAX){h=Math.round(h*MAX/w);w=MAX;}}
+      else{if(h>MAX){w=Math.round(w*MAX/h);h=MAX;}}
+      const c=document.createElement('canvas');c.width=w;c.height=h;
+      c.getContext('2d').drawImage(img,0,0,w,h);
+      cb(c.toDataURL('image/jpeg',0.55));
+    };
+    img.src=e.target.result;
+  };
+  r.readAsDataURL(file);
+}
 function prevIzinFoto(inp){
   const f=inp.files[0];if(!f)return;
-  const r=new FileReader();
-  r.onload=e=>{const img=document.getElementById('iz-foto-prev');img.src=e.target.result;img.style.display='block';};
-  r.readAsDataURL(f);
+  kompressFoto(f,data=>{const img=document.getElementById('iz-foto-prev');img.src=data;img.style.display='block';});
 }
 function ajukanIzin(){
   const nama=document.getElementById('iz-nama')?.value.trim();
   if(!nama)return toast('Nama harus diisi');
+  const alasan=document.getElementById('iz-alasan')?.value.trim();
+  if(!alasan)return toast('Alasan harus diisi');
   const foto=document.getElementById('iz-foto-prev')?.src||null;
-  D.izin.push({id:uid(),nama,tgl:document.getElementById('iz-tgl').value,sesi:parseInt(document.getElementById('iz-sesi').value),alasan:document.getElementById('iz-alasan').value.trim(),foto:foto&&foto.startsWith('data:')?foto:null,status:'pending',tglAjuan:Date.now()});
-  save();toast('Izin diajukan, menunggu persetujuan');
+  const fotoData=foto&&foto.startsWith('data:')?foto:null;
+  if(R==='balonpas'&&!fotoData)return toast('Balonpas wajib upload foto bukti izin');
+  // Status approval chain: balonpas → pending_pi (pengurus inti) → pending_pembina → acc/tolak
+  const statusAwal=R==='balonpas'?'pending_pi':'pending';
+  D.izin.push({id:uid(),nama,role:R,tgl:document.getElementById('iz-tgl').value,sesi:parseInt(document.getElementById('iz-sesi').value),alasan,foto:fotoData,status:statusAwal,tglAjuan:Date.now()});
+  save();toast(R==='balonpas'?'Izin diajukan ke Pengurus Inti':'Izin diajukan, menunggu persetujuan');
   document.getElementById('iz-nama').value='';document.getElementById('iz-alasan').value='';
 }
 function accIzin(id,status){
@@ -1149,7 +1254,8 @@ function renderTatib(){
     html+=`<div class="item${isAduan?' style="border-left:3px solid var(--warn)"':''}"><div class="item-head"><div><div class="item-title">${esc(p.nama)} ${isAduan?'<span class="badge badge-warn">Aduan</span>':''}</div><div class="item-sub">${esc(p.jenis)} · ${tgl(p.tgl)}</div></div><span class="badge badge-danger">${p.poin} poin</span></div>
     ${p.catatan?`<div style="font-size:12px;color:var(--fg2);margin-top:4px">${esc(p.catatan)}</div>`:''}
     ${p.foto?`<img src="${p.foto}" class="photo-prev">`:'' }
-    ${isAduan&&C.catat_pel(R)?`<div style="margin-top:8px;display:flex;gap:8px"><button class="btn btn-ok btn-sm" onclick="verifikasiAduan('${p.id}','terverifikasi')">✓ Verifikasi</button><button class="btn btn-ghost btn-sm" onclick="verifikasiAduan('${p.id}','diabaikan')">✗ Abaikan</button></div>`:''}
+    ${isAduan&&C.catat_pel(R)?`<div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-ok btn-sm" onclick="verifikasiAduan('${p.id}','terverifikasi')">✓ Verifikasi</button><button class="btn btn-primary btn-sm" onclick="verifikasiAduan('${p.id}','diteruskan')">📤 Teruskan ke Pembina</button><button class="btn btn-ghost btn-sm" onclick="verifikasiAduan('${p.id}','diabaikan')">✗ Abaikan</button></div>`:''}
+    ${p.status==='diteruskan'&&R==='pembina'?`<div style="margin-top:8px"><span class="badge badge-warn">Diteruskan oleh TATIB</span> <button class="btn btn-ok btn-sm" onclick="verifikasiAduan('${p.id}','terverifikasi')">✓ Proses</button></div>`:''}
     </div>`;
   });
 
@@ -1185,9 +1291,7 @@ function setPoinPel(v){
 }
 function prevPelFoto(inp){
   const f=inp.files[0];if(!f)return;
-  const r=new FileReader();
-  r.onload=e=>{const img=document.getElementById('pl-foto-prev');img.src=e.target.result;img.style.display='block';};
-  r.readAsDataURL(f);
+  kompressFoto(f,data=>{const img=document.getElementById('pl-foto-prev');img.src=data;img.style.display='block';});
 }
 function verifikasiAduan(id,status){
   const p=D.pelanggaran.find(x=>x.id===id);if(!p)return;
@@ -1202,9 +1306,7 @@ function simpanPel(){
 }
 function prevLapFoto(inp){
   const f=inp.files[0];if(!f)return;
-  const r=new FileReader();
-  r.onload=e=>{const img=document.getElementById('lap-foto-prev');img.src=e.target.result;img.style.display='block';};
-  r.readAsDataURL(f);
+  kompressFoto(f,data=>{const img=document.getElementById('lap-foto-prev');img.src=data;img.style.display='block';});
 }
 function kirimLaporanPel(){
   const nama=document.getElementById('lap-nama').value;
@@ -1519,7 +1621,7 @@ function renderLaporan(){
   let html=`<div class="tabs">
     <button class="tab on" onclick="tabLaporan('keuangan',this)">Keuangan</button>
     <button class="tab" onclick="tabLaporan('evaluasi',this)">Evaluasi</button>
-    ${C.laporan(R)?`<button class="tab" onclick="tabLaporan('ringkasan',this)">Laporan</button>`:''}
+    ${C.isPengurus(R)||C.isAnggota(R)?`<button class="tab" onclick="tabLaporan('ringkasan',this)">Laporan</button>`:''}
   </div><div id="tab-laporan"></div>`;
   el.innerHTML=html;
   renderTabLaporan('keuangan');
@@ -1557,12 +1659,28 @@ function renderKeuangan(){
     </div>`;
   }
 
+  if(C.keuangan_edit(R)||C.proker_acc(R)){
+    html+=`<button class="btn btn-blue btn-sm" style="margin-bottom:10px" onclick="downloadKeuanganCSV()">📥 Download Excel (CSV)</button>`;
+  }
   html+=`<div class="sec">📋 Riwayat Transaksi</div>`;
   D.kas.slice().reverse().forEach(k=>{
     html+=`<div class="kas-item"><div><div style="font-weight:600;font-size:14px">${esc(k.ket)}</div><div style="font-size:11px;color:var(--fg2)">${tgl(k.tgl)}</div></div><div style="font-weight:700;color:${k.jenis==='masuk'?'var(--ok)':'var(--danger)'}">${k.jenis==='masuk'?'+':'-'}${fmtRp(k.nominal)}</div></div>`;
   });
   if(!D.kas.length) html+='<div style="color:var(--fg3);font-size:13px">Belum ada transaksi.</div>';
   return html;
+}
+function downloadKeuanganCSV(){
+  let csv='Tanggal,Keterangan,Jenis,Jumlah\n';
+  D.kas.forEach(k=>{csv+=`"${tgl(k.tgl)}","${k.ket}","${k.jenis==='masuk'?'Pemasukan':'Pengeluaran'}","${k.nominal}"\n`;});
+  const masuk=D.kas.filter(k=>k.jenis==='masuk').reduce((s,k)=>s+k.nominal,0);
+  const keluar=D.kas.filter(k=>k.jenis==='keluar').reduce((s,k)=>s+k.nominal,0);
+  csv+=`\n"","Total Pemasukan","","${masuk}"\n"","Total Pengeluaran","","${keluar}"\n"","Saldo Kas","","${masuk-keluar}"\n`;
+  const blob=new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;a.download=`keuangan_paskibra_${new Date().toISOString().split('T')[0]}.csv`;a.click();
+  URL.revokeObjectURL(url);
+  toast('📥 Excel keuangan diunduh');
 }
 function catatKas(){
   const ket=document.getElementById('ks-ket').value.trim();
@@ -1616,7 +1734,8 @@ function getBulanTahun(){
   return d.toLocaleDateString('id-ID',{month:'long',year:'numeric'});
 }
 function renderLaporanKinerja(){
-  if(!C.laporan(R)) return'<div class="alert alert-warn">Hanya Pembina yang dapat melihat laporan kinerja.</div>';
+  // Semua bisa lihat laporan, hanya pembina yang bisa download Word
+  const bisaDownload=C.laporan(R)||['pelatih','ketua'].includes(R);
   const totalAktif=D.anggota.filter(a=>a.status==='aktif').length;
   const masuk=D.kas.filter(k=>k.jenis==='masuk').reduce((s,k)=>s+k.nominal,0);
   const keluar=D.kas.filter(k=>k.jenis==='keluar').reduce((s,k)=>s+k.nominal,0);
@@ -1742,9 +1861,104 @@ B. Saran
 *Data: ${tgl()} - ${new Date().toLocaleTimeString('id-ID')}*`;
 
   return`<div class="sec">\ud83d\udcc4 Laporan Kegiatan \u2014 ${bulan}</div>
-  <div class="card" style="overflow-x:auto"><pre style="font-size:11px;white-space:pre-wrap;line-height:1.75;font-family:'Courier New',monospace">${esc(lapTeks)}</pre></div>
-  <button class="btn btn-primary btn-full" style="margin-top:4px" onclick="salinLaporan()">\ud83d\udccb Salin Laporan</button>
-  <button class="wa-btn" style="margin-top:8px" onclick="shareWA(getLapTeks())">\ud83d\udce4 Bagikan via WA</button>`;
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+    ${bisaDownload?`<button class="btn btn-primary btn-sm" onclick="downloadLaporanWord()">\ud83d\udce5 Download Word (.doc)</button>`:''}
+    <button class="btn btn-blue btn-sm" onclick="salinLaporan()">\ud83d\udccb Salin Teks</button>
+    <button class="wa-btn" style="margin:0" onclick="shareWA(getLapTeks())">\ud83d\udce4 Bagikan WA</button>
+  </div>
+  <div class="card" style="overflow-x:auto"><pre style="font-size:11px;white-space:pre-wrap;line-height:1.75;font-family:'Courier New',monospace">${esc(lapTeks)}</pre></div>`;
+}
+function downloadLaporanWord(){
+  const masuk=D.kas.filter(k=>k.jenis==='masuk').reduce((s,k)=>s+k.nominal,0);
+  const keluar=D.kas.filter(k=>k.jenis==='keluar').reduce((s,k)=>s+k.nominal,0);
+  const totalAktif=D.anggota.filter(a=>a.status==='aktif').length;
+  const bulan=getBulanTahun();
+  const bulanNum=new Date().toLocaleDateString('id-ID',{month:'long'});
+  const tahun=new Date().getFullYear();
+  const melebihi=getAnggotaMelebihi();
+  const noAnggota=D.anggota.filter(a=>a.status==='aktif').map((a,i)=>`<tr><td style="border:1px solid #000;padding:4px 8px;text-align:center">${i+1}</td><td style="border:1px solid #000;padding:4px 8px">${a.nama}</td><td style="border:1px solid #000;padding:4px 8px">${a.kelas||'-'}</td><td style="border:1px solid #000;padding:4px 8px">${RLBL[a.role]||a.role}</td><td style="border:1px solid #000;padding:4px 8px;text-align:center">${a.status||'aktif'}</td></tr>`).join('');
+  const prokerRows=D.proker.map((p,i)=>`<tr><td style="border:1px solid #000;padding:4px 8px;text-align:center">${i+1}</td><td style="border:1px solid #000;padding:4px 8px">${p.judul}</td><td style="border:1px solid #000;padding:4px 8px">${tgl(p.tgl)}</td><td style="border:1px solid #000;padding:4px 8px;text-align:center">${p.accPembina&&p.accPelatih?'Terlaksana':'Direncanakan'}</td></tr>`).join('');
+  const kasRows=D.kas.map((k,i)=>`<tr><td style="border:1px solid #000;padding:4px 8px;text-align:center">${i+1}</td><td style="border:1px solid #000;padding:4px 8px">${tgl(k.tgl)}</td><td style="border:1px solid #000;padding:4px 8px">${k.ket}</td><td style="border:1px solid #000;padding:4px 8px;text-align:center">${k.jenis==='masuk'?'Masuk':'Keluar'}</td><td style="border:1px solid #000;padding:4px 8px;text-align:right">${fmtRp(k.nominal)}</td></tr>`).join('');
+  const html=`<!DOCTYPE html><html><head><meta charset="utf-8">
+  <style>body{font-family:Arial,sans-serif;font-size:12pt;margin:2cm;line-height:1.5}
+  h1{font-size:14pt;text-align:center;text-transform:uppercase;font-weight:bold}
+  h2{font-size:12pt;font-weight:bold;margin-top:16pt}
+  h3{font-size:12pt;font-weight:bold;margin-top:10pt}
+  p{margin:4pt 0;text-align:justify}
+  table{border-collapse:collapse;width:100%;margin:8pt 0}
+  th{border:1px solid #000;padding:4px 8px;background:#f0f0f0;font-weight:bold}
+  .center{text-align:center}.kop{text-align:center;border-bottom:3px double #000;padding-bottom:8pt;margin-bottom:16pt}
+  .ttd-tbl{width:100%;margin-top:40pt}.ttd-tbl td{width:33%;vertical-align:top;text-align:center}
+  </style></head><body>
+  <div class="kop">
+    <h1>LAPORAN KEGIATAN EKSTRAKULIKULER<br>PASUKAN PENGIBAR BENDERA<br>MAN 1 BELITUNG</h1>
+    <p><strong>Bulan ${bulan}</strong></p>
+    <p>Sekretariat: Jalan Pattimura KM. 3,5 Tanjungpandan Belitung — Kode Pos 33415 — Telp. (0719) 9301239</p>
+  </div>
+  <h2>KATA PENGANTAR</h2>
+  <p>Puji syukur kehadirat Allah SWT atas segala rahmat dan hidayah-Nya. Sholawat dan salam kepada Nabi Muhammad SAW. Laporan Kegiatan ini memuat rincian kegiatan ekstrakulikuler Paskibra MAN 1 Belitung selama Bulan ${bulan} sebagai bukti pelaksanaan kegiatan dan realisasi anggaran madrasah.</p>
+  <h2>I. PENDAHULUAN</h2>
+  <h3>A. Latar Belakang</h3>
+  <p>Paskibra MAN 1 Belitung merupakan ekstrakulikuler unggulan yang bertujuan membentuk karakter, kedisiplinan, dan jiwa kepemimpinan siswa. Kegiatan ini berlandaskan Pancasila dan UUD 1945 sebagai wujud cinta tanah air.</p>
+  <h3>B. Maksud dan Tujuan</h3>
+  <p>1. Membentuk karakter siswa yang disiplin, bertanggung jawab, dan berjiwa patriot.<br>2. Melatih kemampuan baris-berbaris dan upacara bendera.<br>3. Mempersiapkan peserta didik untuk lomba paskibra tingkat kabupaten hingga nasional.</p>
+  <h3>C. Dasar Kegiatan</h3>
+  <p>1. Undang-Undang No. 20 Tahun 2003 tentang Sistem Pendidikan Nasional.<br>2. Peraturan Menteri Pendidikan dan Kebudayaan tentang Ekstrakulikuler.<br>3. Program Kerja Paskibra MAN 1 Belitung Tahun ${tahun}.</p>
+  <h3>D. Visi dan Misi</h3>
+  <p><strong>Visi:</strong> Menjadi Paskibra terdisiplin, berprestasi, dan bermartabat di tingkat kabupaten, provinsi, dan nasional.<br><strong>Misi:</strong> Membina anggota dengan latihan rutin, membangun mental baja, menjunjung nilai-nilai luhur bangsa.</p>
+  <h2>II. ISI LAPORAN</h2>
+  <h3>A. Sekretariat</h3>
+  <p>Madrasah Aliyah Negeri (MAN) 1 Belitung — Jalan Pattimura Km. 3,5 Tanjungpandan Belitung — Kode Pos 33415 — Telepon (0719) 9301239</p>
+  <h3>B. Jadwal Latihan</h3>
+  <table><tr><th>No</th><th>Hari</th><th>Pukul</th><th>Keterangan</th></tr>
+  <tr><td class="center">1</td><td>Sabtu</td><td>06.00 – 10.00 WIB</td><td>Latihan Rutin</td></tr>
+  <tr><td class="center">2</td><td>Kamis</td><td>16.00 – 17.30 WIB</td><td>Jadwal Tambahan</td></tr>
+  <tr><td class="center">3</td><td>Rabu</td><td>Menyesuaikan</td><td>Pertemuan / Kumpul Rutin</td></tr></table>
+  <h3>C. Daftar Pembina dan Pelatih</h3>
+  <table><tr><th>No</th><th>Nama</th><th>Keterangan</th></tr>
+  <tr><td class="center">1</td><td>Eki Ripan J.R, S.Pd., Gr.</td><td>Pembina</td></tr>
+  <tr><td class="center">2</td><td>Pelatih</td><td>Pelatih</td></tr>
+  <tr><td class="center">3</td><td>Seluruh Anggota PPS Purna</td><td>Pelatih</td></tr></table>
+  <h3>D. Metode Penilaian Anggota</h3>
+  <p>Penilaian anggota meliputi: Sikap/Akhlaq/Etika, Kedisiplinan, Keaktifan, Ketahanan Fisik &amp; Mental, Kemampuan PBB, Kemampuan Melatih (PPS), dan Komunikasi Publik.</p>
+  <h3>E. Daftar Nama Anggota Paskibra</h3>
+  <p>Total anggota aktif: <strong>${totalAktif} orang</strong> | PPS Angkatan 26: ${D.anggota.filter(a=>a.role==='pps26').length} | PPS Purna 25: ${D.anggota.filter(a=>a.role==='pps25').length} | Purna Senior: ${D.anggota.filter(a=>a.role==='purnasenior').length} | Balonpas: ${D.anggota.filter(a=>a.role==='balonpas').length}</p>
+  <table><tr><th>No</th><th>Nama</th><th>Kelas</th><th>Peran</th><th>Status</th></tr>${noAnggota||'<tr><td colspan="5" class="center">Belum ada data</td></tr>'}</table>
+  <h3>F. Daftar Inventaris</h3>
+  <table><tr><th>No</th><th>Nama Barang</th><th>Jumlah</th><th>Kondisi</th></tr>
+  <tr><td class="center">1</td><td>Bendera Merah Putih Upacara</td><td class="center">2 lembar</td><td>Baik</td></tr>
+  <tr><td class="center">2</td><td>Tiang Bendera Portable</td><td class="center">1 set</td><td>Baik</td></tr>
+  <tr><td class="center">3</td><td>Seragam PDL PASKIBRA</td><td class="center">${totalAktif} stel</td><td>Baik</td></tr>
+  <tr><td class="center">4</td><td>Sepatu PDL</td><td class="center">${totalAktif} pasang</td><td>Baik</td></tr>
+  <tr><td class="center">5</td><td>Perlengkapan PBB</td><td class="center">1 set</td><td>Baik</td></tr></table>
+  <h3>G. Materi dan Uraian Kegiatan</h3>
+  <table><tr><th>No</th><th>Judul Kegiatan</th><th>Tanggal</th><th>Status</th></tr>${prokerRows||'<tr><td colspan="4" class="center">Belum ada data</td></tr>'}</table>
+  <h3>H. Anggaran Yang Dikeluarkan</h3>
+  <table><tr><th>No</th><th>Tanggal</th><th>Keterangan</th><th>Jenis</th><th>Jumlah</th></tr>${kasRows||'<tr><td colspan="5" class="center">Belum ada transaksi</td></tr>'}
+  <tr><td colspan="4" style="border:1px solid #000;padding:4px 8px;font-weight:bold">Total Pemasukan</td><td style="border:1px solid #000;padding:4px 8px;text-align:right;font-weight:bold">${fmtRp(masuk)}</td></tr>
+  <tr><td colspan="4" style="border:1px solid #000;padding:4px 8px;font-weight:bold">Total Pengeluaran</td><td style="border:1px solid #000;padding:4px 8px;text-align:right;font-weight:bold">${fmtRp(keluar)}</td></tr>
+  <tr><td colspan="4" style="border:1px solid #000;padding:4px 8px;font-weight:bold">Saldo Kas</td><td style="border:1px solid #000;padding:4px 8px;text-align:right;font-weight:bold">${fmtRp(masuk-keluar)}</td></tr></table>
+  <h2>III. PENUTUP</h2>
+  <h3>A. Kesimpulan</h3>
+  <p>Kegiatan ekstrakulikuler Paskibra MAN 1 Belitung pada Bulan ${bulan} telah berjalan sesuai program yang direncanakan. Jumlah anggota aktif sebanyak ${totalAktif} orang dengan tingkat kehadiran terpantau melalui sistem PRAMANSABEL.${melebihi.length?` Terdapat ${melebihi.length} anggota yang melewati batas alfa dan perlu mendapat perhatian lebih.`:''}</p>
+  <h3>B. Saran</h3>
+  <p>Diharapkan seluruh anggota dapat meningkatkan kedisiplinan dan semangat berlatih demi kemajuan Paskibra MAN 1 Belitung dan prestasi di tingkat kabupaten hingga nasional.</p>
+  <br><p>Tanjungpandan, ${tgl()}</p>
+  <table class="ttd-tbl"><tr>
+    <td><p>Pembina Ekstrakulikuler Paskibra<br>MAN 1 Belitung</p><br><br><br><br><p><strong><u>Eki Ripan J.R, S.Pd., Gr.</u></strong></p></td>
+    <td><p>Kepala Madrasah<br>MAN 1 Belitung</p><br><br><br><br><p><strong><u>Drs. H. Banyamin</u></strong><br>NIP. 196802282003121002</p></td>
+    <td><p>Ketua PPS<br>PASKIBRA ${tahun}</p><br><br><br><br><p><strong><u>Fitriana</u></strong></p></td>
+  </tr></table>
+  <br><p style="text-align:center;font-size:9pt;color:#888">*Laporan digenerate otomatis oleh PRAMANSABEL — ${tgl()} ${new Date().toLocaleTimeString('id-ID')}*</p>
+  </body></html>`;
+  const blob=new Blob(['﻿'+html],{type:'application/msword;charset=utf-8'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;
+  a.download=`laporan_paskibra_${bulanNum.toLowerCase().replace(/\s/g,'_')}_${tahun}.doc`;
+  a.click();
+  URL.revokeObjectURL(url);
+  toast('📥 Laporan Word sedang diunduh...');
 }
 function getLapTeks(){
   const masuk=D.kas.filter(k=>k.jenis==='masuk').reduce((s,k)=>s+k.nominal,0);
@@ -1785,7 +1999,7 @@ function renderInfoPengaturan(){
     <div style="font-size:14px;line-height:1.8">
       <strong>PRAMANSABEL</strong><br>
       Aplikasi Manajemen PASKIBRA MAN 1 Belitung<br>
-      Versi 3.0 — 2026<br><br>
+      Versi 3.1 — 2026<br><br>
       <strong>Fitur:</strong><br>
       • Manajemen anggota & absensi<br>
       • Program kerja & proposal<br>
