@@ -425,7 +425,7 @@ const C={
   keuangan_edit:r=>r==='bendahara',
   keuangan_view:r=>['bendahara','ketua','pembina','pelatih'].includes(r),
   komando_kirim:r=>r==='pembina'||(r==='pelatih'&&D.config.pelatih_komando),
-  pengumuman_kirim:r=>['pembina','ketua'].includes(r),
+  pengumuman_kirim:r=>['pembina','pelatih','ketua','sekretaris'].includes(r),
   pemetaan_edit:r=>['pelatih','pembina','aspelatih1','aspelatih2'].includes(r)||r==='balonpas',
   laporan:r=>r==='pembina',
   anggota_edit:r=>['pembina','ketua'].includes(r),
