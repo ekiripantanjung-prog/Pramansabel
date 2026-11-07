@@ -533,7 +533,7 @@ function renderBeranda(){
   if(komList.length){
     html+=`<div class="sec">⚡ KOMANDO CEPAT</div>`;
     komList.slice(0,3).forEach(k=>{
-      html+=`<div class="komando-box"><h3>⚡ Komando dari ${esc(k.dari)}</h3><p>${esc(k.pesan)}</p><div class="kmeta">${tgl(k.tgl)} ${unreadKom?'<span class="badge badge-warn">Baru</span>':''}</div></div>`;
+      html+=`<div class="komando-box"><h3>⚡ Komando dari ${esc(k.dari)}</h3><p>${esc(k.pesan)}</p><div class="kmeta" style="display:flex;justify-content:space-between;align-items:center">${tgl(k.tgl)} ${unreadKom?'<span class="badge badge-warn">Baru</span>':''}${C.komando_kirim(R)?`<button onclick="hapusKomando('${k.id}')" style="background:rgba(255,255,255,0.2);border:none;color:#fff;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer">🗑 Hapus</button>`:''}</div></div>`;
       if(!k.dibaca){k.dibaca=true;}
     });
     save();
@@ -600,10 +600,12 @@ function kirimKomando(){
   const v=document.getElementById('inp-kom')?.value.trim();
   if(!v)return toast('Tulis pesan komando dulu');
   D.komando.push({id:uid(),pesan:v,tgl:Date.now(),dari:RLBL[R],dibaca:false});
+
   save();toast('Komando dikirim!');
   document.getElementById('inp-kom').value='';
   renderBeranda();
 }
+function hapusKomando(id){D.komando=D.komando.filter(k=>k.id!==id);save();toast('Komando dihapus');renderBeranda();}
 function kirimPengumuman(){
   const v=document.getElementById('inp-png')?.value.trim();
   if(!v)return toast('Tulis isi pengumuman dulu');
