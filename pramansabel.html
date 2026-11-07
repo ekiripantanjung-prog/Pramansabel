@@ -1,0 +1,1826 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>PRAMANSABEL</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Exo+2:wght@400;600;700;900&family=Inter:wght@400;500;600&display=swap">
+<style>
+:root{
+  --bg:#f5f4f0;--bg2:#fff;--fg:#1a1a1a;--fg2:#555;--fg3:#888;
+  --accent:#bf2a20;--accent2:#0b2d6e;--gold:#b8870a;
+  --ok:#157a44;--warn:#c97505;--danger:#bf2a20;
+  --border:#ddd;--card:#fff;--nav:#fff;
+  --shadow:0 2px 8px rgba(0,0,0,.08);
+  --r:12px;--rr:8px;
+}
+@media(prefers-color-scheme:dark){:root:not([data-theme=light]){
+  --bg:#111;--bg2:#1a1a1a;--fg:#f0ede8;--fg2:#aaa;--fg3:#666;
+  --border:#333;--card:#1e1e1e;--nav:#1a1a1a;
+  --shadow:0 2px 8px rgba(0,0,0,.4);
+  color-scheme:dark;
+}}
+:root[data-theme=dark]{
+  --bg:#111;--bg2:#1a1a1a;--fg:#f0ede8;--fg2:#aaa;--fg3:#666;
+  --border:#333;--card:#1e1e1e;--nav:#1a1a1a;
+  --shadow:0 2px 8px rgba(0,0,0,.4);
+  color-scheme:dark;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--fg);min-height:100vh;padding-bottom:80px}
+h1,h2,h3,.exo{font-family:'Exo 2',sans-serif}
+img{max-width:100%}
+button{cursor:pointer;border:none;font-family:inherit}
+input,select,textarea{font-family:inherit}
+
+/* NAV */
+#nav{position:fixed;bottom:0;left:0;right:0;background:var(--nav);border-top:1px solid var(--border);display:flex;z-index:100;padding-bottom:env(safe-area-inset-bottom,0)}
+.nb{flex:1;display:flex;flex-direction:column;align-items:center;padding:8px 4px 6px;background:none;color:var(--fg3);font-size:10px;gap:2px;transition:.15s}
+.nb.on{color:var(--accent)}
+.nb svg{width:22px;height:22px}
+
+/* HEADER */
+#hdr{background:var(--accent2);color:#fff;padding:14px 16px 12px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:50}
+#hdr img{width:44px;height:44px;border-radius:6px;object-fit:cover}
+#hdr-text h1{font-size:18px;font-weight:900;letter-spacing:.5px}
+#hdr-text p{font-size:11px;opacity:.8}
+#hdr-right{margin-left:auto;display:flex;align-items:center;gap:8px}
+.role-badge{background:rgba(255,255,255,.18);padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600}
+
+/* SCREENS */
+.screen{display:none;padding:12px 16px}
+.screen.on{display:block}
+
+/* CARDS */
+.card{background:var(--card);border-radius:var(--r);padding:14px;box-shadow:var(--shadow);margin-bottom:12px}
+.card-title{font-size:13px;font-weight:700;color:var(--fg2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px}
+
+/* KOMANDO */
+.komando-box{background:var(--accent);color:#fff;border-radius:var(--r);padding:14px;margin-bottom:10px;animation:pulse-border 2s infinite}
+@keyframes pulse-border{0%,100%{box-shadow:0 0 0 0 rgba(191,42,32,.4)}50%{box-shadow:0 0 0 8px rgba(191,42,32,0)}}
+.komando-box h3{font-size:13px;text-transform:uppercase;letter-spacing:1px;opacity:.85;margin-bottom:6px}
+.komando-box p{font-size:15px;font-weight:600;line-height:1.5}
+.komando-box .kmeta{font-size:11px;opacity:.7;margin-top:6px}
+.pengumuman-box{background:var(--accent2);color:#fff;border-radius:var(--r);padding:14px;margin-bottom:10px}
+.pengumuman-box h3{font-size:12px;text-transform:uppercase;letter-spacing:1px;opacity:.8;margin-bottom:5px}
+
+/* FORMS */
+.field{margin-bottom:12px}
+.field label{display:block;font-size:12px;font-weight:600;color:var(--fg2);margin-bottom:5px}
+.field input,.field select,.field textarea{width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:var(--rr);background:var(--bg);color:var(--fg);font-size:14px}
+.field textarea{min-height:80px;resize:vertical}
+.field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:var(--accent)}
+
+/* BUTTONS */
+.btn{padding:11px 20px;border-radius:var(--rr);font-size:14px;font-weight:600;display:inline-flex;align-items:center;gap:6px;transition:.15s}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-blue{background:var(--accent2);color:#fff}
+.btn-ok{background:var(--ok);color:#fff}
+.btn-warn{background:var(--warn);color:#fff}
+.btn-ghost{background:transparent;color:var(--fg);border:1.5px solid var(--border)}
+.btn-sm{padding:7px 14px;font-size:12px}
+.btn-full{width:100%;justify-content:center}
+
+/* BADGES */
+.badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:700}
+.badge-ok{background:#d4edda;color:var(--ok)}
+.badge-warn{background:#fff3cd;color:var(--warn)}
+.badge-danger{background:#fde;color:var(--danger)}
+.badge-info{background:#d1ecf1;color:#0a6c82}
+.badge-grey{background:var(--border);color:var(--fg2)}
+@media(prefers-color-scheme:dark){:root:not([data-theme=light]){
+.badge-ok{background:#0d3321;color:#4ade80}
+.badge-warn{background:#3a2500;color:#fbbf24}
+.badge-danger{background:#3a0a0a;color:#f87171}
+.badge-info{background:#0a2030;color:#67e8f9}
+}}
+
+/* TABS */
+.tabs{display:flex;border-bottom:2px solid var(--border);margin-bottom:14px;gap:0;overflow-x:auto}
+.tab{padding:9px 14px;font-size:13px;font-weight:600;color:var(--fg3);background:none;border-bottom:2px solid transparent;margin-bottom:-2px;white-space:nowrap}
+.tab.on{color:var(--accent);border-bottom-color:var(--accent)}
+
+/* LISTS */
+.item{background:var(--card);border-radius:var(--rr);padding:12px;margin-bottom:8px;box-shadow:var(--shadow)}
+.item-head{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+.item-title{font-weight:600;font-size:14px}
+.item-sub{font-size:12px;color:var(--fg2);margin-top:3px}
+
+/* STATS ROW */
+.stats-row{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
+.stat-box{background:var(--card);border-radius:var(--rr);padding:12px;text-align:center;box-shadow:var(--shadow)}
+.stat-box .n{font-size:24px;font-weight:900;font-family:'Exo 2',sans-serif}
+.stat-box .l{font-size:11px;color:var(--fg2);margin-top:2px}
+
+/* SECTION TITLE */
+.sec{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--fg3);margin:16px 0 8px}
+
+/* ALERT */
+.alert{padding:10px 14px;border-radius:var(--rr);font-size:13px;margin-bottom:10px}
+.alert-warn{background:#fff3cd;color:#7a4800;border-left:3px solid var(--warn)}
+.alert-danger{background:#fde;color:#7a0000;border-left:3px solid var(--danger)}
+.alert-ok{background:#d4edda;color:#0d3321;border-left:3px solid var(--ok)}
+@media(prefers-color-scheme:dark){:root:not([data-theme=light]){
+.alert-warn{background:#3a2500;color:#fbbf24}
+.alert-danger{background:#3a0a0a;color:#f87171}
+.alert-ok{background:#0d3321;color:#4ade80}
+}}
+
+/* TOAST */
+#toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:10px 20px;border-radius:30px;font-size:13px;z-index:999;opacity:0;transition:.3s;pointer-events:none;white-space:nowrap}
+#toast.show{opacity:1}
+
+/* MODAL */
+#overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;display:none;align-items:flex-end;justify-content:center}
+#overlay.show{display:flex}
+.modal{background:var(--bg2);border-radius:20px 20px 0 0;padding:20px 16px;width:100%;max-width:500px;max-height:85vh;overflow-y:auto}
+.modal-title{font-size:17px;font-weight:700;margin-bottom:16px;font-family:'Exo 2',sans-serif}
+.modal-close{float:right;background:none;color:var(--fg2);font-size:20px;line-height:1}
+
+/* TTD CANVAS */
+#ttd-canvas{border:2px dashed var(--border);border-radius:var(--rr);touch-action:none;width:100%;height:160px;cursor:crosshair}
+
+/* PEMETAAN GAUGE */
+.gauge-row{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.gauge-label{width:80px;font-size:12px;color:var(--fg2)}
+.gauge-bar{flex:1;height:8px;background:var(--border);border-radius:4px;overflow:hidden}
+.gauge-fill{height:100%;background:var(--accent);border-radius:4px;transition:.4s}
+.gauge-val{width:28px;text-align:right;font-size:12px;font-weight:700}
+
+/* REKAP ALERT */
+.rekap-item{background:var(--card);border-radius:var(--rr);padding:12px;margin-bottom:8px;border-left:4px solid var(--danger)}
+
+/* PHOTO PREVIEW */
+.photo-prev{width:100%;max-height:200px;object-fit:cover;border-radius:var(--rr);margin-top:8px}
+
+/* RING */
+.ring{display:inline-block;width:36px;height:36px;border-radius:50%;border:3px solid var(--border);border-top-color:var(--accent);animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* LOGIN */
+#login-screen{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;background:var(--accent2)}
+#login-screen h1{color:#fff;font-size:28px;font-weight:900;text-align:center;margin-top:12px}
+#login-screen p{color:rgba(255,255,255,.75);font-size:13px;text-align:center;margin-top:4px;margin-bottom:28px}
+.login-card{background:#fff;border-radius:16px;padding:20px;width:100%;max-width:360px}
+.role-btn{width:100%;padding:11px 14px;border-radius:var(--rr);background:var(--bg);color:var(--fg);font-size:14px;font-weight:600;text-align:left;border:1.5px solid var(--border);margin-bottom:8px;display:flex;align-items:center;gap:10px;transition:.15s}
+.role-btn:hover{border-color:var(--accent);color:var(--accent)}
+.role-btn .ri{font-size:20px}
+
+/* KEUANGAN */
+.kas-item{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border)}
+.kas-item:last-child{border:none}
+
+/* SHARE BTN WA */
+.wa-btn{background:#25D366;color:#fff;border-radius:var(--rr);padding:10px 16px;font-size:14px;font-weight:600;display:flex;align-items:center;gap:8px;width:100%;justify-content:center}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="login-screen">
+  <img src="/mnt/user-data/attachments/eb789ca2-4628-54ed-b40c-e4b8a65aae38/cab12fb6-image.jpg" width="90" height="90" style="border-radius:12px;object-fit:cover" onerror="this.style.display='none'">
+  <h1>PRAMANSABEL</h1>
+  <p>Manajemen PASKIBRA MAN 1 Belitung</p>
+  <div class="login-card">
+    <p style="font-size:13px;color:#555;margin-bottom:12px;font-weight:600">Pilih peran Anda:</p>
+    <div id="role-list"></div>
+  </div>
+</div>
+
+<!-- HEADER -->
+<div id="hdr" style="display:none">
+  <img src="/mnt/user-data/attachments/eb789ca2-4628-54ed-b40c-e4b8a65aae38/cab12fb6-image.jpg" onerror="this.style.display='none'" style="width:40px;height:40px;border-radius:6px">
+  <div id="hdr-text">
+    <h1 class="exo" style="font-size:17px">PRAMANSABEL</h1>
+    <p id="hdr-sub" style="font-size:11px;opacity:.8">MAN 1 Belitung</p>
+  </div>
+  <div id="hdr-right">
+    <span id="role-badge" class="role-badge"></span>
+    <button onclick="doLogout()" style="background:rgba(255,255,255,.18);border:none;color:#fff;padding:4px 10px;border-radius:20px;font-size:11px;cursor:pointer">Keluar</button>
+  </div>
+</div>
+
+<!-- SCREENS -->
+<div id="s-beranda" class="screen"></div>
+<div id="s-anggota" class="screen"></div>
+<div id="s-kegiatan" class="screen"></div>
+<div id="s-laporan" class="screen"></div>
+<div id="s-pengaturan" class="screen"></div>
+
+<!-- BOTTOM NAV -->
+<nav id="nav" style="display:none"></nav>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<!-- MODAL OVERLAY -->
+<div id="overlay" onclick="closeModal(event)">
+  <div class="modal" id="modal-body" onclick="e=>e.stopPropagation()"></div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════
+// DATA STORE
+// ═══════════════════════════════════════════
+const SK = 'pramansabel_v3';
+const PIN_ROLES=['pembina','pelatih','aspelatih1','aspelatih2','ketua','sekretaris','bendahara','tatib'];
+let _pinBuf='';let _pinTarget='';let _pinCb=null;let _pinMode='check';let _pinNewBuf='';
+
+function hashPin(p){let h=0;for(let i=0;i<p.length;i++){h=((h<<5)-h)+p.charCodeAt(i);h|=0;}return h.toString(36);}
+function getPins(){try{return JSON.parse(localStorage.getItem('pramansabel_pins')||'{}');}catch{return{};}}
+function savePins(o){try{localStorage.setItem('pramansabel_pins',JSON.stringify(o));}catch{}}
+function hasPin(role){return !!getPins()[role];}
+
+function openPinModal(role, mode, cb){
+  _pinBuf='';_pinNewBuf='';_pinTarget=role;_pinCb=cb;_pinMode=mode;
+  document.getElementById('pin-role-label').textContent=RLBL[role]||role;
+  document.getElementById('pin-desc').textContent=mode==='set'?'Buat PIN baru (4 digit) untuk role ini':mode==='change'?'Masukkan PIN lama terlebih dahulu':'Masukkan PIN untuk mengakses role ini';
+  document.getElementById('pin-err').textContent='';
+  updatePinDots();
+  document.getElementById('pin-overlay').style.display='flex';
+}
+function cancelPin(){document.getElementById('pin-overlay').style.display='none';_pinBuf='';_pinCb=null;}
+function updatePinDots(){
+  document.querySelectorAll('#pin-dots .pd').forEach((d,i)=>d.classList.toggle('filled',i<_pinBuf.length));
+}
+function pinKey(k){
+  if(k==='←'){_pinBuf=_pinBuf.slice(0,-1);updatePinDots();document.getElementById('pin-err').textContent='';return;}
+  if(k==='✓'){
+    if(_pinBuf.length<4){document.getElementById('pin-err').textContent='PIN harus 4 digit';return;}
+    submitPin();return;
+  }
+  if(_pinBuf.length>=4)return;
+  _pinBuf+=String(k);
+  updatePinDots();
+}
+function submitPin(){
+  const pins=getPins();
+  if(_pinMode==='set'){
+    if(!_pinNewBuf){_pinNewBuf=_pinBuf;_pinBuf='';updatePinDots();document.getElementById('pin-desc').textContent='Ulangi PIN baru untuk konfirmasi';document.getElementById('pin-err').textContent='';return;}
+    if(_pinBuf!==_pinNewBuf){document.getElementById('pin-err').textContent='PIN tidak cocok, coba lagi';_pinBuf='';_pinNewBuf='';updatePinDots();return;}
+    pins[_pinTarget]=hashPin(_pinBuf);savePins(pins);
+    document.getElementById('pin-overlay').style.display='none';_pinBuf='';_pinNewBuf='';
+    toast('PIN berhasil disimpan untuk '+RLBL[_pinTarget]);
+    if(_pinCb)_pinCb(true);return;
+  }
+  if(_pinMode==='change'){
+    if(!_pinNewBuf&&!pins[_pinTarget]){// no existing pin, treat as set
+      _pinNewBuf=_pinBuf;_pinBuf='';updatePinDots();document.getElementById('pin-desc').textContent='Ulangi PIN baru';return;
+    }
+    if(!_pinNewBuf){// verify old pin first
+      if(pins[_pinTarget]&&hashPin(_pinBuf)!==pins[_pinTarget]){document.getElementById('pin-err').textContent='PIN lama salah';_pinBuf='';updatePinDots();return;}
+      _pinNewBuf='OLD_VERIFIED';_pinBuf='';updatePinDots();document.getElementById('pin-desc').textContent='Masukkan PIN baru (4 digit)';return;
+    }
+    if(_pinNewBuf==='OLD_VERIFIED'){_pinNewBuf=_pinBuf;_pinBuf='';updatePinDots();document.getElementById('pin-desc').textContent='Ulangi PIN baru';return;}
+    if(_pinBuf!==_pinNewBuf){document.getElementById('pin-err').textContent='PIN tidak cocok';_pinBuf='';updatePinDots();return;}
+    pins[_pinTarget]=hashPin(_pinBuf);savePins(pins);
+    document.getElementById('pin-overlay').style.display='none';_pinBuf='';_pinNewBuf='';
+    toast('PIN berhasil diubah');if(_pinCb)_pinCb(true);return;
+  }
+  // mode check
+  if(!pins[_pinTarget]){document.getElementById('pin-overlay').style.display='none';_pinBuf='';if(_pinCb)_pinCb(true);return;}
+  if(hashPin(_pinBuf)!==pins[_pinTarget]){document.getElementById('pin-err').textContent='PIN salah, coba lagi';_pinBuf='';updatePinDots();return;}
+  document.getElementById('pin-overlay').style.display='none';_pinBuf='';if(_pinCb)_pinCb(true);
+}
+
+const RLBL = {
+  pembina:'🎖 Pembina',pelatih:'🏃 Pelatih',
+  aspelatih1:'👟 Asisten Pelatih 1',aspelatih2:'👟 Asisten Pelatih 2',
+  ketua:'⭐ Ketua PPS',sekretaris:'📋 Sekretaris',
+  bendahara:'💰 Bendahara',tatib:'⚖️ TATIB',
+  pps26:'🫡 PPS Angkatan 26',pps25:'🏅 PPS Purna 25',
+  purnasenior:'🎖 Purna Senior',balonpas:'🌱 Balonpas'
+};
+
+const ROLES_ALL = Object.keys(RLBL);
+const SESI = ['Rabu Kumpul','Kamis Sore','Sabtu Latihan'];
+const ASPEK = ['pb','fisik','mental','disiplin','kepemimpinan','komunikasi'];
+const ASPEK_LBL = ['PBB','Fisik','Mental','Disiplin','Kepemimpinan','Komunikasi'];
+
+function defD(){return{
+  anggota:[],
+  absensi:[],
+  pelanggaran:[],
+  proker:[],
+  evaluasi:[],
+  lomba:[],
+  adat:[
+    {id:'a1',kode:'A-01',jenis:'Hadir tidak tepat waktu',poin:2,tindakan:'Sanksi Sedang (PushUp 25x)'},
+    {id:'a2',kode:'A-02',jenis:'Atribut/seragam latihan tidak lengkap',poin:1,tindakan:'Sanksi Ringan (PushUp 10x)'},
+    {id:'a3',kode:'A-03',jenis:'Tidak mengucapkan salam/bersalaman saat datang & pulang',poin:1,tindakan:'Teguran lisan'},
+    {id:'a4',kode:'A-04',jenis:'Tidak menghargai pembina, pelatih, senior, atau sesama',poin:5,tindakan:'Sanksi Berat (PushUp 50x dan Guling Botol)'},
+    {id:'a5',kode:'A-05',jenis:'Menggunakan HP saat latihan tanpa izin',poin:2,tindakan:'Sanksi Sedang (PushUp 25x)'},
+    {id:'a6',kode:'A-06',jenis:'Tidak menjaga kebersihan tempat latihan',poin:1,tindakan:'Sanksi Ringan (PushUp 10x)'},
+    {id:'a7',kode:'A-07',jenis:'Berbicara saat pelatih memberikan instruksi',poin:2,tindakan:'Sanksi Sedang (PushUp 25x) atau mengulang instruksi di depan anggota'},
+    {id:'a8',kode:'A-08',jenis:'Tidak menjaga sikap, tutur kata, dan etika',poin:2,tindakan:'Sanksi Sedang (PushUp 25x)'},
+    {id:'a9',kode:'A-09',jenis:'Mengejek atau membully teman',poin:1,tindakan:'Sanksi Ringan (PushUp 10x) dan meminta maaf langsung'},
+    {id:'a10',kode:'A-10',jenis:'Tidak menjaga kekompakan dan saling membantu',poin:1,tindakan:'Sanksi Ringan (PushUp 10x)'},
+    {id:'a11',kode:'A-11',jenis:'Rambut/penampilan tidak rapi',poin:1,tindakan:'Sanksi Ringan (PushUp 10x) dan teguran'},
+    {id:'a12',kode:'A-12',jenis:'Meninggalkan barisan tanpa izin',poin:2,tindakan:'Sanksi Sedang (PushUp 25x)'},
+    {id:'a13',kode:'A-13',jenis:'Merusak atau tidak menjaga perlengkapan PASKIBRA',poin:5,tindakan:'Sanksi Berat (PushUp 50x dan Guling Botol) dan ganti perlengkapan'},
+    {id:'a14',kode:'A-14',jenis:'Tidak menyelesaikan tugas yang diberikan',poin:2,tindakan:'Sanksi Sedang (PushUp 25x)'},
+    {id:'a15',kode:'A-15',jenis:'Mencemarkan nama baik PASKIBRA MANSABEL',poin:5,tindakan:'Sanksi Berat (PushUp 50x dan Guling Botol), surat pernyataan, pembinaan bersama pembina'},
+    {id:'a16',kode:'A-16',jenis:'Tidak izin saat berhalangan hadir (H-1)',poin:2,tindakan:'Sanksi Sedang (PushUp 25x)'},
+    {id:'a17',kode:'A-17',jenis:'Berpacaran saat kegiatan PASKIB',poin:5,tindakan:'Sanksi Berat (PushUp 50x dan Guling Botol)'},
+    {id:'a18',kode:'A-18',jenis:'Tidak mengikuti apel pembukaan/penutupan',poin:1,tindakan:'Sanksi Ringan (PushUp 10x)'},
+    {id:'a19',kode:'A-19',jenis:'Minum minuman dingin sebelum menjadi PPS',poin:2,tindakan:'Sanksi Sedang (PushUp 25x)'},
+    {id:'a20',kode:'A-20',jenis:'Tidak mengutamakan waktu ibadah',poin:5,tindakan:'Sanksi Berat (PushUp 50x dan Guling Botol)'},
+    {id:'a21',kode:'A-21',jenis:'Tidak disiplin dalam pengaturan waktu kegiatan',poin:2,tindakan:'Sanksi Sedang (PushUp 25x)'},
+    {id:'a22',kode:'A-22',jenis:'Tidak menggunakan helm saat berkendara',poin:2,tindakan:'Sanksi Sedang (PushUp 25x)'},
+    {id:'a23',kode:'A-23',jenis:'Menyebarkan privasi kegiatan PASKIBRA',poin:10,tindakan:'Sanksi Berat (PushUp 50x dan Guling Botol) dan dikeluarkan secara tidak hormat'},
+    {id:'a24',kode:'A-24',jenis:'Bermain kartu/game di luar agenda saat kegiatan berlangsung',poin:2,tindakan:'Sanksi Sedang (PushUp 25x)'},
+  ],
+  info:[
+    {id:'i1',kat:'PBB',judul:'Langkah Parade',isi:'Tempo: 96 langkah/menit. Panjang langkah: 65 cm. Sikap badan tegak, pandangan lurus ke depan. Ayunan tangan: 45° ke depan, 30° ke belakang setinggi pinggul. Telapak tangan menghadap ke dalam.'},
+    {id:'i2',kat:'PBB',judul:'Sikap Sempurna',isi:'Tumit rapat, ujung kaki membentuk sudut 45°. Lutut lurus tidak dikunci. Badan tegak alam, dada sedikit membusung. Tangan rapat di sisi paha, jari-jari rapat dan lurus. Pandangan lurus ke depan 5–6 meter.'},
+    {id:'i3',kat:'PBB',judul:'Balik Kanan',isi:'Dari sikap sempurna: putar badan 180° ke kanan menggunakan tumit kanan dan ujung kaki kiri sebagai tumpuan. Selesaikan gerakan dalam 1 hitungan. Hentakkan kaki kiri ke posisi sempurna.'},
+    {id:'i4',kat:'PBB',judul:'Formasi dan Barisan',isi:'Jarak dalam barisan: satu lengan ke depan (± 60 cm). Jarak samping: satu hasta tangan kanan (± 45 cm). Formasi 3 bershaf: bershaf lebar ke samping. Formasi berbanjar: kedalaman ke belakang.'},
+    {id:'i5',kat:'Olahraga',judul:'Pemanasan PASKIBRA',isi:'10–15 menit. Mulai dengan jogging ringan 2 menit → senam leher, bahu, pinggang → lunges → squad ringan → peregangan dinamis kaki. Pastikan seluruh otot aktif sebelum PBB intensitas tinggi.'},
+    {id:'i6',kat:'Olahraga',judul:'Kardio & Stamina',isi:'Lari 2,4 km (target <13 menit putra, <15 menit putri). Push-up: 30x putra, 20x putri. Sit-up: 30x. Latihan nafas: 4 hitungan tarik – 4 tahan – 4 buang. Lakukan 3× seminggu untuk stamina upacara.'},
+    {id:'i7',kat:'Olahraga',judul:'Pendinginan',isi:'5–10 menit setelah latihan. Jalan santai → peregangan statis: hamstring, quadrisep, betis, bahu, leher. Tahan tiap posisi 20 detik. Minum air putih cukup. Hindari duduk langsung setelah latihan intensif.'},
+    {id:'i8',kat:'Kode Etik',judul:'Salam PASKIBRA',isi:'Ucapkan "PASKIBRA SETIAWAN" saat bertemu sesama anggota. Kepada Pembina/Pelatih: sikap sempurna terlebih dahulu. Salam dibalas dengan "SETIAWAN". Merupakan ikrar kesetiaan kepada NKRI.'},
+    {id:'i9',kat:'Kode Etik',judul:'Adab kepada Senior & Pembina',isi:'Berbicara dengan sopan, tidak memotong kalimat. Minta izin sebelum bicara dengan menacungkan tangan. Panggil dengan "Kak" untuk senior PPS, "Pak/Bu" untuk Pembina/Pelatih. Tidak boleh duduk lebih tinggi dari Pembina saat rapat.'},
+    {id:'i10',kat:'Kode Etik',judul:'Tata Cara Rapat & Evaluasi',isi:'Datang 10 menit sebelum dimulai. Pakai seragam lengkap. Mencatat seluruh agenda. Tidak menggunakan HP kecuali seizin Ketua/Pembina. Berdoa pembuka dan penutup. Notulen dibacakan sebelum rapat selesai.'},
+    {id:'i11',kat:'Kode Etik',judul:'Kode Etik Berpakaian',isi:'Seragam harus bersih, rapi, dan lengkap atributnya. Setrika sebelum latihan. Rambut disisir rapi (pria: tidak melebihi kerah). Sepatu semir hitam mengkilat. Kaos kaki putih pada seragam upacara. Dilarang memakai aksesoris berlebihan.'},
+  ],
+  kas:[],
+  komando:[],
+  pengumuman:[],
+  pemetaan:[],
+  materi:[],
+  izin:[],
+  ttd:null, // base64 TTD Pembina
+  config:{pelatih_komando:false}
+};}
+
+let D = defD();
+let R = null; // role saat ini
+
+function save(){try{localStorage.setItem(SK,JSON.stringify(D));}catch(e){}}
+function load(){try{const s=localStorage.getItem(SK);if(s){const p=JSON.parse(s);D=Object.assign(defD(),p);}}catch(e){}}
+load();
+
+// ═══════════════════════════════════════════
+// ACCESS CONTROL
+// ═══════════════════════════════════════════
+const C={
+  isPengurus:r=>['pembina','pelatih','aspelatih1','aspelatih2','ketua','sekretaris','bendahara','tatib'].includes(r),
+  isPPS:r=>['pps26','pps25','purnasenior'].includes(r),
+  isAnggota:r=>['pps26','pps25','purnasenior','balonpas'].includes(r),
+  absensi_edit:r=>r==='sekretaris',
+  proker_buat:r=>r==='ketua',
+  proker_acc:r=>['pembina','pelatih'].includes(r),
+  catat_pel:r=>r==='tatib',
+  edit_adat:r=>r==='pembina',
+  keuangan_edit:r=>r==='bendahara',
+  keuangan_view:r=>['bendahara','ketua','pembina','pelatih'].includes(r),
+  komando_kirim:r=>r==='pembina'||(r==='pelatih'&&D.config.pelatih_komando),
+  pengumuman_kirim:r=>['pembina','ketua'].includes(r),
+  pemetaan_edit:r=>['pelatih','pembina','aspelatih1','aspelatih2'].includes(r)||r==='balonpas',
+  laporan:r=>r==='pembina',
+  anggota_edit:r=>['pembina','ketua'].includes(r),
+  edit_info:r=>r==='pembina',
+  ttd:r=>r==='pembina',
+  lantik:r=>r==='pembina',
+};
+
+// ═══════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════
+function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,6)}
+function tgl(d){return new Date(d||Date.now()).toLocaleDateString('id-ID',{day:'2-digit',month:'short',year:'numeric'})}
+function toast(msg,dur=2500){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),dur)}
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+function fmtRp(n){return'Rp '+Number(n).toLocaleString('id-ID')}
+function skor(a){return Math.round((a.pb+a.fisik+a.mental+a.disiplin+a.kepemimpinan+a.komunikasi)/6*10)/10}
+function levelPPI(s){
+  if(s>=4.5)return['🏆 Potensi Nasional','ok'];
+  if(s>=3.8)return['🥇 Potensi Provinsi','b'];
+  if(s>=3.0)return['🥈 Potensi Kabupaten','g'];
+  return['🔍 Perlu Pembinaan','w'];
+}
+function navLabel(r){
+  // Returns nav items based on role
+  const all=[
+    {id:'beranda',icon:'🏠',lbl:'Beranda'},
+    {id:'anggota',icon:'👥',lbl:'Anggota'},
+    {id:'kegiatan',icon:'📋',lbl:'Kegiatan'},
+    {id:'laporan',icon:'📊',lbl:'Laporan'},
+    {id:'pengaturan',icon:'⚙️',lbl:'Lainnya'},
+  ];
+  return all; // show all, content filtered per role
+}
+
+// ═══════════════════════════════════════════
+// MODAL
+// ═══════════════════════════════════════════
+function openModal(html){
+  document.getElementById('modal-body').innerHTML=html;
+  document.getElementById('overlay').classList.add('show');
+}
+function closeModal(e){
+  if(!e||e.target===document.getElementById('overlay'))
+    document.getElementById('overlay').classList.remove('show');
+}
+
+// ═══════════════════════════════════════════
+// LOGIN
+// ═══════════════════════════════════════════
+function buildLogin(){
+  const rl=document.getElementById('role-list');
+  rl.innerHTML=ROLES_ALL.map(r=>`<button class="role-btn" onclick="doLogin('${r}')"><span class="ri">${RLBL[r].split(' ')[0]}</span>${RLBL[r].replace(/^\S+\s/,'')}</button>`).join('');
+}
+function doLogin(r){
+  const pins=getPins();
+  if(pins[r]){
+    openPinModal(r,'check',function(){
+      R=r;
+      document.getElementById('login-screen').style.display='none';
+      document.getElementById('hdr').style.display='flex';
+      document.getElementById('nav').style.display='flex';
+      document.getElementById('role-badge').textContent=RLBL[r];
+      document.getElementById('hdr-sub').textContent='PASKIBRA MAN 1 Belitung';
+      buildNav();
+      goScreen('beranda');
+    });
+  } else {
+    R=r;
+    document.getElementById('login-screen').style.display='none';
+    document.getElementById('hdr').style.display='flex';
+    document.getElementById('nav').style.display='flex';
+    document.getElementById('role-badge').textContent=RLBL[r];
+    document.getElementById('hdr-sub').textContent='PASKIBRA MAN 1 Belitung';
+    buildNav();
+    goScreen('beranda');
+  }
+}
+function doLogout(){R=null;document.getElementById('login-screen').style.display='flex';document.getElementById('hdr').style.display='none';document.getElementById('nav').style.display='none';document.querySelectorAll('.screen').forEach(s=>s.classList.remove('on'));}
+buildLogin();
+
+// ═══════════════════════════════════════════
+// NAV
+// ═══════════════════════════════════════════
+function buildNav(){
+  const items=navLabel(R);
+  document.getElementById('nav').innerHTML=items.map(it=>`<button class="nb" id="nb-${it.id}" onclick="goScreen('${it.id}')">${it.icon}<span>${it.lbl}</span></button>`).join('');
+}
+function goScreen(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('on'));
+  document.querySelectorAll('.nb').forEach(b=>b.classList.remove('on'));
+  document.getElementById('s-'+id)?.classList.add('on');
+  document.getElementById('nb-'+id)?.classList.add('on');
+  const fn={'beranda':renderBeranda,'anggota':renderAnggota,'kegiatan':renderKegiatan,'laporan':renderLaporan,'pengaturan':renderPengaturan};
+  fn[id]?.();
+}
+
+// ═══════════════════════════════════════════
+// BERANDA
+// ═══════════════════════════════════════════
+function renderBeranda(){
+  const el=document.getElementById('s-beranda');
+  const unreadKom=D.komando.filter(k=>!k.dibaca).length;
+  const unreadPng=D.pengumuman.filter(k=>!k.dibaca).length;
+
+  let html='';
+
+  // Komando Cepat (mendesak)
+  const komList=D.komando.slice().reverse();
+  if(komList.length){
+    html+=`<div class="sec">⚡ KOMANDO CEPAT</div>`;
+    komList.slice(0,3).forEach(k=>{
+      html+=`<div class="komando-box"><h3>⚡ Komando dari ${esc(k.dari)}</h3><p>${esc(k.pesan)}</p><div class="kmeta">${tgl(k.tgl)} ${unreadKom?'<span class="badge badge-warn">Baru</span>':''}</div></div>`;
+      if(!k.dibaca){k.dibaca=true;}
+    });
+    save();
+  }
+
+  // Pengumuman
+  const pngList=D.pengumuman.slice().reverse();
+  if(pngList.length){
+    html+=`<div class="sec">📢 PENGUMUMAN</div>`;
+    pngList.slice(0,3).forEach(p=>{
+      html+=`<div class="pengumuman-box"><h3>📢 Dari ${esc(p.dari)}</h3><p style="font-size:14px">${esc(p.pesan)}</p><div style="font-size:11px;opacity:.7;margin-top:6px">${tgl(p.tgl)}</div></div>`;
+      if(!p.dibaca){p.dibaca=true;}
+    });
+    save();
+  }
+
+  // Stats
+  const totalAnggota=D.anggota.length;
+  const totalBalonpas=D.anggota.filter(a=>a.role==='balonpas').length;
+  const totalPPS=D.anggota.filter(a=>['pps26','pps25','purnasenior'].includes(a.role)).length;
+  html+=`<div class="sec">📊 RINGKASAN</div>
+  <div class="stats-row">
+    <div class="stat-box"><div class="n" style="color:var(--accent2)">${totalAnggota}</div><div class="l">Total Anggota</div></div>
+    <div class="stat-box"><div class="n" style="color:var(--ok)">${totalPPS}</div><div class="l">PPS Aktif</div></div>
+    <div class="stat-box"><div class="n" style="color:var(--gold)">${totalBalonpas}</div><div class="l">Balonpas</div></div>
+  </div>`;
+
+  // Rekap perlu ditindak
+  const melebihi=getAnggotaMelebihi();
+  if(melebihi.length){
+    html+=`<div class="alert alert-danger">⚠️ ${melebihi.length} anggota telah melewati batas — perlu ditindak!</div>`;
+  }
+
+  // Form kirim komando (Pembina/Pelatih jika diizinkan)
+  if(C.komando_kirim(R)){
+    html+=`<div class="sec">⚡ KIRIM KOMANDO CEPAT</div>
+    <div class="card">
+      <div class="field"><label>Pesan Komando</label><textarea id="inp-kom" placeholder="Tulis perintah mendesak..."></textarea></div>
+      <button class="btn btn-primary btn-full" onclick="kirimKomando()">⚡ Kirim Komando</button>
+    </div>`;
+  }
+
+  // Form kirim pengumuman
+  if(C.pengumuman_kirim(R)){
+    html+=`<div class="sec">📢 BUAT PENGUMUMAN</div>
+    <div class="card">
+      <div class="field"><label>Isi Pengumuman</label><textarea id="inp-png" placeholder="Tulis pengumuman biasa..."></textarea></div>
+      <button class="btn btn-blue btn-full" onclick="kirimPengumuman()">📢 Kirim Pengumuman</button>
+    </div>`;
+  }
+
+  // Izin pending (untuk pembina/pelatih)
+  if(C.proker_acc(R)){
+    const pendingIzin=D.izin.filter(i=>i.status==='pending');
+    if(pendingIzin.length){
+      html+=`<div class="alert alert-warn">📋 ${pendingIzin.length} pengajuan izin menunggu persetujuan</div>`;
+    }
+  }
+
+  el.innerHTML=html;
+}
+
+function kirimKomando(){
+  const v=document.getElementById('inp-kom')?.value.trim();
+  if(!v)return toast('Tulis pesan komando dulu');
+  D.komando.push({id:uid(),pesan:v,tgl:Date.now(),dari:RLBL[R],dibaca:false});
+  save();toast('Komando dikirim!');
+  document.getElementById('inp-kom').value='';
+  renderBeranda();
+}
+function kirimPengumuman(){
+  const v=document.getElementById('inp-png')?.value.trim();
+  if(!v)return toast('Tulis isi pengumuman dulu');
+  D.pengumuman.push({id:uid(),pesan:v,tgl:Date.now(),dari:RLBL[R],dibaca:false});
+  save();toast('Pengumuman dikirim!');
+  document.getElementById('inp-png').value='';
+  renderBeranda();
+}
+
+// ═══════════════════════════════════════════
+// ANGGOTA
+// ═══════════════════════════════════════════
+function renderAnggota(){
+  const el=document.getElementById('s-anggota');
+  let html=`<div class="tabs">
+    <button class="tab on" onclick="tabAnggota('daftar',this)">Daftar</button>
+    <button class="tab" onclick="tabAnggota('absensi',this)">Absensi</button>
+    <button class="tab" onclick="tabAnggota('izin',this)">Izin</button>
+    <button class="tab" onclick="tabAnggota('rekap',this)">Rekap</button>
+  </div><div id="tab-anggota"></div>`;
+  el.innerHTML=html;
+  tabAnggota('daftar',el.querySelector('.tab'));
+}
+
+function tabAnggota(t,btn){
+  document.querySelectorAll('#s-anggota .tab').forEach(b=>b.classList.remove('on'));
+  btn?.classList.add('on');
+  const el=document.getElementById('tab-anggota');
+  if(t==='daftar') el.innerHTML=renderDaftarAnggota();
+  else if(t==='absensi') el.innerHTML=renderAbsensi();
+  else if(t==='izin') el.innerHTML=renderIzin();
+  else if(t==='rekap') el.innerHTML=renderRekapAnggota();
+}
+
+function renderDaftarAnggota(){
+  let html='';
+  if(C.anggota_edit(R)){
+    html+=`<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+      <button class="btn btn-primary btn-sm" onclick="modalTambahAnggota()">+ Tambah Anggota</button>
+      <button class="btn btn-blue btn-sm" onclick="document.getElementById('csv-import-inp').click()">📥 Import CSV</button>
+      <input type="file" id="csv-import-inp" accept=".csv,.txt" style="display:none" onchange="importCSV(this)">
+      <button class="btn btn-ghost btn-sm" onclick="downloadTemplateCSV()">📄 Unduh Template</button>
+    </div>`;
+  }
+
+  const groups={pps26:'PPS Angkatan 26',pps25:'PPS Purna 25',purnasenior:'Purna Senior',balonpas:'Balonpas'};
+  Object.entries(groups).forEach(([k,label])=>{
+    const list=D.anggota.filter(a=>a.role===k);
+    if(!list.length)return;
+    html+=`<div class="sec">${RLBL[k]} (${list.length})</div>`;
+    list.forEach(a=>{
+      const st=a.status==='aktif'?'badge-ok':a.status==='purna'?'badge-info':'badge-danger';
+      html+=`<div class="item"><div class="item-head"><div><div class="item-title">${esc(a.nama)}</div><div class="item-sub">Kelas: ${esc(a.kelas||'-')} · ${esc(a.jabatan||k)}</div></div><span class="badge ${st}">${a.status||'aktif'}</span></div>
+      ${C.anggota_edit(R)?`<div style="margin-top:8px;display:flex;gap:8px"><button class="btn btn-ghost btn-sm" onclick="modalEditAnggota('${a.id}')">Edit</button>${R==='pembina'&&a.role==='balonpas'?`<button class="btn btn-ok btn-sm" onclick="lantikAnggota('${a.id}')">Lantik PPS</button>`:''}${R==='pembina'?`<button class="btn btn-warn btn-sm" onclick="keluarAnggota('${a.id}')">Non-aktifkan</button>`:''}</div>`:''}
+      </div>`;
+    });
+  });
+  if(!D.anggota.length) html+='<div class="alert alert-warn">Belum ada anggota. Tambahkan melalui tombol di atas.</div>';
+  return html;
+}
+
+function downloadTemplateCSV(){
+  const header='nama,kelas,role,jabatan,hp,status';
+  const contoh=[
+    'Ahmad Fauzi,XI IPA 1,pps26,Anggota,08123456789,aktif',
+    'Siti Rahmah,XI IPS 2,pps26,Wakil Ketua,08234567890,aktif',
+    'Budi Santoso,X IPA 1,balonpas,Calon PPS,08345678901,aktif',
+    '','# KETERANGAN KOLOM ROLE:',
+    '# pps26       = PPS Angkatan 26 (anggota aktif)',
+    '# pps25       = PPS Purna Angkatan 25',
+    '# purnasenior = Purna Senior',
+    '# balonpas    = Balonpas (calon anggota)',
+    '# STATUS: aktif / purna / nonaktif',
+  ];
+  const csv=[header,...contoh].join('\n');
+  const blob=new Blob([csv],{type:'text/csv'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');a.href=url;a.download='template_anggota_pramansabel.csv';a.click();
+  URL.revokeObjectURL(url);
+}
+
+function importCSV(inp){
+  const file=inp.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    const lines=e.target.result.split('\n').map(l=>l.trim()).filter(l=>l&&!l.startsWith('#'));
+    if(!lines.length)return toast('File CSV kosong');
+    const header=lines[0].toLowerCase().split(',').map(h=>h.trim());
+    const iNama=header.indexOf('nama');
+    const iKelas=header.indexOf('kelas');
+    const iRole=header.indexOf('role');
+    const iJabatan=header.indexOf('jabatan');
+    const iHp=header.indexOf('hp');
+    const iStatus=header.indexOf('status');
+    if(iNama<0||iRole<0)return toast('Kolom "nama" dan "role" wajib ada di CSV');
+    const validRoles=['pps26','pps25','purnasenior','balonpas'];
+    let added=0,skip=0;
+    lines.slice(1).forEach(line=>{
+      if(!line.trim()||line.startsWith('#'))return;
+      const cols=line.split(',').map(c=>c.trim().replace(/^"|"$/g,''));
+      const nama=cols[iNama]||'';
+      const role=cols[iRole]||'balonpas';
+      if(!nama){skip++;return;}
+      if(!validRoles.includes(role)){skip++;return;}
+      if(D.anggota.find(a=>a.nama.toLowerCase()===nama.toLowerCase())){skip++;return;}
+      D.anggota.push({
+        id:uid(),nama,
+        kelas:iKelas>=0?cols[iKelas]||'':'' ,
+        role,
+        jabatan:iJabatan>=0?cols[iJabatan]||'':'',
+        hp:iHp>=0?cols[iHp]||'':'',
+        status:iStatus>=0&&cols[iStatus]?cols[iStatus]:'aktif',
+        tglDaftar:Date.now()
+      });
+      added++;
+    });
+    save();
+    inp.value='';
+    toast(`✅ ${added} anggota berhasil diimport${skip?' ('+skip+' dilewati)':''}`);
+    tabAnggota('daftar',null);
+    document.querySelectorAll('#s-anggota .tab')[0].classList.add('on');
+  };
+  reader.readAsText(file);
+}
+
+function modalTambahAnggota(){
+  openModal(`<div class="modal-title">Tambah Anggota <button class="modal-close" onclick="closeModal()">×</button></div>
+  <div class="field"><label>Nama Lengkap</label><input id="ma-nama" type="text" placeholder="Nama anggota"></div>
+  <div class="field"><label>Kelas</label><input id="ma-kelas" type="text" placeholder="Contoh: X IPA 1"></div>
+  <div class="field"><label>Peran/Angkatan</label><select id="ma-role">
+    <option value="pps26">PPS Angkatan 26</option>
+    <option value="pps25">PPS Purna 25</option>
+    <option value="purnasenior">Purna Senior</option>
+    <option value="balonpas">Balonpas (Calon PPS)</option>
+  </select></div>
+  <div class="field"><label>Jabatan (opsional)</label><input id="ma-jabatan" type="text" placeholder="Contoh: Anggota / Wakil Ketua"></div>
+  <div class="field"><label>No. HP / WA</label><input id="ma-hp" type="text" placeholder="08xx..."></div>
+  <button class="btn btn-primary btn-full" onclick="simpanAnggota()">💾 Simpan</button>`);
+}
+
+function simpanAnggota(){
+  const nama=document.getElementById('ma-nama').value.trim();
+  if(!nama)return toast('Nama harus diisi');
+  D.anggota.push({id:uid(),nama,kelas:document.getElementById('ma-kelas').value.trim(),role:document.getElementById('ma-role').value,jabatan:document.getElementById('ma-jabatan').value.trim(),hp:document.getElementById('ma-hp').value.trim(),status:'aktif',tglDaftar:Date.now()});
+  save();closeModal();toast('Anggota ditambahkan');tabAnggota('daftar',null);
+  document.querySelectorAll('#s-anggota .tab')[0].classList.add('on');
+}
+
+function modalEditAnggota(id){
+  const a=D.anggota.find(x=>x.id===id);if(!a)return;
+  openModal(`<div class="modal-title">Edit Anggota <button class="modal-close" onclick="closeModal()">×</button></div>
+  <div class="field"><label>Nama</label><input id="ea-nama" value="${esc(a.nama)}"></div>
+  <div class="field"><label>Kelas</label><input id="ea-kelas" value="${esc(a.kelas||'')}"></div>
+  <div class="field"><label>Peran</label><select id="ea-role">
+    ${['pps26','pps25','purnasenior','balonpas'].map(r=>`<option value="${r}"${a.role===r?' selected':''}>${RLBL[r]}</option>`).join('')}
+  </select></div>
+  <div class="field"><label>Status</label><select id="ea-status">
+    <option value="aktif"${a.status==='aktif'?' selected':''}>Aktif</option>
+    <option value="purna"${a.status==='purna'?' selected':''}>Purna</option>
+    <option value="nonaktif"${a.status==='nonaktif'?' selected':''}>Non-aktif</option>
+    <option value="dipecat"${a.status==='dipecat'?' selected':''}>Dipecat</option>
+  </select></div>
+  <div class="field"><label>No. HP</label><input id="ea-hp" value="${esc(a.hp||'')}"></div>
+  <button class="btn btn-primary btn-full" onclick="updateAnggota('${id}')">💾 Simpan</button>`);
+}
+function updateAnggota(id){
+  const a=D.anggota.find(x=>x.id===id);if(!a)return;
+  a.nama=document.getElementById('ea-nama').value.trim();
+  a.kelas=document.getElementById('ea-kelas').value.trim();
+  a.role=document.getElementById('ea-role').value;
+  a.status=document.getElementById('ea-status').value;
+  a.hp=document.getElementById('ea-hp').value.trim();
+  save();closeModal();toast('Data diperbarui');renderAnggota();
+}
+function lantikAnggota(id){
+  const a=D.anggota.find(x=>x.id===id);if(!a)return;
+  if(!confirm(`Lantik ${a.nama} menjadi PPS Angkatan 2027?`))return;
+  a.role='pps26';a.status='aktif';a.tglLantik=Date.now();
+  save();toast(`${a.nama} dilantik menjadi PPS Angkatan 2027!`);renderAnggota();
+}
+function keluarAnggota(id){
+  const a=D.anggota.find(x=>x.id===id);if(!a)return;
+  if(!confirm(`Non-aktifkan ${a.nama}?`))return;
+  a.status='nonaktif';save();toast('Anggota di-non-aktifkan');renderAnggota();
+}
+
+function renderAbsensi(){
+  if(!C.absensi_edit(R)&&!C.isAnggota(R)&&!C.komando_kirim(R)){
+    return'<div class="alert alert-warn">Hanya Sekretaris yang dapat mengisi absensi.</div>';
+  }
+  const sesiTabs=SESI.map((s,i)=>`<button class="tab${i===0?' on':''}" onclick="tabSesi(${i},this)">${s}</button>`).join('');
+  return`<div class="tabs">${sesiTabs}</div><div id="tab-sesi"></div>`;
+}
+
+// Panggil setelah renderAbsensi
+setTimeout(()=>{
+  const el=document.getElementById('tab-sesi');
+  if(el) renderSesi(0);
+},50);
+
+function tabSesi(i,btn){
+  document.querySelectorAll('#tab-anggota .tabs .tab').forEach(b=>b.classList.remove('on'));
+  btn?.classList.add('on');
+  renderSesi(i);
+}
+
+function renderSesi(si){
+  const el=document.getElementById('tab-sesi');if(!el)return;
+  const sesiNama=SESI[si];
+  const today=new Date().toLocaleDateString('id-ID');
+  const isEditor=C.absensi_edit(R);
+
+  // Hanya tampilkan izin untuk sesi Rabu
+  const bisaIzin=si===0;
+
+  let html=`<div class="sec">${sesiNama} — ${today}</div>`;
+  if(isEditor){
+    html+=`<div class="card">`;
+    D.anggota.filter(a=>['pps26','pps25','purnasenior','balonpas'].includes(a.role)&&a.status==='aktif').forEach(a=>{
+      const rec=D.absensi.find(x=>x.anggotaId===a.id&&x.sesi===si&&x.tgl===today)||null;
+      const v=rec?.status||'hadir';
+      html+=`<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
+        <div><div style="font-weight:600;font-size:13px">${esc(a.nama)}</div><div style="font-size:11px;color:var(--fg2)">${esc(a.kelas||'-')}</div></div>
+        <select onchange="setAbsensi('${a.id}',${si},'${today}',this.value)" style="padding:4px 8px;border-radius:6px;border:1.5px solid var(--border);background:var(--bg);color:var(--fg);font-size:12px">
+          <option value="hadir"${v==='hadir'?' selected':''}>Hadir</option>
+          <option value="alfa"${v==='alfa'?' selected':''}>Alfa</option>
+          ${bisaIzin?`<option value="izin"${v==='izin'?' selected':''}>Izin</option>`:''}
+          <option value="sakit"${v==='sakit'?' selected':''}>Sakit</option>
+        </select></div>`;
+    });
+    html+=`</div>`;
+  } else {
+    // Anggota lihat absensi diri sendiri (berdasarkan nama dari pemetaan/anggota)
+    html+='<div class="alert alert-warn">Hanya Sekretaris yang dapat mengedit absensi.</div>';
+  }
+  el.innerHTML=html;
+}
+
+function setAbsensi(aid,si,tgl,status){
+  let rec=D.absensi.find(x=>x.anggotaId===aid&&x.sesi===si&&x.tgl===tgl);
+  if(rec) rec.status=status;
+  else D.absensi.push({id:uid(),anggotaId:aid,sesi:si,tgl,status});
+  // hitung alfa
+  const a=D.anggota.find(x=>x.id===aid);
+  if(a){
+    a.totalAlfa=D.absensi.filter(x=>x.anggotaId===aid&&x.status==='alfa').length;
+    a.totalIzin=D.absensi.filter(x=>x.anggotaId===aid&&x.status==='izin').length;
+  }
+  save();toast('Absensi disimpan');
+}
+
+function getAnggotaMelebihi(){
+  return D.anggota.filter(a=>a.totalAlfa>=3);
+}
+
+function renderRekapAnggota(){
+  const melebihi=getAnggotaMelebihi();
+  let html=`<div class="sec">⚠️ Anggota Melewati Batas (≥3 Alfa)</div>`;
+  if(!melebihi.length) html+='<div class="alert alert-ok">✅ Semua anggota masih dalam batas toleransi.</div>';
+  else melebihi.forEach(a=>{
+    const poin=D.pelanggaran.filter(p=>p.anggotaId===a.id).reduce((s,p)=>s+(p.poin||0),0);
+    html+=`<div class="rekap-item"><div style="font-weight:700">${esc(a.nama)}</div><div style="font-size:12px;color:var(--fg2)">${RLBL[a.role]||a.role} · ${esc(a.kelas||'-')}</div><div style="margin-top:6px;display:flex;gap:8px"><span class="badge badge-danger">Alfa: ${a.totalAlfa||0}×</span><span class="badge badge-warn">Izin: ${a.totalIzin||0}×</span><span class="badge badge-info">Poin Pelanggaran: ${poin}</span></div></div>`;
+  });
+
+  // Statistik absensi keseluruhan
+  html+=`<div class="sec">📊 Statistik Absensi</div>`;
+  D.anggota.filter(a=>a.status==='aktif').forEach(a=>{
+    const bar=Math.min(100,((a.totalAlfa||0)/3)*100);
+    html+=`<div class="item"><div class="item-head"><div><div class="item-title">${esc(a.nama)}</div><div class="item-sub">${RLBL[a.role]||a.role}</div></div></div>
+    <div style="margin-top:8px"><div class="gauge-row"><div class="gauge-label">Alfa</div><div class="gauge-bar"><div class="gauge-fill" style="width:${bar}%;background:var(--danger)"></div></div><div class="gauge-val">${a.totalAlfa||0}</div></div></div></div>`;
+  });
+  return html;
+}
+
+function renderIzin(){
+  let html='';
+  const isAcc=C.proker_acc(R);
+
+  // Form pengajuan izin (untuk anggota PPS/balonpas)
+  if(C.isAnggota(R)||R==='pps26'||R==='pps25'||R==='purnasenior'||R==='balonpas'){
+    html+=`<div class="sec">📝 Ajukan Izin</div>
+    <div class="card">
+      <div class="field"><label>Nama</label><input id="iz-nama" placeholder="Nama lengkap Anda"></div>
+      <div class="field"><label>Tanggal</label><input id="iz-tgl" type="date" value="${new Date().toISOString().split('T')[0]}"></div>
+      <div class="field"><label>Sesi</label><select id="iz-sesi">${SESI.map((s,i)=>`<option value="${i}">${s}</option>`).join('')}</select></div>
+      <div class="field"><label>Alasan</label><textarea id="iz-alasan" placeholder="Jelaskan alasan izin Anda..."></textarea></div>
+      <div class="field"><label>Foto Bukti (opsional)</label><input type="file" id="iz-foto" accept="image/*" onchange="prevIzinFoto(this)"><img id="iz-foto-prev" class="photo-prev" style="display:none"></div>
+      <button class="btn btn-primary btn-full" onclick="ajukanIzin()">📤 Ajukan Izin</button>
+    </div>`;
+  }
+
+  // Daftar izin (untuk pembina/pelatih)
+  if(isAcc){
+    html+=`<div class="sec">📋 Daftar Pengajuan Izin</div>`;
+    const daftar=D.izin.slice().reverse();
+    if(!daftar.length) html+='<div style="color:var(--fg3);font-size:13px;padding:12px 0">Belum ada pengajuan izin.</div>';
+    daftar.forEach(iz=>{
+      const st=iz.status==='acc'?'badge-ok':iz.status==='tolak'?'badge-danger':'badge-warn';
+      html+=`<div class="item"><div class="item-head"><div><div class="item-title">${esc(iz.nama)}</div><div class="item-sub">${SESI[iz.sesi]} · ${tgl(iz.tgl)}</div></div><span class="badge ${st}">${iz.status.toUpperCase()}</span></div>
+      <div style="font-size:13px;margin-top:6px;color:var(--fg2)">${esc(iz.alasan)}</div>
+      ${iz.foto?`<img src="${iz.foto}" class="photo-prev">`:'' }
+      ${iz.status==='pending'?`<div style="margin-top:8px;display:flex;gap:8px"><button class="btn btn-ok btn-sm" onclick="accIzin('${iz.id}','acc')">✓ Setujui</button><button class="btn btn-primary btn-sm" onclick="accIzin('${iz.id}','tolak')">✗ Tolak</button></div>`:''}
+      </div>`;
+    });
+  }
+
+  // Anggota lihat status izin mereka sendiri
+  if(!isAcc&&(C.isAnggota(R)||R==='balonpas')){
+    html+=`<div class="sec">📋 Riwayat Izin Saya</div>`;
+    // Tampilkan semua (tidak ada filter nama karena single-device)
+    D.izin.slice().reverse().slice(0,5).forEach(iz=>{
+      const st=iz.status==='acc'?'badge-ok':iz.status==='tolak'?'badge-danger':'badge-warn';
+      html+=`<div class="item"><div class="item-head"><div class="item-title">${esc(iz.nama)} · ${SESI[iz.sesi]}</div><span class="badge ${st}">${iz.status.toUpperCase()}</span></div><div style="font-size:12px;color:var(--fg2)">${tgl(iz.tgl)}</div></div>`;
+    });
+  }
+  return html;
+}
+
+function prevIzinFoto(inp){
+  const f=inp.files[0];if(!f)return;
+  const r=new FileReader();
+  r.onload=e=>{const img=document.getElementById('iz-foto-prev');img.src=e.target.result;img.style.display='block';};
+  r.readAsDataURL(f);
+}
+function ajukanIzin(){
+  const nama=document.getElementById('iz-nama')?.value.trim();
+  if(!nama)return toast('Nama harus diisi');
+  const foto=document.getElementById('iz-foto-prev')?.src||null;
+  D.izin.push({id:uid(),nama,tgl:document.getElementById('iz-tgl').value,sesi:parseInt(document.getElementById('iz-sesi').value),alasan:document.getElementById('iz-alasan').value.trim(),foto:foto&&foto.startsWith('data:')?foto:null,status:'pending',tglAjuan:Date.now()});
+  save();toast('Izin diajukan, menunggu persetujuan');
+  document.getElementById('iz-nama').value='';document.getElementById('iz-alasan').value='';
+}
+function accIzin(id,status){
+  const iz=D.izin.find(x=>x.id===id);if(!iz)return;
+  iz.status=status;save();toast(status==='acc'?'Izin disetujui':'Izin ditolak');renderAnggota();
+}
+
+// ═══════════════════════════════════════════
+// KEGIATAN
+// ═══════════════════════════════════════════
+function renderKegiatan(){
+  const el=document.getElementById('s-kegiatan');
+  let tabs=`<div class="tabs">
+    <button class="tab on" onclick="tabKegiatan('proker',this)">Proker</button>
+    <button class="tab" onclick="tabKegiatan('tatib',this)">TATIB</button>
+    <button class="tab" onclick="tabKegiatan('lomba',this)">Lomba</button>
+    <button class="tab" onclick="tabKegiatan('pemetaan',this)">Pemetaan</button>
+    <button class="tab" onclick="tabKegiatan('share',this)">Share</button>
+  </div><div id="tab-kegiatan"></div>`;
+  el.innerHTML=tabs;
+  renderTabKegiatan('proker');
+}
+function tabKegiatan(t,btn){
+  document.querySelectorAll('#s-kegiatan .tab').forEach(b=>b.classList.remove('on'));
+  btn?.classList.add('on');
+  renderTabKegiatan(t);
+}
+function renderTabKegiatan(t){
+  const el=document.getElementById('tab-kegiatan');
+  if(t==='proker') el.innerHTML=renderProker();
+  else if(t==='tatib') el.innerHTML=renderTatib();
+  else if(t==='lomba') el.innerHTML=renderLomba();
+  else if(t==='pemetaan') el.innerHTML=renderPemetaan();
+  else if(t==='share') el.innerHTML=renderShare();
+}
+
+// PROKER
+function renderProker(){
+  let html='';
+  if(C.proker_buat(R)){
+    html+=`<button class="btn btn-primary btn-sm" style="margin-bottom:12px" onclick="modalProker()">+ Buat Proker</button>
+    <button class="btn btn-blue btn-sm" style="margin-bottom:12px;margin-left:8px" onclick="modalProposal()">📄 Buat Proposal</button>`;
+  }
+  if(!D.proker.length) html+='<div class="alert alert-warn">Belum ada program kerja.</div>';
+  D.proker.slice().reverse().forEach(p=>{
+    const accP=p.accPembina?'✅':'⏳';
+    const accL=p.accPelatih?'✅':'⏳';
+    const stClass=p.accPembina&&p.accPelatih?'badge-ok':p.accPembina||p.accPelatih?'badge-warn':'badge-grey';
+    const stLabel=p.accPembina&&p.accPelatih?'Disetujui':(p.accPembina||p.accPelatih)?'Sebagian':'Menunggu';
+    html+=`<div class="item"><div class="item-head"><div><div class="item-title">${esc(p.judul)}</div><div class="item-sub">${tgl(p.tgl)} · ${esc(p.jenis)}</div></div><span class="badge ${stClass}">${stLabel}</span></div>
+    <div style="font-size:12px;margin-top:6px;color:var(--fg2)">Pembina ${accP} · Pelatih ${accL}</div>
+    <div style="font-size:13px;margin-top:6px">${esc(p.isi||'')}</div>
+    <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
+      ${C.proker_acc(R)&&!p['acc'+((R==='pembina'?'Pembina':'Pelatih'))]?`<button class="btn btn-ok btn-sm" onclick="accProker('${p.id}','${R}')">✓ Setujui</button>`:''}
+      ${p.accPembina&&p.accPelatih?`<button class="wa-btn" style="font-size:12px;padding:7px 12px;width:auto" onclick="shareWA('Proker: ${esc(p.judul)}\\n${esc(p.isi||'')}')">Share ke WA</button>`:''}
+      ${C.ttd(R)&&p.accPembina&&p.accPelatih?`<button class="btn btn-blue btn-sm" onclick="ttdProker('${p.id}')">✍ TTD</button>`:''}
+    </div></div>`;
+  });
+  return html;
+}
+
+function modalProker(){
+  openModal(`<div class="modal-title">Buat Program Kerja <button class="modal-close" onclick="closeModal()">×</button></div>
+  <div class="field"><label>Judul Proker</label><input id="pk-judul" placeholder="Judul program kerja"></div>
+  <div class="field"><label>Jenis</label><select id="pk-jenis"><option>Latihan Rutin</option><option>Kegiatan Khusus</option><option>Lomba/Seleksi</option><option>Upacara</option><option>Lainnya</option></select></div>
+  <div class="field"><label>Tanggal Rencana</label><input id="pk-tgl" type="date" value="${new Date().toISOString().split('T')[0]}"></div>
+  <div class="field"><label>Isi / Deskripsi</label><textarea id="pk-isi" placeholder="Deskripsi kegiatan, tujuan, sasaran..."></textarea></div>
+  <button class="btn btn-primary btn-full" onclick="simpanProker()">📋 Simpan Proker</button>`);
+}
+function simpanProker(){
+  const j=document.getElementById('pk-judul').value.trim();
+  if(!j)return toast('Judul harus diisi');
+  D.proker.push({id:uid(),judul:j,jenis:document.getElementById('pk-jenis').value,tgl:document.getElementById('pk-tgl').value,isi:document.getElementById('pk-isi').value.trim(),accPembina:false,accPelatih:false,dibuatOleh:RLBL[R]});
+  save();closeModal();toast('Proker berhasil dibuat, menunggu persetujuan');renderTabKegiatan('proker');
+}
+function accProker(id,role){
+  const p=D.proker.find(x=>x.id===id);if(!p)return;
+  if(role==='pembina') p.accPembina=true;
+  else p.accPelatih=true;
+  save();toast('Proker disetujui');renderTabKegiatan('proker');
+}
+
+function modalProposal(){
+  openModal(`<div class="modal-title">Buat Proposal Kegiatan <button class="modal-close" onclick="closeModal()">×</button></div>
+  <div class="field"><label>Nama Kegiatan</label><input id="prop-nama" placeholder="Nama kegiatan"></div>
+  <div class="field"><label>Latar Belakang</label><textarea id="prop-lb" placeholder="Latar belakang kegiatan..."></textarea></div>
+  <div class="field"><label>Tujuan</label><textarea id="prop-tj" placeholder="Tujuan kegiatan..."></textarea></div>
+  <div class="field"><label>Waktu & Tempat</label><input id="prop-wt" placeholder="Misal: Sabtu 15 Nov 2026, Lapangan MAN 1 Belitung"></div>
+  <div class="field"><label>Anggaran Perkiraan (Rp)</label><input id="prop-ang" type="number" placeholder="0"></div>
+  <button class="btn btn-primary btn-full" onclick="simpanProposal()">📄 Simpan Proposal</button>`);
+}
+function simpanProposal(){
+  const nama=document.getElementById('prop-nama').value.trim();
+  if(!nama)return toast('Nama kegiatan harus diisi');
+  const teks=`PROPOSAL KEGIATAN\n================\nNama: ${nama}\nLatar Belakang:\n${document.getElementById('prop-lb').value}\n\nTujuan:\n${document.getElementById('prop-tj').value}\n\nWaktu & Tempat: ${document.getElementById('prop-wt').value}\nAnggaran: ${fmtRp(document.getElementById('prop-ang').value||0)}\n\nDibuat oleh: ${RLBL[R]} - ${tgl()}`;
+  D.proker.push({id:uid(),judul:'[PROPOSAL] '+nama,jenis:'Proposal',tgl:Date.now(),isi:teks,accPembina:false,accPelatih:false,dibuatOleh:RLBL[R],_proposal:true});
+  save();closeModal();toast('Proposal disimpan');renderTabKegiatan('proker');
+}
+
+// TTD pada proker
+function ttdProker(pid){
+  if(!D.ttd){
+    openModal(`<div class="modal-title">Tanda Tangan Digital <button class="modal-close" onclick="closeModal()">×</button></div>
+    <p style="font-size:13px;color:var(--fg2);margin-bottom:12px">Anda belum memiliki tanda tangan tersimpan. Buat sekarang:</p>
+    <canvas id="ttd-canvas" width="400" height="160"></canvas>
+    <div style="margin-top:10px;display:flex;gap:8px">
+      <button class="btn btn-ghost btn-sm" onclick="clearTTD()">🗑 Hapus</button>
+      <button class="btn btn-primary btn-sm btn-full" onclick="saveTTD('${pid}')">💾 Simpan & Tanda Tangani</button>
+    </div>`);
+    initTTDCanvas();
+  } else {
+    // TTD sudah ada, langsung tempel
+    embedTTD(pid);
+  }
+}
+let ttdCtx,ttdDrawing=false,ttdPts=[];
+function initTTDCanvas(){
+  const c=document.getElementById('ttd-canvas');if(!c)return;
+  ttdCtx=c.getContext('2d');
+  ttdCtx.strokeStyle=getComputedStyle(document.documentElement).getPropertyValue('--fg')||'#000';
+  ttdCtx.lineWidth=2;ttdCtx.lineCap='round';
+  c.addEventListener('mousedown',e=>{ttdDrawing=true;ttdCtx.beginPath();ttdCtx.moveTo(e.offsetX,e.offsetY);});
+  c.addEventListener('mousemove',e=>{if(!ttdDrawing)return;ttdCtx.lineTo(e.offsetX,e.offsetY);ttdCtx.stroke();});
+  c.addEventListener('mouseup',()=>ttdDrawing=false);
+  c.addEventListener('touchstart',e=>{e.preventDefault();ttdDrawing=true;const r=c.getBoundingClientRect();const t=e.touches[0];ttdCtx.beginPath();ttdCtx.moveTo(t.clientX-r.left,t.clientY-r.top);},{passive:false});
+  c.addEventListener('touchmove',e=>{e.preventDefault();if(!ttdDrawing)return;const r=c.getBoundingClientRect();const t=e.touches[0];ttdCtx.lineTo(t.clientX-r.left,t.clientY-r.top);ttdCtx.stroke();},{passive:false});
+  c.addEventListener('touchend',()=>ttdDrawing=false);
+}
+function clearTTD(){const c=document.getElementById('ttd-canvas');if(c){ttdCtx.clearRect(0,0,c.width,c.height);}}
+function saveTTD(pid){
+  const c=document.getElementById('ttd-canvas');if(!c)return;
+  D.ttd=c.toDataURL();save();closeModal();toast('TTD disimpan');
+  if(pid) embedTTD(pid);
+}
+function embedTTD(pid){
+  const p=D.proker.find(x=>x.id===pid);if(!p)return;
+  p.ttd=D.ttd;p.ttdOleh=RLBL[R];p.ttdTgl=Date.now();
+  save();toast('Dokumen berhasil ditandatangani');renderTabKegiatan('proker');
+}
+
+// TATIB
+function renderTatib(){
+  let html='';
+  if(C.edit_adat(R)){
+    html+=`<button class="btn btn-primary btn-sm" style="margin-bottom:12px" onclick="modalAdat()">+ Tambah Jenis Pelanggaran</button>`;
+  }
+  if(C.catat_pel(R)){
+    html+=`<button class="btn btn-warn btn-sm" style="margin-bottom:12px;margin-left:8px" onclick="modalCatatPel()">⚠️ Catat Pelanggaran</button>`;
+  }
+
+  // Laporan dari anggota (semua bisa lapor)
+  if(!C.catat_pel(R)){
+    html+=`<div class="sec">📢 LAPORKAN PELANGGARAN</div>
+    <div class="card">
+      <div style="font-size:12px;color:var(--fg2);margin-bottom:10px">Anda melihat pelanggaran? Laporkan ke TATIB & Pembina. Laporan Anda bersifat aduan dan akan diverifikasi.</div>
+      <div class="field"><label>Nama Pelanggar</label>
+        <select id="lap-nama">
+          <option value="">-- Pilih --</option>
+          ${D.anggota.filter(a=>a.status==='aktif').map(a=>`<option value="${esc(a.nama)}">${esc(a.nama)} (${RLBL[a.role]||a.role})</option>`).join('')}
+        </select>
+      </div>
+      <div class="field"><label>Jenis Pelanggaran</label>
+        <select id="lap-jenis">
+          ${D.adat.map(a=>`<option>${a.kode} - ${esc(a.jenis)}</option>`).join('')}
+          <option>Lainnya (tulis di keterangan)</option>
+        </select>
+      </div>
+      <div class="field"><label>Keterangan Kejadian</label><textarea id="lap-ket" placeholder="Ceritakan kejadian yang Anda lihat..."></textarea></div>
+      <div class="field"><label>Foto Bukti</label><input type="file" accept="image/*" id="lap-foto" onchange="prevLapFoto(this)"><img id="lap-foto-prev" class="photo-prev" style="display:none"></div>
+      <button class="btn btn-warn btn-full" onclick="kirimLaporanPel()">📢 Kirim Laporan</button>
+    </div>`;
+  }
+
+  html+=`<div class="sec">📋 Daftar Pelanggaran</div>`;
+  if(!D.pelanggaran.length) html+='<div style="color:var(--fg3);font-size:13px">Belum ada catatan pelanggaran.</div>';
+  D.pelanggaran.slice().reverse().forEach(p=>{
+    const isAduan=p.status==='aduan';
+    html+=`<div class="item${isAduan?' style="border-left:3px solid var(--warn)"':''}"><div class="item-head"><div><div class="item-title">${esc(p.nama)} ${isAduan?'<span class="badge badge-warn">Aduan</span>':''}</div><div class="item-sub">${esc(p.jenis)} · ${tgl(p.tgl)}</div></div><span class="badge badge-danger">${p.poin} poin</span></div>
+    ${p.catatan?`<div style="font-size:12px;color:var(--fg2);margin-top:4px">${esc(p.catatan)}</div>`:''}
+    ${p.foto?`<img src="${p.foto}" class="photo-prev">`:'' }
+    ${isAduan&&C.catat_pel(R)?`<div style="margin-top:8px;display:flex;gap:8px"><button class="btn btn-ok btn-sm" onclick="verifikasiAduan('${p.id}','terverifikasi')">✓ Verifikasi</button><button class="btn btn-ghost btn-sm" onclick="verifikasiAduan('${p.id}','diabaikan')">✗ Abaikan</button></div>`:''}
+    </div>`;
+  });
+
+  html+=`<div class="sec">📜 Daftar Adat & Jenis Pelanggaran</div>`;
+  D.adat.forEach(a=>{
+    html+=`<div class="item"><div class="item-head"><div><div class="item-title">${esc(a.jenis)}</div><div class="item-sub">Kode: ${esc(a.kode)} · Tindakan: ${esc(a.tindakan)}</div></div><span class="badge badge-danger">${a.poin} poin</span></div></div>`;
+  });
+  return html;
+}
+
+function modalCatatPel(){
+  openModal(`<div class="modal-title">Catat Pelanggaran <button class="modal-close" onclick="closeModal()">×</button></div>
+  <div class="field"><label>Nama Anggota</label>
+    <select id="pl-nama">
+      <option value="">-- Pilih --</option>
+      ${D.anggota.filter(a=>a.status==='aktif').map(a=>`<option value="${esc(a.nama)}">${esc(a.nama)} (${RLBL[a.role]||a.role})</option>`).join('')}
+    </select>
+  </div>
+  <div class="field"><label>Jenis Pelanggaran</label>
+    <select id="pl-jenis" onchange="setPoinPel(this.value)">
+      ${D.adat.map(a=>`<option value="${esc(a.jenis)}" data-poin="${a.poin}">${a.kode} - ${esc(a.jenis)}</option>`).join('')}
+      <option value="Lainnya" data-poin="1">Lainnya</option>
+    </select>
+  </div>
+  <div class="field"><label>Poin</label><input id="pl-poin" type="number" value="1" min="1" max="20"></div>
+  <div class="field"><label>Catatan</label><textarea id="pl-cat" placeholder="Keterangan tambahan..."></textarea></div>
+  <div class="field"><label>Foto Bukti</label><input type="file" accept="image/*" id="pl-foto" onchange="prevPelFoto(this)"><img id="pl-foto-prev" class="photo-prev" style="display:none"></div>
+  <button class="btn btn-warn btn-full" onclick="simpanPel()">⚠️ Catat</button>`);
+}
+function setPoinPel(v){
+  const opt=document.querySelector(`#pl-jenis option[value="${v}"]`);
+  if(opt) document.getElementById('pl-poin').value=opt.dataset.poin||1;
+}
+function prevPelFoto(inp){
+  const f=inp.files[0];if(!f)return;
+  const r=new FileReader();
+  r.onload=e=>{const img=document.getElementById('pl-foto-prev');img.src=e.target.result;img.style.display='block';};
+  r.readAsDataURL(f);
+}
+function verifikasiAduan(id,status){
+  const p=D.pelanggaran.find(x=>x.id===id);if(!p)return;
+  p.status=status;save();toast(status==='terverifikasi'?'Aduan diverifikasi':'Aduan diabaikan');renderTabKegiatan('tatib');
+}
+function simpanPel(){
+  const nama=document.getElementById('pl-nama').value;
+  if(!nama)return toast('Pilih nama anggota');
+  const foto=document.getElementById('pl-foto-prev')?.src||null;
+  D.pelanggaran.push({id:uid(),nama,anggotaId:D.anggota.find(a=>a.nama===nama)?.id,jenis:document.getElementById('pl-jenis').value,poin:parseInt(document.getElementById('pl-poin').value)||1,tgl:Date.now(),catatan:document.getElementById('pl-cat').value.trim(),foto:foto&&foto.startsWith('data:')?foto:null,status:'tercatat'});
+  save();closeModal();toast('Pelanggaran dicatat');renderTabKegiatan('tatib');
+}
+function prevLapFoto(inp){
+  const f=inp.files[0];if(!f)return;
+  const r=new FileReader();
+  r.onload=e=>{const img=document.getElementById('lap-foto-prev');img.src=e.target.result;img.style.display='block';};
+  r.readAsDataURL(f);
+}
+function kirimLaporanPel(){
+  const nama=document.getElementById('lap-nama').value;
+  if(!nama)return toast('Pilih nama anggota yang dilaporkan');
+  const ket=document.getElementById('lap-ket').value.trim();
+  if(!ket)return toast('Tulis keterangan kejadian');
+  const foto=document.getElementById('lap-foto-prev')?.src||null;
+  D.pelanggaran.push({id:uid(),nama,anggotaId:D.anggota.find(a=>a.nama===nama)?.id,jenis:document.getElementById('lap-jenis').value,poin:1,tgl:Date.now(),catatan:'[ADUAN ANGGOTA] '+ket,foto:foto&&foto.startsWith('data:')?foto:null,status:'aduan',dilaporkanOleh:RLBL[R]});
+  save();toast('Laporan terkirim ke TATIB & Pembina');
+  document.getElementById('lap-nama').value='';
+  document.getElementById('lap-ket').value='';
+  renderTabKegiatan('tatib');
+}
+function modalAdat(){
+  openModal(`<div class="modal-title">Tambah Jenis Pelanggaran <button class="modal-close" onclick="closeModal()">×</button></div>
+  <div class="field"><label>Kode</label><input id="ad-kode" placeholder="Misal: C-01"></div>
+  <div class="field"><label>Jenis Pelanggaran</label><input id="ad-jenis" placeholder="Nama pelanggaran"></div>
+  <div class="field"><label>Poin</label><input id="ad-poin" type="number" value="3" min="1"></div>
+  <div class="field"><label>Tindakan</label><input id="ad-tindakan" placeholder="Tindakan yang diambil"></div>
+  <button class="btn btn-primary btn-full" onclick="simpanAdat()">💾 Simpan</button>`);
+}
+function simpanAdat(){
+  const j=document.getElementById('ad-jenis').value.trim();
+  if(!j)return toast('Jenis harus diisi');
+  D.adat.push({id:uid(),kode:document.getElementById('ad-kode').value.trim(),jenis:j,poin:parseInt(document.getElementById('ad-poin').value)||3,tindakan:document.getElementById('ad-tindakan').value.trim()});
+  save();closeModal();toast('Jenis pelanggaran ditambahkan');renderTabKegiatan('tatib');
+}
+
+// LOMBA
+function renderLomba(){
+  let html='';
+  if(C.komando_kirim(R)||C.proker_buat(R)){
+    html+=`<button class="btn btn-primary btn-sm" style="margin-bottom:12px" onclick="modalLomba()">+ Tambah Lomba</button>`;
+  }
+  if(!D.lomba.length) html+='<div class="alert alert-warn">Belum ada data lomba.</div>';
+  D.lomba.slice().reverse().forEach(l=>{
+    const stClass=l.status==='selesai'?'badge-info':l.status==='berjalan'?'badge-ok':'badge-warn';
+    html+=`<div class="item"><div class="item-head"><div><div class="item-title">${esc(l.nama)}</div><div class="item-sub">${tgl(l.tgl)} · ${esc(l.tempat||'-')}</div></div><span class="badge ${stClass}">${esc(l.status)}</span></div>
+    <div style="font-size:12px;color:var(--fg2);margin-top:4px">Kategori: ${esc(l.kat||'-')} · Peserta: ${(l.peserta||[]).length} orang</div>
+    ${C.proker_acc(R)||C.proker_buat(R)?`<button class="btn btn-ghost btn-sm" style="margin-top:8px" onclick="modalPesertaLomba('${l.id}')">👥 Kelola Peserta</button>`:''}
+    </div>`;
+  });
+  return html;
+}
+function modalLomba(){
+  openModal(`<div class="modal-title">Tambah Lomba <button class="modal-close" onclick="closeModal()">×</button></div>
+  <div class="field"><label>Nama Lomba</label><input id="lb-nama" placeholder="Nama lomba"></div>
+  <div class="field"><label>Tanggal</label><input id="lb-tgl" type="date" value="${new Date().toISOString().split('T')[0]}"></div>
+  <div class="field"><label>Tempat</label><input id="lb-tempat" placeholder="Tempat pelaksanaan"></div>
+  <div class="field"><label>Kategori</label><input id="lb-kat" placeholder="Misal: Paskibra Kabupaten"></div>
+  <button class="btn btn-primary btn-full" onclick="simpanLomba()">💾 Simpan</button>`);
+}
+function simpanLomba(){
+  const n=document.getElementById('lb-nama').value.trim();
+  if(!n)return toast('Nama lomba harus diisi');
+  D.lomba.push({id:uid(),nama:n,tgl:document.getElementById('lb-tgl').value,tempat:document.getElementById('lb-tempat').value.trim(),kat:document.getElementById('lb-kat').value.trim(),status:'upcoming',peserta:[]});
+  save();closeModal();toast('Lomba ditambahkan');renderTabKegiatan('lomba');
+}
+function modalPesertaLomba(lid){
+  const l=D.lomba.find(x=>x.id===lid);if(!l)return;
+  openModal(`<div class="modal-title">Peserta: ${esc(l.nama)} <button class="modal-close" onclick="closeModal()">×</button></div>
+  <div style="margin-bottom:12px"><strong>Peserta terpilih (${l.peserta.length}):</strong>
+  ${l.peserta.map(p=>`<div style="padding:4px 0;font-size:13px">• ${esc(p)}</div>`).join('')||'<div style="color:var(--fg3);font-size:13px">Belum ada peserta</div>'}
+  </div>
+  <div class="field"><label>Tambah Peserta</label>
+    <select id="lp-sel">
+      <option value="">-- Pilih --</option>
+      ${D.anggota.filter(a=>a.status==='aktif'&&!l.peserta.includes(a.nama)).map(a=>`<option>${esc(a.nama)}</option>`).join('')}
+    </select>
+  </div>
+  <button class="btn btn-primary btn-full" onclick="tambahPeserta('${lid}')">+ Tambah</button>`);
+}
+function tambahPeserta(lid){
+  const l=D.lomba.find(x=>x.id===lid);const v=document.getElementById('lp-sel').value;
+  if(!v||!l)return;l.peserta.push(v);save();closeModal();toast('Peserta ditambahkan');renderTabKegiatan('lomba');
+}
+
+// PEMETAAN
+function renderPemetaan(){
+  let html='';
+  if(C.pemetaan_edit(R)){
+    html+=`<button class="btn btn-primary btn-sm" style="margin-bottom:12px" onclick="modalPemetaan()">+ Input / Update Penilaian</button>`;
+  }
+
+  const daftar=D.pemetaan;
+  if(!daftar.length) html+='<div class="alert alert-warn">Belum ada data pemetaan kemampuan.</div>';
+
+  daftar.forEach(p=>{
+    const s=skor(p);
+    const [lvl,lvlC]=levelPPI(s);
+    const poinW=Math.round(s/5*100);
+    html+=`<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+      <div><div style="font-weight:700;font-size:15px">${esc(p.nama)}</div><div style="font-size:12px;color:var(--fg2)">${esc(p.kelas||'-')}</div></div>
+      <div style="text-align:right"><div style="font-size:22px;font-weight:900;font-family:'Exo 2',sans-serif;color:var(--accent)">${s}</div><div style="font-size:11px;color:var(--fg2)">/ 5.0</div></div>
+    </div>
+    <div class="badge ${lvlC==='ok'?'badge-ok':lvlC==='b'?'badge-info':lvlC==='g'?'badge-warn':'badge-grey'}" style="margin-bottom:10px">${lvl}</div>
+    ${ASPEK.map((k,i)=>`<div class="gauge-row"><div class="gauge-label">${ASPEK_LBL[i]}</div><div class="gauge-bar"><div class="gauge-fill" style="width:${(p[k]||0)/5*100}%"></div></div><div class="gauge-val">${p[k]||0}</div></div>`).join('')}
+    ${p.catatan?`<div style="font-size:12px;color:var(--fg2);margin-top:8px;padding-top:8px;border-top:1px solid var(--border)">Catatan: ${esc(p.catatan)}</div>`:''}
+    ${C.pemetaan_edit(R)?`<button class="btn btn-ghost btn-sm" style="margin-top:10px" onclick="modalEditPemetaan('${p.id}')">✏️ Edit Nilai</button>`:''}
+    </div>`;
+  });
+  return html;
+}
+function modalPemetaan(){
+  openModal(`<div class="modal-title">Input Penilaian <button class="modal-close" onclick="closeModal()">×</button></div>
+  <div class="field"><label>Pilih Anggota</label>
+    <select id="pm-ang">
+      <option value="">-- Pilih --</option>
+      ${D.anggota.filter(a=>a.status==='aktif').map(a=>`<option value="${esc(a.id)}">${esc(a.nama)} (${RLBL[a.role]||a.role})</option>`).join('')}
+    </select>
+  </div>
+  ${ASPEK.map((k,i)=>`<div class="field"><label>${ASPEK_LBL[i]} (1-5)</label><input id="pm-${k}" type="range" min="1" max="5" step="1" value="3" oninput="document.getElementById('pmv-${k}').textContent=this.value"><span id="pmv-${k}">3</span></div>`).join('')}
+  <div class="field"><label>Catatan</label><textarea id="pm-cat" placeholder="Catatan kemampuan anggota..."></textarea></div>
+  <button class="btn btn-primary btn-full" onclick="simpanPemetaan()">💾 Simpan Penilaian</button>`);
+}
+function simpanPemetaan(){
+  const aid=document.getElementById('pm-ang').value;
+  if(!aid)return toast('Pilih anggota dulu');
+  const a=D.anggota.find(x=>x.id===aid);if(!a)return;
+  let obj={id:uid(),anggotaId:aid,nama:a.nama,kelas:a.kelas||'-'};
+  ASPEK.forEach(k=>obj[k]=parseInt(document.getElementById('pm-'+k).value)||3);
+  obj.catatan=document.getElementById('pm-cat').value.trim();
+  obj.tgl=Date.now();
+  // Update atau tambah baru
+  const idx=D.pemetaan.findIndex(x=>x.anggotaId===aid);
+  if(idx>=0) D.pemetaan[idx]={...D.pemetaan[idx],...obj,id:D.pemetaan[idx].id};
+  else D.pemetaan.push(obj);
+  save();closeModal();toast('Penilaian disimpan');renderTabKegiatan('pemetaan');
+}
+function modalEditPemetaan(id){
+  const p=D.pemetaan.find(x=>x.id===id);if(!p)return;
+  openModal(`<div class="modal-title">Edit Penilaian: ${esc(p.nama)} <button class="modal-close" onclick="closeModal()">×</button></div>
+  ${ASPEK.map((k,i)=>`<div class="field"><label>${ASPEK_LBL[i]} (1-5)</label><input id="epm-${k}" type="range" min="1" max="5" step="1" value="${p[k]||3}" oninput="document.getElementById('epmv-${k}').textContent=this.value"><span id="epmv-${k}">${p[k]||3}</span></div>`).join('')}
+  <div class="field"><label>Catatan</label><textarea id="epm-cat">${esc(p.catatan||'')}</textarea></div>
+  <button class="btn btn-primary btn-full" onclick="updatePemetaan('${id}')">💾 Simpan</button>`);
+}
+function updatePemetaan(id){
+  const p=D.pemetaan.find(x=>x.id===id);if(!p)return;
+  ASPEK.forEach(k=>p[k]=parseInt(document.getElementById('epm-'+k).value)||3);
+  p.catatan=document.getElementById('epm-cat').value.trim();
+  p.tgl=Date.now();save();closeModal();toast('Penilaian diperbarui');renderTabKegiatan('pemetaan');
+}
+
+// SHARE CENTER
+function renderShare(){
+  let html=`<div class="sec">📚 Materi & Informasi PASKIBRA</div>`;
+
+  // Info berdasarkan kategori
+  const kats=[...new Set(D.info.map(i=>i.kat))];
+  kats.forEach(kat=>{
+    html+=`<div style="font-size:12px;font-weight:700;color:var(--accent);margin:12px 0 6px;text-transform:uppercase">${kat}</div>`;
+    D.info.filter(i=>i.kat===kat).forEach(info=>{
+      html+=`<div class="item"><div class="item-title">${esc(info.judul)}</div><div style="font-size:13px;color:var(--fg2);margin-top:6px;line-height:1.6">${esc(info.isi)}</div>
+      <button class="btn btn-ghost btn-sm" style="margin-top:8px" onclick="copyWA('${esc(info.judul)}: ${esc(info.isi)}')">📋 Salin ke WA</button>
+      </div>`;
+    });
+  });
+
+  if(C.edit_info(R)){
+    html+=`<div class="sec">➕ Tambah Materi</div>
+    <div class="card">
+      <div class="field"><label>Kategori</label><input id="inf-kat" placeholder="Misal: PBB, Olahraga, Kode Etik"></div>
+      <div class="field"><label>Judul</label><input id="inf-judul" placeholder="Judul materi"></div>
+      <div class="field"><label>Isi</label><textarea id="inf-isi" placeholder="Isi materi..."></textarea></div>
+      <button class="btn btn-primary btn-full" onclick="tambahInfo()">💾 Simpan Materi</button>
+    </div>`;
+  }
+
+  // Materi kustom
+  if(D.materi.length){
+    html+=`<div class="sec">📁 Materi Tambahan</div>`;
+    D.materi.forEach(m=>{
+      html+=`<div class="item"><div class="item-title">${esc(m.judul)}</div><div style="font-size:12px;color:var(--fg2)">${esc(m.tipe||'-')}</div>
+      <div style="font-size:13px;margin-top:6px">${esc(m.isi||'')}</div>
+      <button class="btn btn-ghost btn-sm" style="margin-top:8px" onclick="copyWA('${esc(m.judul)}\\n${esc(m.isi||'')}')">📋 Salin ke WA</button>
+      </div>`;
+    });
+  }
+  return html;
+}
+function copyWA(teks){
+  try{
+    navigator.clipboard.writeText(teks).then(()=>toast('Disalin ke clipboard! Paste ke WA grup')).catch(()=>{selectTeks(teks);});
+  }catch(e){toast('Salin manual dari text di bawah');}
+}
+function selectTeks(teks){
+  const ta=document.createElement('textarea');ta.value=teks;document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);toast('Disalin!');
+}
+function shareWA(teks){
+  if(navigator.share){navigator.share({text:teks}).catch(()=>copyWA(teks));}
+  else copyWA(teks);
+}
+function tambahInfo(){
+  const judul=document.getElementById('inf-judul').value.trim();
+  if(!judul)return toast('Judul harus diisi');
+  D.info.push({id:uid(),kat:document.getElementById('inf-kat').value.trim()||'Umum',judul,isi:document.getElementById('inf-isi').value.trim()});
+  save();toast('Materi ditambahkan');renderTabKegiatan('share');
+}
+
+// ═══════════════════════════════════════════
+// LAPORAN
+// ═══════════════════════════════════════════
+function renderRekapPembina(){
+  const now=Date.now();
+  const bln=new Date().getMonth();const thn=new Date().getFullYear();
+  // Hitung data
+  const anggotaAktif=D.anggota.filter(a=>a.status==='aktif');
+  const pps=anggotaAktif.filter(a=>['pps26','pps25','purnasenior'].includes(a.role));
+  const balonpas=anggotaAktif.filter(a=>a.role==='balonpas');
+  // Absensi bulan ini
+  const absBln=D.absensi.filter(a=>{const d=new Date(a.tgl);return d.getMonth()===bln&&d.getFullYear()===thn;});
+  const totalSesi=absBln.length;
+  const rataHadir=totalSesi?Math.round(absBln.reduce((s,a)=>{const h=Object.values(a.data||{}).filter(v=>v==='H').length;const t=Object.values(a.data||{}).length;return s+(t?h/t:0);},0)/totalSesi*100):0;
+  // Pelanggaran bulan ini
+  const pelBln=D.pelanggaran.filter(p=>{const d=new Date(p.tgl);return d.getMonth()===bln&&d.getFullYear()===thn;});
+  const pelResmi=pelBln.filter(p=>p.status!=='aduan');
+  const aduanPending=D.pelanggaran.filter(p=>p.status==='aduan');
+  // Keuangan
+  const masuk=D.keuangan.filter(k=>k.jenis==='masuk').reduce((s,k)=>s+k.jumlah,0);
+  const keluar=D.keuangan.filter(k=>k.jenis==='keluar').reduce((s,k)=>s+k.jumlah,0);
+  const saldo=masuk-keluar;
+  // Proker
+  const prokerAktif=D.proker.filter(p=>p.status==='disetujui').length;
+  const prokerPending=D.proker.filter(p=>p.status==='pending').length;
+  // Pemetaan
+  const pemetaanList=D.pemetaan||[];
+  const topAnggota=pemetaanList.filter(p=>p.scores&&Object.keys(p.scores).length)
+    .map(p=>{const ss=Object.values(p.scores);const avg=ss.reduce((a,s)=>a+(s.pb+s.fisik+s.mental+s.disiplin+s.kepemimpinan+s.komunikasi)/6,0)/ss.length;return{nama:p.nama,avg:Math.round(avg*10)/10};})
+    .sort((a,b)=>b.avg-a.avg).slice(0,5);
+  // Anggota perlu perhatian
+  const perluPerhatian=anggotaAktif.map(a=>{
+    const totPoin=D.pelanggaran.filter(p=>p.nama===a.nama&&p.status!=='aduan').reduce((s,p)=>s+p.poin,0);
+    return{...a,poin:totPoin};
+  }).filter(a=>a.poin>=5).sort((a,b)=>b.poin-a.poin);
+
+  return `<div style="padding:4px 0">
+    <div class="sec">📊 RINGKASAN KONDISI TERKINI</div>
+    <div class="stats-row" style="grid-template-columns:repeat(2,1fr)">
+      <div class="stat-box"><div class="n" style="color:var(--accent2)">${anggotaAktif.length}</div><div class="l">Total Aktif</div></div>
+      <div class="stat-box"><div class="n" style="color:var(--ok)">${pps.length}</div><div class="l">PPS</div></div>
+      <div class="stat-box"><div class="n" style="color:var(--gold)">${balonpas.length}</div><div class="l">Balonpas</div></div>
+      <div class="stat-box"><div class="n" style="color:var(--warn)">${aduanPending.length}</div><div class="l">Aduan Pending</div></div>
+    </div>
+
+    <div class="sec">📅 KEHADIRAN BULAN INI</div>
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <span style="font-size:14px;font-weight:600">${totalSesi} Sesi Latihan</span>
+        <span class="badge ${rataHadir>=80?'badge-ok':rataHadir>=60?'badge-warn':'badge-danger'}">${rataHadir}% Rata Hadir</span>
+      </div>
+      <div style="background:var(--border);border-radius:4px;height:8px;overflow:hidden">
+        <div style="background:${rataHadir>=80?'var(--ok)':rataHadir>=60?'var(--warn)':'var(--danger)'};height:100%;width:${rataHadir}%;transition:.5s"></div>
+      </div>
+      ${absBln.length?`<div style="margin-top:12px">${absBln.slice(-3).reverse().map(a=>{
+        const h=Object.values(a.data||{}).filter(v=>v==='H').length;
+        const t=Object.values(a.data||{}).length;
+        return`<div class="item"><div class="item-title">${a.sesi} — ${tgl(a.tgl)}</div><div class="item-sub">${h}/${t} hadir</div></div>`;
+      }).join('')}</div>`:'<div style="font-size:13px;color:var(--fg3);margin-top:8px">Belum ada absensi bulan ini</div>'}
+    </div>
+
+    <div class="sec">⚖️ PELANGGARAN BULAN INI</div>
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;margin-bottom:10px">
+        <span>${pelResmi.length} catatan resmi</span>
+        ${aduanPending.length?`<span class="badge badge-warn">${aduanPending.length} aduan menunggu</span>`:''}
+      </div>
+      ${aduanPending.length?`<div style="background:rgba(201,117,5,.1);border:1px solid var(--warn);border-radius:8px;padding:10px;margin-bottom:10px">
+        <div style="font-size:12px;font-weight:700;color:var(--warn);margin-bottom:8px">⚠️ ADUAN PERLU DIVERIFIKASI</div>
+        ${aduanPending.map(p=>`<div class="item"><div class="item-title">${esc(p.nama)}</div><div class="item-sub">${esc(p.jenis)} · dilaporkan oleh ${esc(p.dilaporkanOleh||'-')}</div></div>`).join('')}
+        <button class="btn btn-warn btn-full" style="margin-top:8px" onclick="nav('kegiatan');setTimeout(()=>renderTabKegiatan('tatib'),100)">Verifikasi Sekarang →</button>
+      </div>`:''}
+      ${perluPerhatian.length?`<div style="background:rgba(191,42,32,.08);border-radius:8px;padding:10px">
+        <div style="font-size:12px;font-weight:700;color:var(--danger);margin-bottom:8px">🚨 PERLU TINDAKAN (≥5 poin)</div>
+        ${perluPerhatian.map(a=>`<div class="item"><div class="item-title">${esc(a.nama)}</div><div class="item-sub">${RLBL[a.role]||a.role} · ${a.poin} poin</div></div>`).join('')}
+      </div>`:'<div style="font-size:13px;color:var(--ok)">✓ Tidak ada anggota melewati batas</div>'}
+    </div>
+
+    <div class="sec">💰 KEUANGAN</div>
+    <div class="card">
+      <div class="stats-row" style="grid-template-columns:repeat(3,1fr)">
+        <div class="stat-box"><div class="n" style="color:var(--ok);font-size:16px">${(masuk/1000).toFixed(0)}K</div><div class="l">Masuk</div></div>
+        <div class="stat-box"><div class="n" style="color:var(--danger);font-size:16px">${(keluar/1000).toFixed(0)}K</div><div class="l">Keluar</div></div>
+        <div class="stat-box"><div class="n" style="color:${saldo>=0?'var(--ok)':'var(--danger)'};font-size:16px">${(saldo/1000).toFixed(0)}K</div><div class="l">Saldo</div></div>
+      </div>
+      ${D.keuangan.length?`<div style="margin-top:10px">${D.keuangan.slice(-3).reverse().map(k=>`<div class="item"><div class="item-title">${esc(k.ket)}</div><div class="item-sub">${tgl(k.tgl)} · <span style="color:${k.jenis==='masuk'?'var(--ok)':'var(--danger)'}">${k.jenis==='masuk'?'+':'-'}Rp${k.jumlah.toLocaleString()}</span></div></div>`).join('')}</div>`:'<div style="font-size:13px;color:var(--fg3)">Belum ada transaksi</div>'}
+    </div>
+
+    <div class="sec">📋 PROGRAM KERJA</div>
+    <div class="card">
+      <div style="display:flex;gap:12px;margin-bottom:10px">
+        <div class="stat-box" style="flex:1"><div class="n" style="color:var(--ok)">${prokerAktif}</div><div class="l">Berjalan</div></div>
+        <div class="stat-box" style="flex:1"><div class="n" style="color:var(--warn)">${prokerPending}</div><div class="l">Pending ACC</div></div>
+        <div class="stat-box" style="flex:1"><div class="n">${D.proker.length}</div><div class="l">Total</div></div>
+      </div>
+      ${prokerPending?`<button class="btn btn-warn btn-full" onclick="nav('kegiatan');setTimeout(()=>renderTabKegiatan('proker'),100)">ACC Proker Pending →</button>`:''}
+    </div>
+
+    ${topAnggota.length?`<div class="sec">🏆 TOP PEMETAAN PPI</div>
+    <div class="card">
+      ${topAnggota.map((a,i)=>`<div class="item"><div class="item-title">${i+1}. ${esc(a.nama)}</div><div class="item-sub">Rata-rata: ${a.avg}/5.0</div></div>`).join('')}
+    </div>`:''}
+
+    <div style="margin-top:16px;display:flex;gap:10px">
+      <button class="btn btn-primary" style="flex:1" onclick="renderTabLaporan('ringkasan')">📋 Buat Laporan Resmi</button>
+      <button class="btn btn-blue" style="flex:1" onclick="renderTabLaporan('ttd')">✍️ TTD Digital</button>
+    </div>
+  </div>`;
+}
+
+function renderLaporan(){
+  const el=document.getElementById('s-laporan');
+  let html=`<div class="tabs">
+    <button class="tab on" onclick="tabLaporan('keuangan',this)">Keuangan</button>
+    <button class="tab" onclick="tabLaporan('evaluasi',this)">Evaluasi</button>
+    ${C.laporan(R)?`<button class="tab" onclick="tabLaporan('ringkasan',this)">Laporan</button>`:''}
+  </div><div id="tab-laporan"></div>`;
+  el.innerHTML=html;
+  renderTabLaporan('keuangan');
+}
+function tabLaporan(t,btn){
+  document.querySelectorAll('#s-laporan .tab').forEach(b=>b.classList.remove('on'));
+  btn?.classList.add('on');
+  renderTabLaporan(t);
+}
+function renderTabLaporan(t){
+  const el=document.getElementById('tab-laporan');
+  if(t==='keuangan') el.innerHTML=renderKeuangan();
+  else if(t==='evaluasi') el.innerHTML=renderEvaluasi();
+  else if(t==='ringkasan') el.innerHTML=renderLaporanKinerja();
+}
+
+function renderKeuangan(){
+  if(!C.keuangan_view(R)) return'<div class="alert alert-warn">Akses terbatas.</div>';
+  const masuk=D.kas.filter(k=>k.jenis==='masuk').reduce((s,k)=>s+k.nominal,0);
+  const keluar=D.kas.filter(k=>k.jenis==='keluar').reduce((s,k)=>s+k.nominal,0);
+  const saldo=masuk-keluar;
+  let html=`<div class="stats-row" style="grid-template-columns:repeat(2,1fr)">
+    <div class="stat-box"><div class="n" style="color:var(--ok);font-size:16px">${fmtRp(masuk)}</div><div class="l">Total Masuk</div></div>
+    <div class="stat-box"><div class="n" style="color:var(--danger);font-size:16px">${fmtRp(keluar)}</div><div class="l">Total Keluar</div></div>
+  </div>
+  <div class="card" style="text-align:center;margin-bottom:12px"><div style="font-size:13px;color:var(--fg2)">Saldo Kas</div><div style="font-size:28px;font-weight:900;font-family:'Exo 2',sans-serif;color:${saldo>=0?'var(--ok)':'var(--danger)'}">${fmtRp(saldo)}</div></div>`;
+
+  if(C.keuangan_edit(R)){
+    html+=`<div class="card">
+      <div class="card-title">Catat Transaksi</div>
+      <div class="field"><label>Keterangan</label><input id="ks-ket" placeholder="Keterangan transaksi"></div>
+      <div class="field"><label>Jumlah (Rp)</label><input id="ks-nom" type="number" placeholder="0"></div>
+      <div class="field"><label>Jenis</label><select id="ks-jenis"><option value="masuk">Pemasukan</option><option value="keluar">Pengeluaran</option></select></div>
+      <button class="btn btn-primary btn-full" onclick="catatKas()">💾 Catat</button>
+    </div>`;
+  }
+
+  html+=`<div class="sec">📋 Riwayat Transaksi</div>`;
+  D.kas.slice().reverse().forEach(k=>{
+    html+=`<div class="kas-item"><div><div style="font-weight:600;font-size:14px">${esc(k.ket)}</div><div style="font-size:11px;color:var(--fg2)">${tgl(k.tgl)}</div></div><div style="font-weight:700;color:${k.jenis==='masuk'?'var(--ok)':'var(--danger)'}">${k.jenis==='masuk'?'+':'-'}${fmtRp(k.nominal)}</div></div>`;
+  });
+  if(!D.kas.length) html+='<div style="color:var(--fg3);font-size:13px">Belum ada transaksi.</div>';
+  return html;
+}
+function catatKas(){
+  const ket=document.getElementById('ks-ket').value.trim();
+  const nom=parseFloat(document.getElementById('ks-nom').value)||0;
+  if(!ket||!nom)return toast('Isi keterangan dan jumlah');
+  D.kas.push({id:uid(),tgl:Date.now(),ket,nominal:nom,jenis:document.getElementById('ks-jenis').value});
+  save();toast('Transaksi dicatat');renderTabLaporan('keuangan');
+}
+
+function renderEvaluasi(){
+  let html='';
+  if(['pembina','pelatih','sekretaris'].includes(R)){
+    html+=`<button class="btn btn-primary btn-sm" style="margin-bottom:12px" onclick="modalEvaluasi()">+ Tambah Notulen</button>`;
+  }
+  if(!D.evaluasi.length) html+='<div class="alert alert-warn">Belum ada notulen evaluasi.</div>';
+  D.evaluasi.slice().reverse().forEach(e=>{
+    html+=`<div class="item"><div class="item-head"><div class="item-title">${esc(e.judul)}</div><div style="font-size:11px;color:var(--fg2)">${tgl(e.tgl)}</div></div>
+    <div style="font-size:13px;margin-top:6px;line-height:1.6">${esc(e.isi)}</div>
+    ${e.masukan?`<div style="margin-top:8px;padding:8px;background:var(--bg);border-radius:var(--rr);font-size:12px"><strong>Masukan:</strong> ${esc(e.masukan)}</div>`:''}
+    ${C.proker_acc(R)?`<button class="btn btn-ghost btn-sm" style="margin-top:8px" onclick="modalMasukan('${e.id}')">💬 Beri Masukan</button>`:''}
+    </div>`;
+  });
+  return html;
+}
+function modalEvaluasi(){
+  openModal(`<div class="modal-title">Notulen Evaluasi <button class="modal-close" onclick="closeModal()">×</button></div>
+  <div class="field"><label>Judul</label><input id="ev-judul" placeholder="Judul rapat/evaluasi"></div>
+  <div class="field"><label>Tanggal</label><input id="ev-tgl" type="date" value="${new Date().toISOString().split('T')[0]}"></div>
+  <div class="field"><label>Isi Notulen</label><textarea id="ev-isi" placeholder="Poin-poin rapat..." style="min-height:120px"></textarea></div>
+  <button class="btn btn-primary btn-full" onclick="simpanEvaluasi()">💾 Simpan</button>`);
+}
+function simpanEvaluasi(){
+  const j=document.getElementById('ev-judul').value.trim();
+  if(!j)return toast('Judul harus diisi');
+  D.evaluasi.push({id:uid(),judul:j,tgl:document.getElementById('ev-tgl').value,isi:document.getElementById('ev-isi').value.trim(),dicatatOleh:RLBL[R]});
+  save();closeModal();toast('Notulen disimpan');renderTabLaporan('evaluasi');
+}
+function modalMasukan(id){
+  openModal(`<div class="modal-title">Masukan untuk Notulen <button class="modal-close" onclick="closeModal()">×</button></div>
+  <div class="field"><label>Masukan / Catatan</label><textarea id="mk-teks" placeholder="Tulis masukan Anda..." style="min-height:100px"></textarea></div>
+  <button class="btn btn-primary btn-full" onclick="simpanMasukan('${id}')">💾 Simpan</button>`);
+}
+function simpanMasukan(id){
+  const e=D.evaluasi.find(x=>x.id===id);if(!e)return;
+  e.masukan=(e.masukan?e.masukan+'\n':'')+`[${RLBL[R]}] ${document.getElementById('mk-teks').value.trim()}`;
+  save();closeModal();toast('Masukan ditambahkan');renderTabLaporan('evaluasi');
+}
+
+function getBulanTahun(){
+  const d=new Date();
+  return d.toLocaleDateString('id-ID',{month:'long',year:'numeric'});
+}
+function renderLaporanKinerja(){
+  if(!C.laporan(R)) return'<div class="alert alert-warn">Hanya Pembina yang dapat melihat laporan kinerja.</div>';
+  const totalAktif=D.anggota.filter(a=>a.status==='aktif').length;
+  const masuk=D.kas.filter(k=>k.jenis==='masuk').reduce((s,k)=>s+k.nominal,0);
+  const keluar=D.kas.filter(k=>k.jenis==='keluar').reduce((s,k)=>s+k.nominal,0);
+  const melebihi=getAnggotaMelebihi();
+  const bulan=getBulanTahun();
+  const noAnggota=D.anggota.filter(a=>a.status==='aktif').map((a,i)=>`   ${String(i+1).padStart(2,' ')}. ${a.nama} \u2014 ${a.kelas||'-'} (${RLBL[a.role]||a.role})`).join('\n')||'   (belum ada data)';
+  const prokerList=D.proker.slice(0,10).map((p,i)=>`   ${i+1}. ${p.judul} (${tgl(p.tgl)}) \u2014 ${p.accPembina&&p.accPelatih?'Terlaksana':'Direncanakan'}`).join('\n')||'   (belum ada data)';
+  const pemetaanList=D.pemetaan.map((p,i)=>{const s=skor(p);const[lv]=levelPPI(s);return`   ${i+1}. ${p.nama} \u2014 Skor: ${s}/5.0 (${lv})`;}).join('\n')||'   (belum ada data)';
+
+  const lapTeks=
+`LAPORAN KEGIATAN
+EKSTRAKULIKULER PASUKAN PENGIBAR BENDERA
+MAN 1 BELITUNG
+Bulan ${bulan}
+
+                    PASKIBRA MAN 1 BELITUNG
+      Sekretariat: Jalan Pattimura KM. 3,5 Tanjungpandan Belitung
+             Kode Pos 33415  Telepon (0719) 9301239
+
+================================================================
+
+KATA PENGANTAR
+
+Puji syukur kehadirat Allah SWT atas segala rahmat dan hidayah-Nya yang selalu tercurah tiada henti kepada umat dan seluruh alam. Sholawat dan salam senantiasa dihaturkan kepada junjungan kita Nabi Muhammad Saw. Terima kasih kepada seluruh pihak yang terlibat dalam kegiatan ekstrakulikuler Pasukan Pengibar Bendera (Paskibra) MAN 1 Belitung.
+
+Adapun Laporan Kegiatan ini memuat rincian kegiatan ekstrakulikuler Paskibra MAN 1 Belitung yang telah dilaksanakan selama Bulan ${bulan}. Laporan ini dibuat sebagai bukti pelaksanaan kegiatan dan realisasi anggaran yang dikeluarkan oleh pihak madrasah.
+
+================================================================
+
+I. PENDAHULUAN
+
+A. Sekretariat
+   Madrasah Aliyah Negeri (MAN) 1 Belitung
+   Jalan Pattimura Km. 3,5 Tanjungpandan Belitung
+   Kode Pos 33415 - Telepon (0719) 9301239
+
+B. Jadwal Latihan
+   No  Hari     Pukul
+   1.  Sabtu    06.00 - 10.00 WIB
+   2.  Kamis    16.00 - 17.30 WIB (jadwal tambahan)
+   3.  Rabu     Pertemuan/Kumpul Rutin
+   Ket: Jadwal sewaktu-waktu dapat berubah.
+
+C. Daftar Pembina dan Pelatih
+   No  Nama                          Keterangan
+   1.  Eki Ripan J.R, S.Pd., Gr.     Pembina
+   2.  Pelatih                        Pelatih
+   3.  Seluruh Anggota PPS Purna      Pelatih
+
+D. Metode Penilaian Anggota
+   Sikap/Akhlaq/Etika/Adab, Kedisiplinan, Keaktifan,
+   Ketahanan fisik & mental, Kemampuan PBB,
+   Kemampuan melatih (PPS), Komunikasi publik.
+
+================================================================
+
+II. ISI LAPORAN
+
+A. Rekapitulasi Anggota - Bulan ${bulan}
+   Total anggota aktif    : ${totalAktif} orang
+   PPS Angkatan 26        : ${D.anggota.filter(a=>a.role==='pps26').length} orang
+   PPS Purna 25           : ${D.anggota.filter(a=>a.role==='pps25').length} orang
+   Purna Senior           : ${D.anggota.filter(a=>a.role==='purnasenior').length} orang
+   Balonpas (Calon PPS)   : ${D.anggota.filter(a=>a.role==='balonpas').length} orang
+
+B. Daftar Nama Anggota Aktif
+${noAnggota}
+
+C. Absensi & Kedisiplinan
+   Anggota melewati batas alfa (>=3x) : ${melebihi.length} orang
+${melebihi.length?melebihi.map(a=>`   - ${a.nama}: ${a.totalAlfa||0}x alfa`).join('\n'):'   Semua anggota masih dalam batas toleransi.'}
+
+D. Catatan Pelanggaran
+   Total catatan : ${D.pelanggaran.length}
+${D.pelanggaran.slice(0,8).map((p,i)=>`   ${i+1}. ${p.nama} - ${p.jenis} (${tgl(p.tgl)})`).join('\n')||'   Tidak ada catatan pelanggaran.'}
+
+E. Program Kerja & Kegiatan
+${prokerList}
+
+F. Keuangan
+   Total pemasukan    : ${fmtRp(masuk)}
+   Total pengeluaran  : ${fmtRp(keluar)}
+   Saldo kas          : ${fmtRp(masuk-keluar)}
+${D.kas.slice(0,8).map((k,i)=>`   ${i+1}. ${k.ket} - ${k.jenis==='masuk'?'+':'-'}${fmtRp(k.nominal)} (${tgl(k.tgl)})`).join('\n')||'   Belum ada transaksi.'}
+
+G. Pemetaan Kemampuan Balonpas
+${pemetaanList}
+
+H. Lomba & Kegiatan Eksternal
+   Total lomba terdaftar : ${D.lomba.length}
+${D.lomba.map((l,i)=>`   ${i+1}. ${l.nama} (${tgl(l.tgl)}) - Peserta: ${(l.peserta||[]).length} orang`).join('\n')||'   Belum ada data lomba.'}
+
+================================================================
+
+III. PENUTUP
+
+A. Kesimpulan
+   Kegiatan ekstrakulikuler Paskibra MAN 1 Belitung pada Bulan ${bulan}
+   telah berjalan sesuai program yang direncanakan. Jumlah anggota
+   aktif sebanyak ${totalAktif} orang dengan tingkat kehadiran
+   terpantau melalui sistem PRAMANSABEL.
+
+B. Saran
+   Diharapkan seluruh anggota dapat meningkatkan kedisiplinan dan
+   semangat berlatih demi kemajuan Paskibra MAN 1 Belitung dan
+   prestasi di tingkat kabupaten hingga nasional.
+
+================================================================
+
+   Tanjungpandan, ${tgl()}
+
+   Pembina Ekstrakulikuler Paskibra
+   MAN 1 Belitung
+
+
+
+   _________________________
+   Eki Ripan J.R, S.Pd., Gr.
+   NIP. ...................
+
+================================================================
+*Laporan dibuat otomatis oleh PRAMANSABEL*
+*Data: ${tgl()} - ${new Date().toLocaleTimeString('id-ID')}*`;
+
+  return`<div class="sec">\ud83d\udcc4 Laporan Kegiatan \u2014 ${bulan}</div>
+  <div class="card" style="overflow-x:auto"><pre style="font-size:11px;white-space:pre-wrap;line-height:1.75;font-family:'Courier New',monospace">${esc(lapTeks)}</pre></div>
+  <button class="btn btn-primary btn-full" style="margin-top:4px" onclick="salinLaporan()">\ud83d\udccb Salin Laporan</button>
+  <button class="wa-btn" style="margin-top:8px" onclick="shareWA(getLapTeks())">\ud83d\udce4 Bagikan via WA</button>`;
+}
+function getLapTeks(){
+  const masuk=D.kas.filter(k=>k.jenis==='masuk').reduce((s,k)=>s+k.nominal,0);
+  const keluar=D.kas.filter(k=>k.jenis==='keluar').reduce((s,k)=>s+k.nominal,0);
+  return`LAPORAN PASKIBRA MAN 1 BELITUNG \u2014 ${getBulanTahun()}\nAnggota aktif: ${D.anggota.filter(a=>a.status==='aktif').length} | Saldo Kas: ${fmtRp(masuk-keluar)} | Proker acc: ${D.proker.filter(p=>p.accPembina&&p.accPelatih).length}`;
+}
+function salinLaporan(){copyWA(document.querySelector('#tab-laporan pre')?.textContent||'')}
+
+// ═══════════════════════════════════════════
+// PENGATURAN / LAINNYA
+// ═══════════════════════════════════════════
+function renderPengaturan(){
+  const el=document.getElementById('s-pengaturan');
+  let html=`<div class="tabs">
+    <button class="tab on" onclick="tabPengaturan('info',this)">Info</button>
+    ${C.ttd(R)?`<button class="tab" onclick="tabPengaturan('ttd',this)">TTD</button>`:''}
+    ${R==='pembina'?`<button class="tab" onclick="tabPengaturan('config',this)">Konfigurasi</button>`:''}
+  </div><div id="tab-pengaturan"></div>`;
+  el.innerHTML=html;
+  renderTabPengaturan('info');
+}
+function tabPengaturan(t,btn){
+  document.querySelectorAll('#s-pengaturan .tab').forEach(b=>b.classList.remove('on'));
+  btn?.classList.add('on');
+  renderTabPengaturan(t);
+}
+function renderTabPengaturan(t){
+  const el=document.getElementById('tab-pengaturan');
+  if(t==='info') el.innerHTML=renderInfoPengaturan();
+  else if(t==='ttd') el.innerHTML=renderTTD();
+  else if(t==='config') el.innerHTML=renderConfig();
+}
+function renderInfoPengaturan(){
+  return`<div class="card">
+    <div class="card-title">Tentang Aplikasi</div>
+    <div style="font-size:14px;line-height:1.8">
+      <strong>PRAMANSABEL</strong><br>
+      Aplikasi Manajemen PASKIBRA MAN 1 Belitung<br>
+      Versi 3.0 — 2026<br><br>
+      <strong>Fitur:</strong><br>
+      • Manajemen anggota & absensi<br>
+      • Program kerja & proposal<br>
+      • Pemetaan kemampuan balonpas<br>
+      • Papan komando & pengumuman<br>
+      • Keuangan & laporan kinerja<br>
+      • Tanda tangan digital<br>
+      • Share ke WhatsApp grup<br><br>
+      <strong>Data tersimpan di:</strong> Perangkat lokal (localStorage)
+    </div>
+  </div>
+  <button class="btn btn-warn btn-sm" style="margin-top:8px" onclick="resetData()">🗑 Reset Semua Data</button>`;
+}
+function renderTTD(){
+  return`<div class="sec">✍ Tanda Tangan Digital Pembina</div>
+  ${D.ttd?`<div class="card"><img src="${D.ttd}" style="width:100%;max-height:160px;object-fit:contain;background:#fff;border-radius:var(--rr)"><div style="font-size:12px;color:var(--fg2);margin-top:8px">TTD tersimpan</div></div>
+  <button class="btn btn-warn btn-sm" onclick="hapusTTD()">🗑 Hapus TTD</button>
+  <button class="btn btn-blue btn-sm" style="margin-left:8px" onclick="buatTTDBaru()">✍ Buat Ulang</button>`
+  :`<div class="card"><p style="font-size:13px;color:var(--fg2);margin-bottom:12px">Belum ada TTD tersimpan.</p></div>
+  <button class="btn btn-primary btn-full" onclick="buatTTDBaru()">✍ Buat Tanda Tangan</button>`}`;
+}
+function hapusTTD(){D.ttd=null;save();toast('TTD dihapus');renderTabPengaturan('ttd');}
+function buatTTDBaru(){
+  openModal(`<div class="modal-title">Buat Tanda Tangan <button class="modal-close" onclick="closeModal()">×</button></div>
+  <p style="font-size:12px;color:var(--fg2);margin-bottom:10px">Tanda tangan di area di bawah ini:</p>
+  <canvas id="ttd-canvas" width="400" height="160" style="background:#fff"></canvas>
+  <div style="margin-top:10px;display:flex;gap:8px">
+    <button class="btn btn-ghost btn-sm" onclick="clearTTD()">🗑 Hapus</button>
+    <button class="btn btn-primary btn-sm btn-full" onclick="saveTTD(null)">💾 Simpan</button>
+  </div>`);
+  setTimeout(initTTDCanvas,100);
+}
+function renderConfig(){
+  const pins=getPins();
+  const pinRows=PIN_ROLES.map(role=>{
+    const aktif=!!pins[role];
+    return`<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border)">
+      <div>
+        <div style="font-weight:600;font-size:13px">${RLBL[role]||role}</div>
+        <div style="font-size:11px;color:${aktif?'var(--ok)':'var(--fg3)'}">
+          ${aktif?'🔒 PIN aktif':'🔓 Belum ada PIN'}
+        </div>
+      </div>
+      <div style="display:flex;gap:6px">
+        ${aktif
+          ?`<button onclick="openPinModal('${role}','change',()=>renderTabPengaturan('config'))" style="background:var(--accent2);color:#fff;border:none;padding:5px 10px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer">Ubah</button>
+             <button onclick="hapusPinRole('${role}')" style="background:var(--danger);color:#fff;border:none;padding:5px 10px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer">Hapus</button>`
+          :`<button onclick="openPinModal('${role}','set',()=>renderTabPengaturan('config'))" style="background:var(--ok);color:#fff;border:none;padding:5px 10px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer">Set PIN</button>`
+        }
+      </div>
+    </div>`;
+  }).join('');
+  return`<div class="card" style="margin-bottom:12px">
+    <div class="card-title">Konfigurasi Sistem</div>
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0">
+      <div><div style="font-weight:600;font-size:14px">Izinkan Pelatih Kirim Komando</div><div style="font-size:12px;color:var(--fg2)">Pelatih dapat memberi komando cepat</div></div>
+      <label style="position:relative;width:44px;height:24px">
+        <input type="checkbox" id="cfg-pelatih-komando" ${D.config.pelatih_komando?'checked':''} onchange="toggleConfig('pelatih_komando',this.checked)" style="opacity:0;width:0;height:0">
+        <span style="position:absolute;inset:0;border-radius:12px;background:${D.config.pelatih_komando?'var(--ok)':'var(--border)'};cursor:pointer;transition:.3s">
+          <span style="position:absolute;top:3px;left:${D.config.pelatih_komando?'22px':'3px'};width:18px;height:18px;border-radius:50%;background:#fff;transition:.3s"></span>
+        </span>
+      </label>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">🔐 Manajemen PIN Role</div>
+    <p style="font-size:12px;color:var(--fg2);margin-bottom:8px">Set PIN 4 digit untuk mengamankan akses role sensitif. Hanya Pembina yang bisa mengatur PIN.</p>
+    ${pinRows}
+  </div>`;
+}
+function hapusPinRole(role){
+  const p=getPins();delete p[role];savePins(p);
+  toast('PIN '+RLBL[role]+' dihapus');renderTabPengaturan('config');
+}
+function toggleConfig(key,val){
+  D.config[key]=val;save();toast(`Konfigurasi ${val?'diaktifkan':'dinonaktifkan'}`);renderTabPengaturan('config');
+}
+function resetData(){
+  if(!confirm('Reset semua data? Tindakan ini tidak dapat dibatalkan!'))return;
+  D=defD();save();toast('Data direset');renderBeranda();
+}
+
+// Init
+</script>
+<!-- PIN MODAL -->
+<div id="pin-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:999;align-items:center;justify-content:center;padding:20px">
+  <div style="background:var(--card);border-radius:16px;padding:24px;width:100%;max-width:320px;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,.3)">
+    <div style="font-size:13px;font-weight:700;color:var(--fg2);margin-bottom:4px">🔐 PIN Role</div>
+    <div id="pin-role-label" style="font-size:18px;font-weight:900;font-family:'Exo 2',sans-serif;color:var(--accent);margin-bottom:8px"></div>
+    <div id="pin-desc" style="font-size:12px;color:var(--fg2);margin-bottom:16px"></div>
+    <div id="pin-dots" style="display:flex;justify-content:center;gap:12px;margin-bottom:8px">
+      <span class="pd"></span><span class="pd"></span><span class="pd"></span><span class="pd"></span>
+    </div>
+    <div id="pin-err" style="font-size:12px;color:var(--danger);min-height:18px;margin-bottom:12px"></div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:8px">
+      <button onclick="pinKey('1')" style="padding:14px;font-size:18px;font-weight:700;background:var(--bg);border:1px solid var(--border);border-radius:10px;cursor:pointer;color:var(--fg)">1</button>
+      <button onclick="pinKey('2')" style="padding:14px;font-size:18px;font-weight:700;background:var(--bg);border:1px solid var(--border);border-radius:10px;cursor:pointer;color:var(--fg)">2</button>
+      <button onclick="pinKey('3')" style="padding:14px;font-size:18px;font-weight:700;background:var(--bg);border:1px solid var(--border);border-radius:10px;cursor:pointer;color:var(--fg)">3</button>
+      <button onclick="pinKey('4')" style="padding:14px;font-size:18px;font-weight:700;background:var(--bg);border:1px solid var(--border);border-radius:10px;cursor:pointer;color:var(--fg)">4</button>
+      <button onclick="pinKey('5')" style="padding:14px;font-size:18px;font-weight:700;background:var(--bg);border:1px solid var(--border);border-radius:10px;cursor:pointer;color:var(--fg)">5</button>
+      <button onclick="pinKey('6')" style="padding:14px;font-size:18px;font-weight:700;background:var(--bg);border:1px solid var(--border);border-radius:10px;cursor:pointer;color:var(--fg)">6</button>
+      <button onclick="pinKey('7')" style="padding:14px;font-size:18px;font-weight:700;background:var(--bg);border:1px solid var(--border);border-radius:10px;cursor:pointer;color:var(--fg)">7</button>
+      <button onclick="pinKey('8')" style="padding:14px;font-size:18px;font-weight:700;background:var(--bg);border:1px solid var(--border);border-radius:10px;cursor:pointer;color:var(--fg)">8</button>
+      <button onclick="pinKey('9')" style="padding:14px;font-size:18px;font-weight:700;background:var(--bg);border:1px solid var(--border);border-radius:10px;cursor:pointer;color:var(--fg)">9</button>
+      <button onclick="pinKey('←')" style="padding:14px;font-size:18px;font-weight:700;background:var(--bg);border:1px solid var(--border);border-radius:10px;cursor:pointer;color:var(--fg)">←</button>
+      <button onclick="pinKey('0')" style="padding:14px;font-size:18px;font-weight:700;background:var(--bg);border:1px solid var(--border);border-radius:10px;cursor:pointer;color:var(--fg)">0</button>
+      <button onclick="pinKey('✓')" style="padding:14px;font-size:18px;font-weight:700;background:var(--ok);border:none;border-radius:10px;cursor:pointer;color:#fff">✓</button>
+    </div>
+    <button onclick="cancelPin()" style="width:100%;padding:10px;background:var(--bg);border:1px solid var(--border);border-radius:10px;font-size:13px;color:var(--fg2);cursor:pointer;margin-top:4px">Batal</button>
+  </div>
+</div>
+<style>.pd{width:14px;height:14px;border-radius:50%;border:2px solid var(--border);background:transparent;transition:.2s}.pd.filled{background:var(--accent);border-color:var(--accent)}</style>
+
+<div id="footer-cr" style="text-align:center;padding:16px;font-size:11px;color:var(--fg3);margin-top:8px;border-top:1px solid var(--border)">
+  © 2026 Eki Ripan J.R, S.Pd., Gr. · Pembina PASKIBRA MAN 1 Belitung<br>
+  <span style="font-size:10px;opacity:.7">PRAMANSABEL — Aplikasi Manajemen PASKIBRA MAN 1 Belitung</span>
+</div>
+</body>
+</html>
