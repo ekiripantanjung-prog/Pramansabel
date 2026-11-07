@@ -400,9 +400,15 @@ let R = null; // role saat ini
 
 const GS_DEFAULT='https://script.google.com/macros/s/AKfycbzdZ3IVx3jmo7HR3W1b2BFTjUGJs-z7JIJFJhdOV6FVuJkajqGEvtauONMrJuEX9bevxw/exec';
 let GS_URL='';try{GS_URL=localStorage.getItem('pramansabel_gsurl')||GS_DEFAULT;}catch(e){GS_URL=GS_DEFAULT;}
-function save(){try{localStorage.setItem(SK,JSON.stringify(D));}catch(e){} saveGS();}
+let _lastLocalSave=0,_pendingPush=null;
+function save(){_lastLocalSave=Date.now();try{localStorage.setItem(SK,JSON.stringify(D));}catch(e){} saveGS();}
 function load(){try{const s=localStorage.getItem(SK);if(s){const p=JSON.parse(s);D=Object.assign(defD(),p);}}catch(e){}}
-function saveGS(){if(!GS_URL)return;const d={...D,ttd:null};fetch(GS_URL,{method:'POST',body:JSON.stringify(d)}).catch(()=>{});}
+function saveGS(){
+  if(!GS_URL)return;
+  const d={...D,ttd:null};
+  _pendingPush=fetch(GS_URL,{method:'POST',body:JSON.stringify(d)}).catch(()=>{}).finally(()=>{_pendingPush=null;});
+  return _pendingPush;
+}
 async function loadGS(){if(!GS_URL)return false;try{const r=await fetch(GS_URL+'?t='+Date.now());const d=await r.json();if(d&&!d.error&&d.anggota!==undefined){const ttdLama=D.ttd;D=Object.assign(defD(),d);if(!D.ttd&&ttdLama)D.ttd=ttdLama;try{localStorage.setItem(SK,JSON.stringify(D));}catch(e){}return true;}}catch(e){}return false;}
 async function syncCloud(dir){if(!GS_URL){toast('⚠️ URL Google Sheet belum diisi di Pengaturan → Sinkron');return;}if(dir==='push'){toast('☁️ Menyimpan ke cloud...');fetch(GS_URL,{method:'POST',body:JSON.stringify(D)}).then(()=>toast('✅ Data tersimpan ke Google Sheet')).catch(()=>toast('❌ Gagal simpan ke cloud'));}else{toast('☁️ Mengambil data dari cloud...');const ok=await loadGS();if(ok){toast('✅ Data berhasil disinkron dari cloud');goScreen('beranda');}else toast('❌ Gagal ambil data dari cloud');}}
 function saveGSURL(url){GS_URL=url.trim();try{localStorage.setItem('pramansabel_gsurl',GS_URL);}catch(e){}toast(GS_URL?'✅ URL tersimpan':'URL dikosongkan');tabPengaturan('sinkron',document.querySelector('#s-pengaturan .tab.on'));}
@@ -411,8 +417,13 @@ load();
 if(GS_URL){loadGS().then(ok=>{if(ok&&R)goScreen('beranda');});}
 // Auto-sync setiap 30 detik jika ada role aktif
 let _lastKomId='',_lastPngId='';
-setInterval(()=>{
+setInterval(async()=>{
   if(!GS_URL||!R)return;
+  // Jika baru simpan lokal <8 detik lalu, tunggu push selesai dulu, jangan tarik data lama
+  if(Date.now()-_lastLocalSave<8000){
+    if(_pendingPush)await _pendingPush;
+    else return; // masih dalam jendela aman, skip pull kali ini
+  }
   const prevKomLen=D.komando.length,prevPngLen=D.pengumuman.length;
   loadGS().then(ok=>{
     if(!ok)return;
