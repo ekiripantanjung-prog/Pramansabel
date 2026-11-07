@@ -267,9 +267,9 @@ const PIN_ROLES=['pembina','pelatih','aspelatih1','aspelatih2','ketua','sekretar
 let _pinBuf='';let _pinTarget='';let _pinCb=null;let _pinMode='check';let _pinNewBuf='';
 
 function hashPin(p){let h=0;for(let i=0;i<p.length;i++){h=((h<<5)-h)+p.charCodeAt(i);h|=0;}return h.toString(36);}
-function getPins(){try{return JSON.parse(localStorage.getItem('pramansabel_pins')||'{}');}catch{return{};}}
-function savePins(o){try{localStorage.setItem('pramansabel_pins',JSON.stringify(o));}catch{}}
-function hasPin(role){return !!getPins()[role];}
+function getPins(){return D.pins||{};}
+function savePins(o){D.pins=o;save();}
+function hasPin(role){return !!(D.pins&&D.pins[role]);}
 
 function openPinModal(role, mode, cb){
   _pinBuf='';_pinNewBuf='';_pinTarget=role;_pinCb=cb;_pinMode=mode;
