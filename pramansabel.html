@@ -402,8 +402,12 @@ function load(){try{const s=localStorage.getItem(SK);if(s){const p=JSON.parse(s)
 function saveGS(){if(!GS_URL)return;fetch(GS_URL,{method:'POST',body:JSON.stringify(D)}).catch(()=>{});}
 async function loadGS(){if(!GS_URL)return false;try{const r=await fetch(GS_URL+'?t='+Date.now());const d=await r.json();if(d&&!d.error&&d.anggota!==undefined){D=Object.assign(defD(),d);try{localStorage.setItem(SK,JSON.stringify(D));}catch(e){}return true;}}catch(e){}return false;}
 async function syncCloud(dir){if(!GS_URL){toast('⚠️ URL Google Sheet belum diisi di Pengaturan → Sinkron');return;}if(dir==='push'){toast('☁️ Menyimpan ke cloud...');fetch(GS_URL,{method:'POST',body:JSON.stringify(D)}).then(()=>toast('✅ Data tersimpan ke Google Sheet')).catch(()=>toast('❌ Gagal simpan ke cloud'));}else{toast('☁️ Mengambil data dari cloud...');const ok=await loadGS();if(ok){toast('✅ Data berhasil disinkron dari cloud');goScreen('beranda');}else toast('❌ Gagal ambil data dari cloud');}}
-function saveGSURL(url){GS_URL=url.trim();try{localStorage.setItem('pramansabel_gsurl',GS_URL);}catch(e){}toast(GS_URL?'✅ URL tersimpan':'URL dikosongkan');}
+function saveGSURL(url){GS_URL=url.trim();try{localStorage.setItem('pramansabel_gsurl',GS_URL);}catch(e){}toast(GS_URL?'✅ URL tersimpan':'URL dikosongkan');tabPengaturan('sinkron',document.querySelector('#s-pengaturan .tab.on'));}
 load();
+// Auto-sync: ambil data dari cloud saat buka app
+if(GS_URL){loadGS().then(ok=>{if(ok&&R)goScreen('beranda');});}
+// Auto-sync setiap 30 detik jika ada role aktif
+setInterval(()=>{if(GS_URL&&R){loadGS().then(ok=>{if(ok)goScreen(document.querySelector('.screen.on')?.id?.replace('s-','')||'beranda');});}},30000);
 
 // ═══════════════════════════════════════════
 // ACCESS CONTROL
