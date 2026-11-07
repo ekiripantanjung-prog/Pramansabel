@@ -604,7 +604,7 @@ function renderBeranda(){
     let adaBaruKom=false;
     komList.forEach(k=>{
       const bisaEdit=C.komando_kirim(R)||['ketua','tatib'].includes(R);
-      html+=`<div class="komando-box"><h3>⚡ Komando dari ${esc(k.dari)}</h3><p>${esc(k.pesan)}</p><div class="kmeta" style="display:flex;justify-content:space-between;align-items:center">${tgl(k.tgl)} ${!k.dibaca?'<span class="badge badge-warn">Baru</span>':''}<div style="display:flex;gap:4px">${bisaEdit?`<button onclick="editKomando('${k.id}')" style="background:rgba(255,255,255,0.15);border:none;color:#fff;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer">✏️</button>`:''}<button onclick="hapusKomando('${k.id}')" style="background:rgba(255,255,255,0.2);border:none;color:#fff;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer">🗑</button></div></div></div>`;
+      html+=`<div class="komando-box"><h3>⚡ Komando dari ${esc(k.dari)}</h3><p>${esc(k.pesan)}</p>${buildResponBar('komando',k)}<div class="kmeta" style="display:flex;justify-content:space-between;align-items:center">${tgl(k.tgl)} ${!k.dibaca?'<span class="badge badge-warn">Baru</span>':''}<div style="display:flex;gap:4px">${bisaEdit?`<button onclick="editKomando('${k.id}')" style="background:rgba(255,255,255,0.15);border:none;color:#fff;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer">✏️</button>`:''}<button onclick="hapusKomando('${k.id}')" style="background:rgba(255,255,255,0.2);border:none;color:#fff;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer">🗑</button></div></div></div>`;
       if(!k.dibaca){k.dibaca=true;adaBaruKom=true;}
     });
     // Tandai dibaca cukup di memori lokal saja, jangan kirim ke cloud tiap render
@@ -619,7 +619,7 @@ function renderBeranda(){
     pngList.forEach(p=>{
       const bisaEditPng=C.pengumuman_kirim(R);
       const lampiranBtn=p.lampiran?`<button onclick="lihatLampiran('${p.id}')" style="background:rgba(255,255,255,0.25);border:none;color:#fff;border-radius:4px;padding:3px 10px;font-size:11px;cursor:pointer;margin-top:6px">${p.lampiran.type==='pdf'?'📄 Buka PDF':'🖼️ Lihat Foto'}</button>`:'';
-      html+=`<div class="pengumuman-box"><h3>📢 Dari ${esc(p.dari)}</h3><p style="font-size:14px">${esc(p.pesan)}</p>${lampiranBtn}<div style="font-size:11px;opacity:.7;margin-top:6px;display:flex;justify-content:space-between;align-items:center">${tgl(p.tgl)}<div style="display:flex;gap:4px">${bisaEditPng?`<button onclick="editPengumuman('${p.id}')" style="background:rgba(255,255,255,0.15);border:none;color:#fff;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer">✏️</button>`:''}<button onclick="hapusPengumuman('${p.id}')" style="background:rgba(255,255,255,0.2);border:none;color:#fff;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer">🗑</button></div></div></div>`;
+      html+=`<div class="pengumuman-box"><h3>📢 Dari ${esc(p.dari)}</h3><p style="font-size:14px">${esc(p.pesan)}</p>${lampiranBtn}${buildResponBar('pengumuman',p)}<div style="font-size:11px;opacity:.7;margin-top:6px;display:flex;justify-content:space-between;align-items:center">${tgl(p.tgl)}<div style="display:flex;gap:4px">${bisaEditPng?`<button onclick="editPengumuman('${p.id}')" style="background:rgba(255,255,255,0.15);border:none;color:#fff;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer">✏️</button>`:''}<button onclick="hapusPengumuman('${p.id}')" style="background:rgba(255,255,255,0.2);border:none;color:#fff;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer">🗑</button></div></div></div>`;
       if(!p.dibaca){p.dibaca=true;adaBaruPng=true;}
     });
     if(adaBaruPng){try{localStorage.setItem(SK,JSON.stringify(D));}catch(e){}}
@@ -696,6 +696,62 @@ function kirimKomando(){
     <button class="wa-btn" style="width:100%" onclick="shareWA('⚡ *KOMANDO PASKIBRA* ⚡\\n\\n${v.replace(/'/g,"\\'")}\\n\\n— ${RLBL[R]}');closeModal()">📤 Broadcast ke WA Grup</button>
     <button class="btn btn-ghost btn-full" style="margin-top:8px" onclick="closeModal()">Lewati</button>`);
   },300);
+}
+// ═══ FITUR RESPON PESAN (seperti "wajib balas" di WA) ═══
+function buildResponBar(tipe,item){
+  const respon=item.respon||[];
+  const jumlah=respon.length;
+  const sudah=sudahMereponPesan(tipe,item.id);
+  const bisaLihatNama=C.komando_kirim(R)||C.pengumuman_kirim(R)||['ketua','sekretaris','tatib','bendahara'].includes(R);
+  return `<div style="margin-top:8px;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+    <button onclick="bukaFormRespon('${tipe}','${item.id}')" style="background:${sudah?'rgba(34,197,94,0.35)':'rgba(255,255,255,0.2)'};border:none;color:#fff;border-radius:6px;padding:4px 10px;font-size:11px;cursor:pointer">${sudah?'✅ Sudah Respon':'👍 Tandai Respon'}</button>
+    ${bisaLihatNama?`<button onclick="lihatSemuaRespon('${tipe}','${item.id}')" style="background:rgba(255,255,255,0.15);border:none;color:#fff;border-radius:6px;padding:4px 10px;font-size:11px;cursor:pointer">👥 ${jumlah} merespon</button>`:`<span style="font-size:11px;opacity:.9;color:#fff">✅ ${jumlah} orang merespon</span>`}
+  </div>`;
+}
+function sudahMereponPesan(tipe,id){
+  try{return !!localStorage.getItem('pramansabel_respon_'+tipe+'_'+id);}catch(e){return false;}
+}
+function toggleRespNamaManual(sel){
+  const el=document.getElementById('resp-nama-manual');
+  if(el)el.style.display=sel.value==='__lain__'?'block':'none';
+}
+function bukaFormRespon(tipe,id){
+  const daftarNama=D.anggota.filter(a=>a.status==='aktif').map(a=>a.nama).sort();
+  const opsiHtml=daftarNama.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join('');
+  openModal(`<div class="modal-title">👍 Tandai Respon <button class="modal-close" onclick="closeModal()">×</button></div>
+  <p style="font-size:12px;color:var(--fg2);margin-bottom:10px">Pilih namamu supaya pengirim tahu kamu sudah membaca & merespon pesan ini.</p>
+  <div class="field"><label>Nama Kamu</label><select id="resp-nama" onchange="toggleRespNamaManual(this)"><option value="">-- Pilih Nama --</option>${opsiHtml}<option value="__lain__">Nama tidak ada di daftar...</option></select></div>
+  <div class="field" id="resp-nama-manual" style="display:none"><label>Tulis Nama</label><input id="resp-nama-custom" placeholder="Nama lengkap"></div>
+  <button class="btn btn-primary btn-full" onclick="konfirmasiRespon('${tipe}','${id}')">✅ Konfirmasi Respon</button>`);
+}
+function konfirmasiRespon(tipe,id){
+  const sel=document.getElementById('resp-nama')?.value;
+  const nama=sel==='__lain__'?document.getElementById('resp-nama-custom')?.value.trim():sel;
+  if(!nama)return toast('Pilih atau tulis nama dulu');
+  const arr=tipe==='komando'?D.komando:D.pengumuman;
+  const item=arr.find(x=>x.id===id);
+  if(!item)return;
+  if(!item.respon)item.respon=[];
+  const existing=item.respon.find(r=>r.nama.toLowerCase()===nama.toLowerCase());
+  if(existing){existing.waktu=Date.now();}
+  else item.respon.push({nama,waktu:Date.now(),role:R});
+  try{localStorage.setItem('pramansabel_respon_'+tipe+'_'+id,nama);}catch(e){}
+  save();closeModal();toast('✅ Respon tercatat, terima kasih!');
+  renderBeranda();
+}
+function lihatSemuaRespon(tipe,id){
+  const arr=tipe==='komando'?D.komando:D.pengumuman;
+  const item=arr.find(x=>x.id===id);
+  if(!item||!item.respon||!item.respon.length)return toast('Belum ada yang merespon pesan ini');
+  const sorted=item.respon.slice().sort((a,b)=>a.waktu-b.waktu);
+  const list=sorted.map((r,i)=>`<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px"><span>${i+1}. ${esc(r.nama)}</span><span style="color:var(--fg2);font-size:11px">${new Date(r.waktu).toLocaleString('id-ID',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}</span></div>`).join('');
+  const sudahNama=item.respon.map(r=>r.nama.toLowerCase());
+  const belum=D.anggota.filter(a=>a.status==='aktif'&&!sudahNama.includes(a.nama.toLowerCase()));
+  const belumHtml=belum.length?`<div class="sec" style="margin-top:14px;font-size:13px">⏳ Belum Merespon (${belum.length})</div>`+belum.map(a=>`<div style="padding:4px 0;font-size:12px;color:var(--fg2)">${esc(a.nama)}</div>`).join(''):`<div style="margin-top:14px;font-size:12px;color:var(--ok)">🎉 Semua anggota sudah merespon!</div>`;
+  openModal(`<div class="modal-title">👥 Daftar Respon <button class="modal-close" onclick="closeModal()">×</button></div>
+  <div class="sec" style="font-size:13px">✅ Sudah Merespon (${item.respon.length})</div>
+  ${list}
+  ${belumHtml}`);
 }
 function hapusKomando(id){D.komando=D.komando.filter(k=>k.id!==id);save();toast('Komando dihapus');renderBeranda();}
 function hapusPengumuman(id){D.pengumuman=D.pengumuman.filter(p=>p.id!==id);save();toast('Pengumuman dihapus');renderBeranda();}
@@ -807,7 +863,7 @@ function buatFileDariTeks(inputId,format){
   } else {
     if(typeof html2pdf==='undefined'){toast('❌ Fitur PDF belum siap, cek koneksi internet');return;}
     const wrap=document.createElement('div');
-    wrap.style.cssText='position:fixed;left:-9999px;top:0;width:210mm;background:#fff;padding:20mm;font-family:Arial,sans-serif';
+    wrap.style.cssText='position:fixed;top:0;left:0;width:210mm;background:#fff;padding:20mm;font-family:Arial,sans-serif;opacity:0;z-index:-1;pointer-events:none';
     wrap.innerHTML=`<div style="border-bottom:3px solid #b91c1c;padding-bottom:12px;margin-bottom:16px">
       <h1 style="color:#b91c1c;font-size:20pt;margin:0">${judul}</h1>
       <p style="color:#666;font-size:10pt;margin:4px 0 0">PASKIBRA MAN 1 BELITUNG — PASMANSABEL</p>
@@ -2061,15 +2117,16 @@ B. Saran
   <div class="card" style="overflow-x:auto"><pre style="font-size:11px;white-space:pre-wrap;line-height:1.75;font-family:'Courier New',monospace">${esc(lapTeks)}</pre></div>`;
 }
 function buildLaporanStyleCSS(){
-  return`body{font-family:Arial,sans-serif;font-size:12pt;margin:2cm;line-height:1.5;color:#000;background:#fff}
-  h1{font-size:14pt;text-align:center;text-transform:uppercase;font-weight:bold}
-  h2{font-size:12pt;font-weight:bold;margin-top:16pt}
-  h3{font-size:12pt;font-weight:bold;margin-top:10pt}
-  p{margin:4pt 0;text-align:justify}
-  table{border-collapse:collapse;width:100%;margin:8pt 0}
-  th{border:1px solid #000;padding:4px 8px;background:#f0f0f0;font-weight:bold}
-  .center{text-align:center}.kop{text-align:center;border-bottom:3px double #000;padding-bottom:8pt;margin-bottom:16pt}
-  .ttd-tbl{width:100%;margin-top:40pt}.ttd-tbl td{width:33%;vertical-align:top;text-align:center}`;
+  // PENTING: semua aturan di-scope ke .lap-cetak supaya tidak bocor ke tampilan aplikasi yang sedang aktif
+  return`.lap-cetak{font-family:Arial,sans-serif;font-size:12pt;line-height:1.5;color:#000;background:#fff;padding:2cm;box-sizing:border-box}
+  .lap-cetak h1{font-size:14pt;text-align:center;text-transform:uppercase;font-weight:bold}
+  .lap-cetak h2{font-size:12pt;font-weight:bold;margin-top:16pt}
+  .lap-cetak h3{font-size:12pt;font-weight:bold;margin-top:10pt}
+  .lap-cetak p{margin:4pt 0;text-align:justify}
+  .lap-cetak table{border-collapse:collapse;width:100%;margin:8pt 0}
+  .lap-cetak th{border:1px solid #000;padding:4px 8px;background:#f0f0f0;font-weight:bold}
+  .lap-cetak .center{text-align:center}.lap-cetak .kop{text-align:center;border-bottom:3px double #000;padding-bottom:8pt;margin-bottom:16pt}
+  .lap-cetak .ttd-tbl{width:100%;margin-top:40pt}.lap-cetak .ttd-tbl td{width:33%;vertical-align:top;text-align:center}`;
 }
 function buildLaporanBodyHTML(){
   const masuk=D.kas.filter(k=>k.jenis==='masuk').reduce((s,k)=>s+k.nominal,0);
@@ -2146,7 +2203,7 @@ function downloadLaporanWord(){
   const bulanNum=new Date().toLocaleDateString('id-ID',{month:'long'});
   const tahun=new Date().getFullYear();
   const body=buildLaporanBodyHTML();
-  const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><style>${buildLaporanStyleCSS()}</style></head><body>${body}</body></html>`;
+  const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><style>${buildLaporanStyleCSS()}</style></head><body><div class="lap-cetak">${body}</div></body></html>`;
   const blob=new Blob(['﻿'+html],{type:'application/msword;charset=utf-8'});
   const url=URL.createObjectURL(blob);
   const a=document.createElement('a');
@@ -2162,8 +2219,14 @@ function downloadLaporanPDF(){
   const tahun=new Date().getFullYear();
   const body=buildLaporanBodyHTML();
   const wrap=document.createElement('div');
-  wrap.style.cssText='position:fixed;left:-9999px;top:0;width:210mm;background:#fff';
-  wrap.innerHTML=`<style>${buildLaporanStyleCSS()}</style><div style="padding:0">${body}</div>`;
+  wrap.style.cssText='position:fixed;top:0;left:0;width:210mm;background:#fff;opacity:0;z-index:-1;pointer-events:none';
+  const styleEl=document.createElement('style');
+  styleEl.textContent=buildLaporanStyleCSS();
+  wrap.appendChild(styleEl);
+  const inner=document.createElement('div');
+  inner.className='lap-cetak';
+  inner.innerHTML=body;
+  wrap.appendChild(inner);
   document.body.appendChild(wrap);
   toast('📄 Membuat PDF, mohon tunggu...');
   html2pdf().set({
