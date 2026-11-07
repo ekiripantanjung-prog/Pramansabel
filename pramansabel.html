@@ -214,6 +214,7 @@ input,select,textarea{font-family:inherit}
 /* SHARE BTN WA */
 .wa-btn{background:#25D366;color:#fff;border-radius:var(--rr);padding:10px 16px;font-size:14px;font-weight:600;display:flex;align-items:center;gap:8px;width:100%;justify-content:center}
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 </head>
 <body>
 
@@ -727,6 +728,12 @@ function kirimPengumuman(){
   save();toast('Pengumuman dikirim!');
   document.getElementById('inp-png').value='';
   renderBeranda();
+  setTimeout(()=>{
+    openModal(`<div class="modal-title">📢 Pengumuman Terkirim <button class="modal-close" onclick="closeModal()">×</button></div>
+    <p style="font-size:13px;color:var(--fg2);margin-bottom:12px">Pengumuman sudah tersimpan di aplikasi. Broadcast juga ke WA grup biar pasti dibaca semua:</p>
+    <button class="wa-btn" style="width:100%" onclick="shareWA('📢 *PENGUMUMAN PASKIBRA* 📢\\n\\n${v.replace(/'/g,"\\'")}\\n\\n— ${RLBL[R]}');closeModal()">📤 Broadcast ke WA Grup</button>
+    <button class="btn btn-ghost btn-full" style="margin-top:8px" onclick="closeModal()">Lewati</button>`);
+  },300);
 }
 
 // ═══════════════════════════════════════════
