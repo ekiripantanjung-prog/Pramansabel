@@ -408,7 +408,7 @@ load();
 // Auto-sync: ambil data dari cloud saat buka app
 if(GS_URL){loadGS().then(ok=>{if(ok&&R)goScreen('beranda');});}
 // Auto-sync setiap 30 detik jika ada role aktif
-setInterval(()=>{if(GS_URL&&R){loadGS().then(ok=>{if(ok)goScreen(document.querySelector('.screen.on')?.id?.replace('s-','')||'beranda');});}},30000);
+setInterval(()=>{if(GS_URL&&R){loadGS().then(ok=>{if(ok)goScreen(document.querySelector('.screen.on')?.id?.replace('s-','')||'beranda');});}},5000);
 
 // ═══════════════════════════════════════════
 // ACCESS CONTROL
