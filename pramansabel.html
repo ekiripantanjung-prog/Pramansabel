@@ -396,7 +396,8 @@ function defD(){return{
 let D = defD();
 let R = null; // role saat ini
 
-let GS_URL='';try{GS_URL=localStorage.getItem('pramansabel_gsurl')||'';}catch(e){}
+const GS_DEFAULT='https://script.google.com/macros/s/AKfycbzdZ3IVx3jmo7HR3W1b2BFTjUGJs-z7JIJFJhdOV6FVuJkajqGEvtauONMrJuEX9bevxw/exec';
+let GS_URL='';try{GS_URL=localStorage.getItem('pramansabel_gsurl')||GS_DEFAULT;}catch(e){GS_URL=GS_DEFAULT;}
 function save(){try{localStorage.setItem(SK,JSON.stringify(D));}catch(e){} saveGS();}
 function load(){try{const s=localStorage.getItem(SK);if(s){const p=JSON.parse(s);D=Object.assign(defD(),p);}}catch(e){}}
 function saveGS(){if(!GS_URL)return;fetch(GS_URL,{method:'POST',body:JSON.stringify(D)}).catch(()=>{});}
@@ -548,7 +549,7 @@ function renderBeranda(){
   if(pngList.length){
     html+=`<div class="sec">📢 PENGUMUMAN</div>`;
     pngList.slice(0,3).forEach(p=>{
-      html+=`<div class="pengumuman-box"><h3>📢 Dari ${esc(p.dari)}</h3><p style="font-size:14px">${esc(p.pesan)}</p><div style="font-size:11px;opacity:.7;margin-top:6px">${tgl(p.tgl)}</div></div>`;
+      html+=`<div class="pengumuman-box"><h3>📢 Dari ${esc(p.dari)}</h3><p style="font-size:14px">${esc(p.pesan)}</p><div style="font-size:11px;opacity:.7;margin-top:6px;display:flex;justify-content:space-between;align-items:center">${tgl(p.tgl)}${C.komando_kirim(R)?`<button onclick="hapusPengumuman('${p.id}')" style="background:rgba(255,255,255,0.2);border:none;color:#fff;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer">🗑</button>`:''}</div></div>`;
       if(!p.dibaca){p.dibaca=true;}
     });
     save();
@@ -610,6 +611,7 @@ function kirimKomando(){
   renderBeranda();
 }
 function hapusKomando(id){D.komando=D.komando.filter(k=>k.id!==id);save();toast('Komando dihapus');renderBeranda();}
+function hapusPengumuman(id){D.pengumuman=D.pengumuman.filter(p=>p.id!==id);save();toast('Pengumuman dihapus');renderBeranda();}
 function kirimPengumuman(){
   const v=document.getElementById('inp-png')?.value.trim();
   if(!v)return toast('Tulis isi pengumuman dulu');
