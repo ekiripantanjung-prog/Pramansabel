@@ -476,7 +476,7 @@ const C={
   keuangan_view:r=>true, // semua bisa lihat, hanya bendahara yang bisa catat
   komando_kirim:r=>r==='pembina'||(r==='pelatih'&&D.config.pelatih_komando),
   pengumuman_kirim:r=>['pembina','pelatih','ketua','sekretaris'].includes(r),
-  pemetaan_edit:r=>['pelatih','pembina','aspelatih1','aspelatih2'].includes(r)||r==='balonpas',
+  pemetaan_edit:r=>['pelatih','pembina','aspelatih1','aspelatih2','pps26','pps25'].includes(r)||r==='balonpas',
   laporan:r=>r==='pembina',
   anggota_edit:r=>['pembina','ketua'].includes(r),
   edit_info:r=>r==='pembina',
@@ -862,20 +862,23 @@ function buatFileDariTeks(inputId,format){
     },'image/png',0.95);
   } else {
     if(typeof html2pdf==='undefined'){toast('❌ Fitur PDF belum siap, cek koneksi internet');return;}
+    const outer=document.createElement('div');
+    outer.style.cssText='position:absolute;top:0;left:0;width:0;height:0;overflow:hidden';
     const wrap=document.createElement('div');
-    wrap.style.cssText='position:fixed;top:0;left:0;width:210mm;background:#fff;padding:20mm;font-family:Arial,sans-serif;opacity:0;z-index:-1;pointer-events:none';
+    wrap.style.cssText='width:210mm;background:#fff;padding:20mm;font-family:Arial,sans-serif';
     wrap.innerHTML=`<div style="border-bottom:3px solid #b91c1c;padding-bottom:12px;margin-bottom:16px">
       <h1 style="color:#b91c1c;font-size:20pt;margin:0">${judul}</h1>
       <p style="color:#666;font-size:10pt;margin:4px 0 0">PASKIBRA MAN 1 BELITUNG — PASMANSABEL</p>
     </div>
     <p style="font-size:13pt;line-height:1.8;white-space:pre-wrap">${esc(teks)}</p>
     <p style="margin-top:30px;color:#888;font-size:10pt;font-style:italic">— ${RLBL[R]} · ${tgl()}</p>`;
-    document.body.appendChild(wrap);
+    outer.appendChild(wrap);
+    document.body.appendChild(outer);
     toast('📄 Membuat PDF...');
     html2pdf().set({margin:0,image:{type:'jpeg',quality:0.95},html2canvas:{scale:2},jsPDF:{unit:'mm',format:'a4',orientation:'portrait'}}).from(wrap).outputPdf('blob').then(blob=>{
-      document.body.removeChild(wrap);
+      document.body.removeChild(outer);
       shareAtauUnduh(blob,`${namaFile}_${Date.now()}.pdf`,'application/pdf',judul);
-    }).catch(()=>{document.body.removeChild(wrap);toast('❌ Gagal membuat PDF');});
+    }).catch(()=>{document.body.removeChild(outer);toast('❌ Gagal membuat PDF');});
   }
 }
 function shareAtauUnduh(blob,filename,mime,judul){
@@ -2218,8 +2221,10 @@ function downloadLaporanPDF(){
   const bulanNum=new Date().toLocaleDateString('id-ID',{month:'long'});
   const tahun=new Date().getFullYear();
   const body=buildLaporanBodyHTML();
+  const outer=document.createElement('div');
+  outer.style.cssText='position:absolute;top:0;left:0;width:0;height:0;overflow:hidden';
   const wrap=document.createElement('div');
-  wrap.style.cssText='position:fixed;top:0;left:0;width:210mm;background:#fff;opacity:0;z-index:-1;pointer-events:none';
+  wrap.style.cssText='width:210mm;background:#fff';
   const styleEl=document.createElement('style');
   styleEl.textContent=buildLaporanStyleCSS();
   wrap.appendChild(styleEl);
@@ -2227,7 +2232,8 @@ function downloadLaporanPDF(){
   inner.className='lap-cetak';
   inner.innerHTML=body;
   wrap.appendChild(inner);
-  document.body.appendChild(wrap);
+  outer.appendChild(wrap);
+  document.body.appendChild(outer);
   toast('📄 Membuat PDF, mohon tunggu...');
   html2pdf().set({
     margin:[10,10,10,10],
@@ -2237,10 +2243,10 @@ function downloadLaporanPDF(){
     jsPDF:{unit:'mm',format:'a4',orientation:'portrait'},
     pagebreak:{mode:['avoid-all','css','legacy']}
   }).from(wrap).save().then(()=>{
-    document.body.removeChild(wrap);
+    document.body.removeChild(outer);
     toast('✅ PDF berhasil diunduh');
   }).catch(()=>{
-    document.body.removeChild(wrap);
+    document.body.removeChild(outer);
     toast('❌ Gagal membuat PDF, coba lagi');
   });
 }
