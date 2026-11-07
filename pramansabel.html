@@ -440,7 +440,7 @@ setInterval(async()=>{
     }
     // Hanya refresh beranda, jangan ganggu tab lain — dan jangan ganggu kalau user sedang mengetik
     const activeScreen=document.querySelector('.screen.on')?.id?.replace('s-','');
-    const sedangMengetik=document.activeElement&&['INPUT','TEXTAREA'].includes(document.activeElement.tagName)&&document.activeElement.value;
+    const sedangMengetik=document.activeElement&&['INPUT','TEXTAREA'].includes(document.activeElement.tagName);
     if(activeScreen==='beranda'&&!sedangMengetik)renderBeranda();
   });
 },5000);
@@ -578,24 +578,27 @@ function renderBeranda(){
   const komList=D.komando.slice().reverse();
   if(komList.length){
     html+=`<div class="sec">⚡ KOMANDO CEPAT</div>`;
+    let adaBaruKom=false;
     komList.forEach(k=>{
       const bisaEdit=C.komando_kirim(R)||['ketua','tatib'].includes(R);
       html+=`<div class="komando-box"><h3>⚡ Komando dari ${esc(k.dari)}</h3><p>${esc(k.pesan)}</p><div class="kmeta" style="display:flex;justify-content:space-between;align-items:center">${tgl(k.tgl)} ${!k.dibaca?'<span class="badge badge-warn">Baru</span>':''}<div style="display:flex;gap:4px">${bisaEdit?`<button onclick="editKomando('${k.id}')" style="background:rgba(255,255,255,0.15);border:none;color:#fff;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer">✏️</button>`:''}<button onclick="hapusKomando('${k.id}')" style="background:rgba(255,255,255,0.2);border:none;color:#fff;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer">🗑</button></div></div></div>`;
-      if(!k.dibaca){k.dibaca=true;}
+      if(!k.dibaca){k.dibaca=true;adaBaruKom=true;}
     });
-    save();
+    // Tandai dibaca cukup di memori lokal saja, jangan kirim ke cloud tiap render
+    if(adaBaruKom){try{localStorage.setItem(SK,JSON.stringify(D));}catch(e){}}
   }
 
   // Pengumuman
   const pngList=D.pengumuman.slice().reverse();
   if(pngList.length){
     html+=`<div class="sec">📢 PENGUMUMAN</div>`;
+    let adaBaruPng=false;
     pngList.forEach(p=>{
       const bisaEditPng=C.pengumuman_kirim(R);
       html+=`<div class="pengumuman-box"><h3>📢 Dari ${esc(p.dari)}</h3><p style="font-size:14px">${esc(p.pesan)}</p><div style="font-size:11px;opacity:.7;margin-top:6px;display:flex;justify-content:space-between;align-items:center">${tgl(p.tgl)}<div style="display:flex;gap:4px">${bisaEditPng?`<button onclick="editPengumuman('${p.id}')" style="background:rgba(255,255,255,0.15);border:none;color:#fff;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer">✏️</button>`:''}<button onclick="hapusPengumuman('${p.id}')" style="background:rgba(255,255,255,0.2);border:none;color:#fff;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer">🗑</button></div></div></div>`;
-      if(!p.dibaca){p.dibaca=true;}
+      if(!p.dibaca){p.dibaca=true;adaBaruPng=true;}
     });
-    save();
+    if(adaBaruPng){try{localStorage.setItem(SK,JSON.stringify(D));}catch(e){}}
   }
 
   // Stats
