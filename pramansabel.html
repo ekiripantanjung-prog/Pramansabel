@@ -330,7 +330,7 @@ const RLBL = {
   aspelatih1:'👟 Asisten Pelatih 1',aspelatih2:'👟 Asisten Pelatih 2',
   ketua:'⭐ Ketua PPS',sekretaris:'📋 Sekretaris',
   bendahara:'💰 Bendahara',tatib:'⚖️ TATIB',
-  pps26:'🫡 PPS Angkatan 26',pps25:'🏅 PPS Purna 25',
+  pps27:'🫡 PPS Angkatan 27',pps26:'🫡 PPS Angkatan 26',pps25:'🏅 PPS Purna 25',
   purnasenior:'🎖 Purna Senior',balonpas:'🌱 Balonpas'
 };
 
@@ -393,7 +393,7 @@ function defD(){return{
   izin:[],
   ttd:null, // base64 TTD Pembina
   pins:{},
-  config:{pelatih_komando:false}
+  config:{pelatih_komando:false,angkatanAktif:26,angkatanPurna:25}
 };}
 
 let D = defD();
@@ -403,14 +403,14 @@ const GS_DEFAULT='https://script.google.com/macros/s/AKfycbzdZ3IVx3jmo7HR3W1b2BF
 let GS_URL='';try{GS_URL=localStorage.getItem('pramansabel_gsurl')||GS_DEFAULT;}catch(e){GS_URL=GS_DEFAULT;}
 let _lastLocalSave=0,_pendingPush=null;
 function save(){_lastLocalSave=Date.now();try{localStorage.setItem(SK,JSON.stringify(D));}catch(e){} saveGS();}
-function load(){try{const s=localStorage.getItem(SK);if(s){const p=JSON.parse(s);D=Object.assign(defD(),p);}}catch(e){}}
+function load(){try{const s=localStorage.getItem(SK);if(s){const p=JSON.parse(s);const def=defD();D=Object.assign(def,p);D.config=Object.assign(def.config,p.config||{});}}catch(e){}}
 function saveGS(){
   if(!GS_URL)return;
   const d={...D,ttd:null};
   _pendingPush=fetch(GS_URL,{method:'POST',body:JSON.stringify(d)}).catch(()=>{}).finally(()=>{_pendingPush=null;});
   return _pendingPush;
 }
-async function loadGS(){if(!GS_URL)return false;try{const r=await fetch(GS_URL+'?t='+Date.now());const d=await r.json();if(d&&!d.error&&d.anggota!==undefined){const ttdLama=D.ttd;D=Object.assign(defD(),d);if(!D.ttd&&ttdLama)D.ttd=ttdLama;try{localStorage.setItem(SK,JSON.stringify(D));}catch(e){}window._lastSyncTime=Date.now();return true;}}catch(e){}return false;}
+async function loadGS(){if(!GS_URL)return false;try{const r=await fetch(GS_URL+'?t='+Date.now());const d=await r.json();if(d&&!d.error&&d.anggota!==undefined){const ttdLama=D.ttd;const def=defD();D=Object.assign(def,d);D.config=Object.assign(def.config,d.config||{});if(!D.ttd&&ttdLama)D.ttd=ttdLama;try{localStorage.setItem(SK,JSON.stringify(D));}catch(e){}window._lastSyncTime=Date.now();return true;}}catch(e){}return false;}
 function tarikManual(){
   toast('🔄 Menarik data terbaru...');
   loadGS().then(ok=>{
@@ -466,7 +466,7 @@ function showNotif(judul,pesan){
 const C={
   isPengurus:r=>['pembina','pelatih','aspelatih1','aspelatih2','ketua','sekretaris','bendahara','tatib'].includes(r),
   isPPS:r=>['pps26','pps25','purnasenior'].includes(r),
-  isAnggota:r=>['pps26','pps25','purnasenior','balonpas'].includes(r),
+  isAnggota:r=>['pps27','pps26','pps25','purnasenior','balonpas'].includes(r),
   absensi_edit:r=>r==='sekretaris',
   proker_buat:r=>r==='ketua',
   proker_acc:r=>['pembina','pelatih'].includes(r),
@@ -476,9 +476,10 @@ const C={
   keuangan_view:r=>true, // semua bisa lihat, hanya bendahara yang bisa catat
   komando_kirim:r=>r==='pembina'||(r==='pelatih'&&D.config.pelatih_komando),
   pengumuman_kirim:r=>['pembina','pelatih','ketua','sekretaris'].includes(r),
-  pemetaan_edit:r=>['pelatih','pembina','aspelatih1','aspelatih2','pps26','pps25'].includes(r)||r==='balonpas',
+  pemetaan_edit:r=>['pelatih','pembina','aspelatih1','aspelatih2'].includes(r)||r===('pps'+D.config.angkatanAktif)||r===('pps'+D.config.angkatanPurna)||r==='balonpas',
   laporan:r=>r==='pembina',
   anggota_edit:r=>['pembina','ketua'].includes(r),
+  balonpas_tambah:r=>C.anggota_edit(r)||r===('pps'+D.config.angkatanAktif)||r===('pps'+D.config.angkatanPurna),
   edit_info:r=>r==='pembina',
   ttd:r=>r==='pembina',
   lantik:r=>r==='pembina',
@@ -969,10 +970,15 @@ function renderDaftarAnggota(){
       <button class="btn btn-blue btn-sm" onclick="document.getElementById('csv-import-inp').click()">📥 Import CSV</button>
       <input type="file" id="csv-import-inp" accept=".csv,.txt" style="display:none" onchange="importCSV(this)">
       <button class="btn btn-ghost btn-sm" onclick="downloadTemplateCSV()">📄 Unduh Template</button>
+      ${R==='pembina'&&D.anggota.some(x=>x.role==='pps'+(D.config.angkatanAktif+1)&&x.status==='aktif')?`<button class="btn btn-warn btn-sm" onclick="resmikanAngkatanBaru()">🎓 Resmikan Angkatan ${D.config.angkatanAktif+1} jadi Aktif</button>`:''}
+    </div>`;
+  } else if(C.balonpas_tambah(R)){
+    html+=`<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+      <button class="btn btn-primary btn-sm" onclick="modalTambahBalonpas()">+ Tambah Data Balonpas</button>
     </div>`;
   }
 
-  const groups={pps26:'PPS Angkatan 26',pps25:'PPS Purna 25',purnasenior:'Purna Senior',balonpas:'Balonpas'};
+  const groups={pps27:'PPS Angkatan 27',pps26:'PPS Angkatan 26',pps25:'PPS Purna 25',purnasenior:'Purna Senior',balonpas:'Balonpas'};
   Object.entries(groups).forEach(([k,label])=>{
     const list=D.anggota.filter(a=>a.role===k);
     if(!list.length)return;
@@ -980,7 +986,8 @@ function renderDaftarAnggota(){
     list.forEach(a=>{
       const st=a.status==='aktif'?'badge-ok':a.status==='purna'?'badge-info':'badge-danger';
       html+=`<div class="item"><div class="item-head"><div><div class="item-title">${esc(a.nama)}</div><div class="item-sub">Kelas: ${esc(a.kelas||'-')} · ${esc(a.jabatan||k)}</div></div><span class="badge ${st}">${a.status||'aktif'}</span></div>
-      ${C.anggota_edit(R)?`<div style="margin-top:8px;display:flex;gap:8px"><button class="btn btn-ghost btn-sm" onclick="modalEditAnggota('${a.id}')">Edit</button>${R==='pembina'&&a.role==='balonpas'?`<button class="btn btn-ok btn-sm" onclick="lantikAnggota('${a.id}')">Lantik PPS</button>`:''}${R==='pembina'?`<button class="btn btn-warn btn-sm" onclick="keluarAnggota('${a.id}')">Non-aktifkan</button>`:''}</div>`:''}
+      ${C.anggota_edit(R)?`<div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-ghost btn-sm" onclick="modalEditAnggota('${a.id}')">Edit</button>${R==='pembina'&&a.role==='balonpas'&&a.status==='aktif'?`<button class="btn btn-ok btn-sm" onclick="lantikAnggota('${a.id}')">Lantik PPS</button>`:''}${a.role==='balonpas'&&a.status==='aktif'?`<button class="btn btn-warn btn-sm" onclick="modalKeluarBalonpas('${a.id}')">🚪 Keluarkan</button>`:''}${R==='pembina'?`<button class="btn btn-warn btn-sm" onclick="keluarAnggota('${a.id}')">Non-aktifkan</button>`:''}</div>`
+      :(C.balonpas_tambah(R)&&a.role==='balonpas'&&a.status==='aktif')?`<div style="margin-top:8px"><button class="btn btn-warn btn-sm" onclick="modalKeluarBalonpas('${a.id}')">🚪 Keluarkan</button></div>`:''}
       </div>`;
     });
   });
@@ -1022,7 +1029,7 @@ function importCSV(inp){
     const iHp=header.indexOf('hp');
     const iStatus=header.indexOf('status');
     if(iNama<0||iRole<0)return toast('Kolom "nama" dan "role" wajib ada di CSV');
-    const validRoles=['pps26','pps25','purnasenior','balonpas'];
+    const validRoles=['pps27','pps26','pps25','purnasenior','balonpas'];
     let added=0,skip=0;
     lines.slice(1).forEach(line=>{
       if(!line.trim()||line.startsWith('#'))return;
@@ -1057,6 +1064,7 @@ function modalTambahAnggota(){
   <div class="field"><label>Nama Lengkap</label><input id="ma-nama" type="text" placeholder="Nama anggota"></div>
   <div class="field"><label>Kelas</label><input id="ma-kelas" type="text" placeholder="Contoh: X IPA 1"></div>
   <div class="field"><label>Peran/Angkatan</label><select id="ma-role">
+    <option value="pps27">PPS Angkatan 27</option>
     <option value="pps26">PPS Angkatan 26</option>
     <option value="pps25">PPS Purna 25</option>
     <option value="purnasenior">Purna Senior</option>
@@ -1067,6 +1075,21 @@ function modalTambahAnggota(){
   <button class="btn btn-primary btn-full" onclick="simpanAnggota()">💾 Simpan</button>`);
 }
 
+function modalTambahBalonpas(){
+  openModal(`<div class="modal-title">Tambah Data Balonpas <button class="modal-close" onclick="closeModal()">×</button></div>
+  <div style="font-size:12px;color:var(--fg2);margin-bottom:10px">Data ini otomatis masuk sebagai Balonpas (calon PPS). Kalau sudah dilantik, Pembina yang akan mengubah statusnya jadi PPS.</div>
+  <div class="field"><label>Nama Lengkap</label><input id="mb-nama" type="text" placeholder="Nama balonpas"></div>
+  <div class="field"><label>Kelas</label><input id="mb-kelas" type="text" placeholder="Contoh: X IPA 1"></div>
+  <div class="field"><label>No. HP / WA (opsional)</label><input id="mb-hp" type="text" placeholder="08xx..."></div>
+  <button class="btn btn-primary btn-full" onclick="simpanBalonpas()">💾 Simpan</button>`);
+}
+function simpanBalonpas(){
+  const nama=document.getElementById('mb-nama').value.trim();
+  if(!nama)return toast('Nama harus diisi');
+  D.anggota.push({id:uid(),nama,kelas:document.getElementById('mb-kelas').value.trim(),role:'balonpas',jabatan:'Calon PPS',hp:document.getElementById('mb-hp').value.trim(),status:'aktif',tglDaftar:Date.now()});
+  save();closeModal();toast('Data balonpas ditambahkan');tabAnggota('daftar',null);
+  document.querySelectorAll('#s-anggota .tab')[0].classList.add('on');
+}
 function simpanAnggota(){
   const nama=document.getElementById('ma-nama').value.trim();
   if(!nama)return toast('Nama harus diisi');
@@ -1081,7 +1104,7 @@ function modalEditAnggota(id){
   <div class="field"><label>Nama</label><input id="ea-nama" value="${esc(a.nama)}"></div>
   <div class="field"><label>Kelas</label><input id="ea-kelas" value="${esc(a.kelas||'')}"></div>
   <div class="field"><label>Peran</label><select id="ea-role">
-    ${['pps26','pps25','purnasenior','balonpas'].map(r=>`<option value="${r}"${a.role===r?' selected':''}>${RLBL[r]}</option>`).join('')}
+    ${['pps27','pps26','pps25','purnasenior','balonpas'].map(r=>`<option value="${r}"${a.role===r?' selected':''}>${RLBL[r]}</option>`).join('')}
   </select></div>
   <div class="field"><label>Status</label><select id="ea-status">
     <option value="aktif"${a.status==='aktif'?' selected':''}>Aktif</option>
@@ -1103,14 +1126,47 @@ function updateAnggota(id){
 }
 function lantikAnggota(id){
   const a=D.anggota.find(x=>x.id===id);if(!a)return;
-  if(!confirm(`Lantik ${a.nama} menjadi PPS Angkatan 2027?`))return;
-  a.role='pps26';a.status='aktif';a.tglLantik=Date.now();
-  save();toast(`${a.nama} dilantik menjadi PPS Angkatan 2027!`);renderAnggota();
+  // Selama satu angkatan masih dalam proses pelantikan (satu per satu, belum diresmikan),
+  // semua balonpas yang dilantik tetap masuk ke angkatan BERIKUTNYA dari angkatan aktif saat ini.
+  // Angkatan aktif sendiri baru berpindah saat diresmikan lewat resmikanAngkatanBaru().
+  const newNum=D.config.angkatanAktif+1;
+  if(!confirm(`Lantik ${a.nama} menjadi PPS Angkatan ${newNum}?`))return;
+  a.role='pps'+newNum;a.status='aktif';a.tglLantik=Date.now();
+  save();toast(`${a.nama} dilantik menjadi PPS Angkatan ${newNum}!`);renderAnggota();
+}
+function resmikanAngkatanBaru(){
+  const newNum=D.config.angkatanAktif+1;
+  const calonAnggotaBaru=D.anggota.filter(x=>x.role==='pps'+newNum&&x.status==='aktif').length;
+  if(calonAnggotaBaru===0)return toast(`Belum ada anggota yang dilantik ke Angkatan ${newNum}. Lantik dulu minimal 1 balonpas sebelum meresmikan angkatan baru.`);
+  if(!confirm(`Resmikan PPS Angkatan ${newNum} sebagai angkatan AKTIF?\n\nPPS Angkatan ${D.config.angkatanAktif} (saat ini aktif) otomatis akan berstatus PURNA — tetap membantu melatih & membimbing Angkatan ${newNum}, seperti PPS ${D.config.angkatanPurna} membantu sekarang.\n\nData/riwayat anggota TIDAK diubah, hanya hak akses yang berpindah.`))return;
+  D.config.angkatanPurna=D.config.angkatanAktif;
+  D.config.angkatanAktif=newNum;
+  save();
+  toast(`✅ PPS Angkatan ${newNum} resmi jadi angkatan aktif. PPS Angkatan ${D.config.angkatanPurna} otomatis jadi Purna.`);
+  renderAnggota();
 }
 function keluarAnggota(id){
   const a=D.anggota.find(x=>x.id===id);if(!a)return;
   if(!confirm(`Non-aktifkan ${a.nama}?`))return;
   a.status='nonaktif';save();toast('Anggota di-non-aktifkan');renderAnggota();
+}
+function modalKeluarBalonpas(id){
+  const a=D.anggota.find(x=>x.id===id);if(!a)return;
+  openModal(`<div class="modal-title">Keluarkan Balonpas <button class="modal-close" onclick="closeModal()">×</button></div>
+  <div style="font-size:13px;font-weight:700;margin-bottom:6px">${esc(a.nama)}</div>
+  <div class="field"><label>Alasan keluar</label><textarea id="kb-alasan" placeholder="Contoh: mengundurkan diri, pindah sekolah, tidak aktif latihan, dll"></textarea></div>
+  <div class="field"><label>Adat/sanksi yang sudah diberikan sebelum keluar (kalau ada)</label><textarea id="kb-adat" placeholder="Contoh: sudah diberi peringatan TATIB tanggal ..., atau tulis '-' kalau tidak ada"></textarea></div>
+  <button class="btn btn-warn btn-full" onclick="simpanKeluarBalonpas('${id}')">🚪 Keluarkan</button>`);
+}
+function simpanKeluarBalonpas(id){
+  const a=D.anggota.find(x=>x.id===id);if(!a)return;
+  const alasan=document.getElementById('kb-alasan').value.trim();
+  if(!alasan)return toast('Alasan keluar harus diisi');
+  const adat=document.getElementById('kb-adat').value.trim();
+  if(!confirm(`Yakin keluarkan ${a.nama} dari daftar balonpas?`))return;
+  a.status='keluar';a.alasanKeluar=alasan;a.adatSebelumKeluar=adat||'-';a.tglKeluar=Date.now();a.dikeluarkanOleh=RLBL[R]||R;
+  save();closeModal();toast(`${a.nama} dikeluarkan dari daftar balonpas`);tabAnggota('daftar',null);
+  document.querySelectorAll('#s-anggota .tab')[0].classList.add('on');
 }
 
 function renderAbsensi(){
@@ -1166,7 +1222,7 @@ function renderSesi(si){
   let html=`<div class="sec">${sesiNama} — ${today}</div>`;
   if(isEditor){
     html+=`<div class="card">`;
-    D.anggota.filter(a=>['pps26','pps25','purnasenior','balonpas'].includes(a.role)&&a.status==='aktif').forEach(a=>{
+    D.anggota.filter(a=>['pps27','pps26','pps25','purnasenior','balonpas'].includes(a.role)&&a.status==='aktif').forEach(a=>{
       const rec=D.absensi.find(x=>x.anggotaId===a.id&&x.sesi===si&&x.tgl===today)||null;
       const v=rec?.status||'hadir';
       html+=`<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
@@ -1182,7 +1238,7 @@ function renderSesi(si){
   } else if(C.isAnggota(R)){
     // Anggota/balonpas lihat rekap absensi semua (read-only)
     html+=`<div class="card"><div class="card-title" style="font-size:13px">📋 Data Absensi ${sesiNama}</div>`;
-    D.anggota.filter(a=>['pps26','pps25','purnasenior','balonpas'].includes(a.role)&&a.status==='aktif').forEach(a=>{
+    D.anggota.filter(a=>['pps27','pps26','pps25','purnasenior','balonpas'].includes(a.role)&&a.status==='aktif').forEach(a=>{
       const rec=D.absensi.find(x=>x.anggotaId===a.id&&x.sesi===si&&x.tgl===today);
       const v=rec?.status||'-';
       const badge=v==='hadir'?'badge-ok':v==='alfa'?'badge-danger':v==='izin'?'badge-info':v==='sakit'?'badge-warn':'';
