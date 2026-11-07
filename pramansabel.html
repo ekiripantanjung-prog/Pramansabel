@@ -618,7 +618,8 @@ function renderBeranda(){
     let adaBaruPng=false;
     pngList.forEach(p=>{
       const bisaEditPng=C.pengumuman_kirim(R);
-      html+=`<div class="pengumuman-box"><h3>📢 Dari ${esc(p.dari)}</h3><p style="font-size:14px">${esc(p.pesan)}</p><div style="font-size:11px;opacity:.7;margin-top:6px;display:flex;justify-content:space-between;align-items:center">${tgl(p.tgl)}<div style="display:flex;gap:4px">${bisaEditPng?`<button onclick="editPengumuman('${p.id}')" style="background:rgba(255,255,255,0.15);border:none;color:#fff;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer">✏️</button>`:''}<button onclick="hapusPengumuman('${p.id}')" style="background:rgba(255,255,255,0.2);border:none;color:#fff;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer">🗑</button></div></div></div>`;
+      const lampiranBtn=p.lampiran?`<button onclick="lihatLampiran('${p.id}')" style="background:rgba(255,255,255,0.25);border:none;color:#fff;border-radius:4px;padding:3px 10px;font-size:11px;cursor:pointer;margin-top:6px">${p.lampiran.type==='pdf'?'📄 Buka PDF':'🖼️ Lihat Foto'}</button>`:'';
+      html+=`<div class="pengumuman-box"><h3>📢 Dari ${esc(p.dari)}</h3><p style="font-size:14px">${esc(p.pesan)}</p>${lampiranBtn}<div style="font-size:11px;opacity:.7;margin-top:6px;display:flex;justify-content:space-between;align-items:center">${tgl(p.tgl)}<div style="display:flex;gap:4px">${bisaEditPng?`<button onclick="editPengumuman('${p.id}')" style="background:rgba(255,255,255,0.15);border:none;color:#fff;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer">✏️</button>`:''}<button onclick="hapusPengumuman('${p.id}')" style="background:rgba(255,255,255,0.2);border:none;color:#fff;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer">🗑</button></div></div></div>`;
       if(!p.dibaca){p.dibaca=true;adaBaruPng=true;}
     });
     if(adaBaruPng){try{localStorage.setItem(SK,JSON.stringify(D));}catch(e){}}
@@ -647,6 +648,10 @@ function renderBeranda(){
     <div class="card">
       <div class="field"><label>Pesan Komando</label><textarea id="inp-kom" placeholder="Tulis perintah mendesak..."></textarea></div>
       <button class="btn btn-primary btn-full" onclick="kirimKomando()">⚡ Kirim Komando</button>
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <button class="btn btn-ghost btn-sm" style="flex:1" onclick="buatFileDariTeks('inp-kom','gambar')">🖼️ Jadikan Gambar</button>
+        <button class="btn btn-ghost btn-sm" style="flex:1" onclick="buatFileDariTeks('inp-kom','pdf')">📄 Jadikan PDF</button>
+      </div>
     </div>`;
   }
 
@@ -657,6 +662,11 @@ function renderBeranda(){
       <div class="field"><label>Isi Pengumuman</label><textarea id="inp-png" placeholder="Tulis pengumuman, atau kosongkan kalau hanya mau kirim file/foto rencana latihan..."></textarea></div>
       <div class="field"><label>Lampiran — Foto/Scan Rencana Latihan atau PDF (opsional)</label><input type="file" id="inp-png-file" accept="image/*,application/pdf" onchange="prevPngFile(this)"><div id="png-file-prev" style="display:none;margin-top:6px"></div></div>
       <button class="btn btn-blue btn-full" onclick="kirimPengumuman()">📢 Kirim Pengumuman</button>
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <button class="btn btn-ghost btn-sm" style="flex:1" onclick="buatFileDariTeks('inp-png','gambar')">🖼️ Jadikan Gambar</button>
+        <button class="btn btn-ghost btn-sm" style="flex:1" onclick="buatFileDariTeks('inp-png','pdf')">📄 Jadikan PDF</button>
+      </div>
+      <p style="font-size:10.5px;color:var(--fg2);margin-top:4px">Tulis dulu rencana latihan di kolom atas, lalu tombol ini akan mengubahnya jadi gambar/PDF rapi yang siap di-share ke WA.</p>
     </div>`;
   }
 
@@ -722,17 +732,147 @@ function simpanEditPengumuman(id){
   p.pesan=v;p.dieditOleh=RLBL[R];p.tglEdit=Date.now();
   save();closeModal();toast('Pengumuman diperbarui');renderBeranda();
 }
+function lihatLampiran(id){
+  const p=D.pengumuman.find(x=>x.id===id);
+  if(!p||!p.lampiran)return toast('Lampiran tidak ditemukan');
+  if(p.lampiran.type==='pdf'){
+    const w=window.open();
+    if(w){w.document.write(`<iframe src="${p.lampiran.data}" style="width:100%;height:100vh;border:none"></iframe>`);}
+    else toast('Izinkan pop-up untuk membuka PDF');
+  } else {
+    openModal(`<div class="modal-title">🖼️ Lampiran <button class="modal-close" onclick="closeModal()">×</button></div>
+    <img src="${p.lampiran.data}" style="width:100%;border-radius:8px">`);
+  }
+}
+// Ubah teks komando/pengumuman yang diketik jadi gambar atau PDF rapi, lalu tawarkan share ke WA
+function wrapTextCanvas(ctx,teks,x,y,maxWidth,lineHeight){
+  const paragraf=teks.split('\n');
+  let cy=y;
+  paragraf.forEach(par=>{
+    const words=par.split(' ');
+    let line='';
+    words.forEach(w=>{
+      const test=line?line+' '+w:w;
+      if(ctx.measureText(test).width>maxWidth&&line){
+        ctx.fillText(line,x,cy);cy+=lineHeight;line=w;
+      } else line=test;
+    });
+    ctx.fillText(line,x,cy);cy+=lineHeight;
+  });
+  return cy;
+}
+function buatGambarTeks(judul,teks,dari){
+  const W=800;
+  const canvas=document.createElement('canvas');
+  const tmpCtx=canvas.getContext('2d');
+  tmpCtx.font='20px Arial';
+  // Estimasi tinggi dulu dari jumlah baris
+  const baris=teks.split('\n').reduce((n,par)=>{
+    let line='',count=0;
+    par.split(' ').forEach(w=>{
+      const test=line?line+' '+w:w;
+      if(tmpCtx.measureText(test).width>W-100&&line){count++;line=w;}else line=test;
+    });
+    return n+count+1;
+  },0);
+  const H=260+baris*30+120;
+  canvas.width=W;canvas.height=H;
+  const ctx=canvas.getContext('2d');
+  ctx.fillStyle='#fff';ctx.fillRect(0,0,W,H);
+  // Header merah
+  ctx.fillStyle='#b91c1c';ctx.fillRect(0,0,W,110);
+  ctx.fillStyle='#fff';ctx.font='bold 28px Arial';ctx.fillText(judul,50,55);
+  ctx.font='14px Arial';ctx.fillText('PASKIBRA MAN 1 BELITUNG — PASMANSABEL',50,85);
+  // Garis aksen
+  ctx.fillStyle='#fef2f2';ctx.fillRect(0,110,W,8);
+  // Isi teks
+  ctx.fillStyle='#1a1a1a';ctx.font='20px Arial';
+  const endY=wrapTextCanvas(ctx,teks,50,170,W-100,30);
+  // Footer
+  ctx.strokeStyle='#eee';ctx.beginPath();ctx.moveTo(50,endY+30);ctx.lineTo(W-50,endY+30);ctx.stroke();
+  ctx.fillStyle='#888';ctx.font='italic 15px Arial';
+  ctx.fillText(`— ${dari} · ${tgl()}`,50,endY+60);
+  return canvas;
+}
+function buatFileDariTeks(inputId,format){
+  const teks=document.getElementById(inputId)?.value.trim();
+  if(!teks)return toast('Tulis isinya dulu di kolom atas');
+  const judul=inputId==='inp-kom'?'⚡ KOMANDO PASKIBRA':'📢 PENGUMUMAN PASKIBRA';
+  const namaFile=inputId==='inp-kom'?'komando':'pengumuman';
+  if(format==='gambar'){
+    const canvas=buatGambarTeks(judul,teks,RLBL[R]);
+    canvas.toBlob(blob=>{
+      shareAtauUnduh(blob,`${namaFile}_${Date.now()}.png`,'image/png',judul);
+    },'image/png',0.95);
+  } else {
+    if(typeof html2pdf==='undefined'){toast('❌ Fitur PDF belum siap, cek koneksi internet');return;}
+    const wrap=document.createElement('div');
+    wrap.style.cssText='position:fixed;left:-9999px;top:0;width:210mm;background:#fff;padding:20mm;font-family:Arial,sans-serif';
+    wrap.innerHTML=`<div style="border-bottom:3px solid #b91c1c;padding-bottom:12px;margin-bottom:16px">
+      <h1 style="color:#b91c1c;font-size:20pt;margin:0">${judul}</h1>
+      <p style="color:#666;font-size:10pt;margin:4px 0 0">PASKIBRA MAN 1 BELITUNG — PASMANSABEL</p>
+    </div>
+    <p style="font-size:13pt;line-height:1.8;white-space:pre-wrap">${esc(teks)}</p>
+    <p style="margin-top:30px;color:#888;font-size:10pt;font-style:italic">— ${RLBL[R]} · ${tgl()}</p>`;
+    document.body.appendChild(wrap);
+    toast('📄 Membuat PDF...');
+    html2pdf().set({margin:0,image:{type:'jpeg',quality:0.95},html2canvas:{scale:2},jsPDF:{unit:'mm',format:'a4',orientation:'portrait'}}).from(wrap).outputPdf('blob').then(blob=>{
+      document.body.removeChild(wrap);
+      shareAtauUnduh(blob,`${namaFile}_${Date.now()}.pdf`,'application/pdf',judul);
+    }).catch(()=>{document.body.removeChild(wrap);toast('❌ Gagal membuat PDF');});
+  }
+}
+function shareAtauUnduh(blob,filename,mime,judul){
+  const file=new File([blob],filename,{type:mime});
+  if(navigator.canShare&&navigator.canShare({files:[file]})){
+    navigator.share({files:[file],title:judul}).catch(()=>{unduhBlob(blob,filename);});
+  } else {
+    unduhBlob(blob,filename);
+    toast('📥 File diunduh — buka file lalu share manual ke WA');
+  }
+}
+function unduhBlob(blob,filename){
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');a.href=url;a.download=filename;a.click();
+  URL.revokeObjectURL(url);
+}
+let _pngLampiran=null;
+function prevPngFile(inp){
+  const f=inp.files[0];if(!f)return;
+  const prev=document.getElementById('png-file-prev');
+  if(f.type==='application/pdf'){
+    if(f.size>2*1024*1024){toast('⚠️ PDF terlalu besar (maks 2MB), pakai foto saja atau kompres dulu');inp.value='';return;}
+    const r=new FileReader();
+    r.onload=e=>{
+      _pngLampiran={data:e.target.result,type:'pdf',nama:f.name};
+      prev.style.display='block';
+      prev.innerHTML=`<div style="background:var(--card);border-radius:8px;padding:8px 12px;font-size:12px">📄 ${esc(f.name)} siap dikirim</div>`;
+    };
+    r.readAsDataURL(f);
+  } else {
+    kompressFoto(f,data=>{
+      _pngLampiran={data,type:'image',nama:f.name};
+      prev.style.display='block';
+      prev.innerHTML=`<img src="${data}" class="photo-prev">`;
+    });
+  }
+}
 function kirimPengumuman(){
   const v=document.getElementById('inp-png')?.value.trim();
-  if(!v)return toast('Tulis isi pengumuman dulu');
-  D.pengumuman.push({id:uid(),pesan:v,tgl:Date.now(),dari:RLBL[R],dibaca:false});
+  if(!v&&!_pngLampiran)return toast('Tulis pengumuman atau lampirkan file dulu');
+  const hadLampiran=!!_pngLampiran;
+  D.pengumuman.push({id:uid(),pesan:v||'(Lihat lampiran)',tgl:Date.now(),dari:RLBL[R],dibaca:false,lampiran:_pngLampiran});
   save();toast('Pengumuman dikirim!');
   document.getElementById('inp-png').value='';
+  const pv=document.getElementById('png-file-prev');if(pv){pv.style.display='none';pv.innerHTML='';}
+  const pf=document.getElementById('inp-png-file');if(pf)pf.value='';
+  _pngLampiran=null;
   renderBeranda();
+  const waTeks=(v||'')+(hadLampiran?'\n\n📎 (Ada lampiran foto/PDF — lihat di aplikasi PASMANSABEL)':'');
   setTimeout(()=>{
     openModal(`<div class="modal-title">📢 Pengumuman Terkirim <button class="modal-close" onclick="closeModal()">×</button></div>
-    <p style="font-size:13px;color:var(--fg2);margin-bottom:12px">Pengumuman sudah tersimpan di aplikasi. Broadcast juga ke WA grup biar pasti dibaca semua:</p>
-    <button class="wa-btn" style="width:100%" onclick="shareWA('📢 *PENGUMUMAN PASKIBRA* 📢\\n\\n${v.replace(/'/g,"\\'")}\\n\\n— ${RLBL[R]}');closeModal()">📤 Broadcast ke WA Grup</button>
+    <p style="font-size:13px;color:var(--fg2);margin-bottom:12px">Pengumuman sudah tersimpan di aplikasi. Broadcast juga ke WA grup biar pasti dibaca semua:${hadLampiran?' (lampiran tidak ikut terkirim ke WA, hanya teks — minta anggota buka aplikasi untuk lihat file)':''}</p>
+    <button class="wa-btn" style="width:100%" onclick="shareWA('📢 *PENGUMUMAN PASKIBRA* 📢\\n\\n${waTeks.replace(/'/g,"\\'")}\\n\\n— ${RLBL[R]}');closeModal()">📤 Broadcast ke WA Grup</button>
     <button class="btn btn-ghost btn-full" style="margin-top:8px" onclick="closeModal()">Lewati</button>`);
   },300);
 }
