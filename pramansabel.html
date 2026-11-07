@@ -654,7 +654,8 @@ function renderBeranda(){
   if(C.pengumuman_kirim(R)){
     html+=`<div class="sec">📢 BUAT PENGUMUMAN</div>
     <div class="card">
-      <div class="field"><label>Isi Pengumuman</label><textarea id="inp-png" placeholder="Tulis pengumuman biasa..."></textarea></div>
+      <div class="field"><label>Isi Pengumuman</label><textarea id="inp-png" placeholder="Tulis pengumuman, atau kosongkan kalau hanya mau kirim file/foto rencana latihan..."></textarea></div>
+      <div class="field"><label>Lampiran — Foto/Scan Rencana Latihan atau PDF (opsional)</label><input type="file" id="inp-png-file" accept="image/*,application/pdf" onchange="prevPngFile(this)"><div id="png-file-prev" style="display:none;margin-top:6px"></div></div>
       <button class="btn btn-blue btn-full" onclick="kirimPengumuman()">📢 Kirim Pengumuman</button>
     </div>`;
   }
