@@ -396,8 +396,13 @@ function defD(){return{
 let D = defD();
 let R = null; // role saat ini
 
-function save(){try{localStorage.setItem(SK,JSON.stringify(D));}catch(e){}}
+let GS_URL='';try{GS_URL=localStorage.getItem('pramansabel_gsurl')||'';}catch(e){}
+function save(){try{localStorage.setItem(SK,JSON.stringify(D));}catch(e){} saveGS();}
 function load(){try{const s=localStorage.getItem(SK);if(s){const p=JSON.parse(s);D=Object.assign(defD(),p);}}catch(e){}}
+function saveGS(){if(!GS_URL)return;fetch(GS_URL,{method:'POST',body:JSON.stringify(D)}).catch(()=>{});}
+async function loadGS(){if(!GS_URL)return false;try{const r=await fetch(GS_URL+'?t='+Date.now());const d=await r.json();if(d&&!d.error&&d.anggota!==undefined){D=Object.assign(defD(),d);try{localStorage.setItem(SK,JSON.stringify(D));}catch(e){}return true;}}catch(e){}return false;}
+async function syncCloud(dir){if(!GS_URL){toast('⚠️ URL Google Sheet belum diisi di Pengaturan → Sinkron');return;}if(dir==='push'){toast('☁️ Menyimpan ke cloud...');fetch(GS_URL,{method:'POST',body:JSON.stringify(D)}).then(()=>toast('✅ Data tersimpan ke Google Sheet')).catch(()=>toast('❌ Gagal simpan ke cloud'));}else{toast('☁️ Mengambil data dari cloud...');const ok=await loadGS();if(ok){toast('✅ Data berhasil disinkron dari cloud');goScreen('beranda');}else toast('❌ Gagal ambil data dari cloud');}}
+function saveGSURL(url){GS_URL=url.trim();try{localStorage.setItem('pramansabel_gsurl',GS_URL);}catch(e){}toast(GS_URL?'✅ URL tersimpan':'URL dikosongkan');}
 load();
 
 // ═══════════════════════════════════════════
@@ -1722,6 +1727,7 @@ function renderPengaturan(){
     <button class="tab on" onclick="tabPengaturan('info',this)">Info</button>
     ${C.ttd(R)?`<button class="tab" onclick="tabPengaturan('ttd',this)">TTD</button>`:''}
     ${R==='pembina'?`<button class="tab" onclick="tabPengaturan('config',this)">Konfigurasi</button>`:''}
+    <button class="tab" onclick="tabPengaturan('sinkron',this)">☁️ Sinkron</button>
   </div><div id="tab-pengaturan"></div>`;
   el.innerHTML=html;
   renderTabPengaturan('info');
@@ -1736,6 +1742,7 @@ function renderTabPengaturan(t){
   if(t==='info') el.innerHTML=renderInfoPengaturan();
   else if(t==='ttd') el.innerHTML=renderTTD();
   else if(t==='config') el.innerHTML=renderConfig();
+  else if(t==='sinkron') el.innerHTML=renderSinkron();
 }
 function renderInfoPengaturan(){
   return`<div class="card">
@@ -1752,7 +1759,7 @@ function renderInfoPengaturan(){
       • Keuangan & laporan kinerja<br>
       • Tanda tangan digital<br>
       • Share ke WhatsApp grup<br><br>
-      <strong>Data tersimpan di:</strong> Perangkat lokal (localStorage)
+      <strong>Data tersimpan di:</strong> ${GS_URL?'☁️ Lokal + Google Sheet':'Perangkat lokal (localStorage)'}
     </div>
   </div>
   <button class="btn btn-warn btn-sm" style="margin-top:8px" onclick="resetData()">🗑 Reset Semua Data</button>`;
@@ -1764,6 +1771,24 @@ function renderTTD(){
   <button class="btn btn-blue btn-sm" style="margin-left:8px" onclick="buatTTDBaru()">✍ Buat Ulang</button>`
   :`<div class="card"><p style="font-size:13px;color:var(--fg2);margin-bottom:12px">Belum ada TTD tersimpan.</p></div>
   <button class="btn btn-primary btn-full" onclick="buatTTDBaru()">✍ Buat Tanda Tangan</button>`}`;
+}
+function renderSinkron(){
+  return`<div class="card">
+    <div class="card-title">☁️ Sinkron Google Sheet</div>
+    <p style="font-size:13px;color:var(--fg2);margin-bottom:12px">Hubungkan ke Google Sheet agar data sinkron di semua perangkat (HP & laptop).</p>
+    <div class="field"><label>URL Google Apps Script</label>
+    <input id="gs-url-input" type="url" placeholder="https://script.google.com/macros/s/..." value="${GS_URL}" style="font-size:12px">
+    </div>
+    <button class="btn btn-primary btn-sm" onclick="saveGSURL(document.getElementById('gs-url-input').value)">💾 Simpan URL</button>
+  </div>
+  ${GS_URL?`<div class="card" style="margin-top:12px">
+    <div class="card-title">Sinkronisasi Data</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn btn-primary btn-sm" onclick="syncCloud('pull')">⬇️ Ambil dari Cloud</button>
+      <button class="btn btn-blue btn-sm" onclick="syncCloud('push')">⬆️ Simpan ke Cloud</button>
+    </div>
+    <p style="font-size:12px;color:var(--fg2);margin-top:10px">⬇️ Ambil: mengambil data dari Google Sheet (cocok saat buka di perangkat baru)<br>⬆️ Simpan: mengirim data dari HP ini ke Google Sheet</p>
+  </div>`:'<div class="alert alert-warn" style="margin-top:12px">Isi URL Apps Script dulu untuk mulai sinkron.</div>'}`;
 }
 function hapusTTD(){D.ttd=null;save();toast('TTD dihapus');renderTabPengaturan('ttd');}
 function buatTTDBaru(){
