@@ -409,7 +409,14 @@ function saveGS(){
   _pendingPush=fetch(GS_URL,{method:'POST',body:JSON.stringify(d)}).catch(()=>{}).finally(()=>{_pendingPush=null;});
   return _pendingPush;
 }
-async function loadGS(){if(!GS_URL)return false;try{const r=await fetch(GS_URL+'?t='+Date.now());const d=await r.json();if(d&&!d.error&&d.anggota!==undefined){const ttdLama=D.ttd;D=Object.assign(defD(),d);if(!D.ttd&&ttdLama)D.ttd=ttdLama;try{localStorage.setItem(SK,JSON.stringify(D));}catch(e){}return true;}}catch(e){}return false;}
+async function loadGS(){if(!GS_URL)return false;try{const r=await fetch(GS_URL+'?t='+Date.now());const d=await r.json();if(d&&!d.error&&d.anggota!==undefined){const ttdLama=D.ttd;D=Object.assign(defD(),d);if(!D.ttd&&ttdLama)D.ttd=ttdLama;try{localStorage.setItem(SK,JSON.stringify(D));}catch(e){}window._lastSyncTime=Date.now();return true;}}catch(e){}return false;}
+function tarikManual(){
+  toast('🔄 Menarik data terbaru...');
+  loadGS().then(ok=>{
+    if(ok){toast('✅ Data terbaru berhasil diambil');renderBeranda();}
+    else toast('❌ Gagal tarik data — cek koneksi internet');
+  });
+}
 async function syncCloud(dir){if(!GS_URL){toast('⚠️ URL Google Sheet belum diisi di Pengaturan → Sinkron');return;}if(dir==='push'){toast('☁️ Menyimpan ke cloud...');fetch(GS_URL,{method:'POST',body:JSON.stringify(D)}).then(()=>toast('✅ Data tersimpan ke Google Sheet')).catch(()=>toast('❌ Gagal simpan ke cloud'));}else{toast('☁️ Mengambil data dari cloud...');const ok=await loadGS();if(ok){toast('✅ Data berhasil disinkron dari cloud');goScreen('beranda');}else toast('❌ Gagal ambil data dari cloud');}}
 function saveGSURL(url){GS_URL=url.trim();try{localStorage.setItem('pramansabel_gsurl',GS_URL);}catch(e){}toast(GS_URL?'✅ URL tersimpan':'URL dikosongkan');tabPengaturan('sinkron',document.querySelector('#s-pengaturan .tab.on'));}
 load();
@@ -562,6 +569,10 @@ function goScreen(id){
   document.getElementById('nb-'+id)?.classList.add('on');
   const fn={'beranda':renderBeranda,'anggota':renderAnggota,'kegiatan':renderKegiatan,'laporan':renderLaporan,'pengaturan':renderPengaturan};
   fn[id]?.();
+  // Setiap buka tab Beranda, tarik data terbaru dari cloud supaya komando/pengumuman baru pasti kelihatan
+  if(id==='beranda'&&GS_URL){
+    loadGS().then(ok=>{if(ok)renderBeranda();});
+  }
 }
 
 // ═══════════════════════════════════════════
@@ -573,6 +584,17 @@ function renderBeranda(){
   const unreadPng=D.pengumuman.filter(k=>!k.dibaca).length;
 
   let html='';
+
+  // Status sinkron — supaya anggota bisa pastikan data sudah terhubung ke cloud
+  if(GS_URL){
+    const lastSync=window._lastSyncTime?new Date(window._lastSyncTime).toLocaleTimeString('id-ID'):'belum pernah';
+    html+=`<div style="display:flex;justify-content:space-between;align-items:center;background:var(--card);border-radius:8px;padding:8px 12px;margin-bottom:10px;font-size:11px;color:var(--fg2)">
+      <span>☁️ Sinkron terakhir: ${lastSync}</span>
+      <button onclick="tarikManual()" style="background:var(--accent);border:none;color:#fff;border-radius:6px;padding:4px 10px;font-size:11px;cursor:pointer">🔄 Tarik Data</button>
+    </div>`;
+  } else {
+    html+=`<div class="alert alert-warn" style="font-size:11px">⚠️ Belum terhubung ke cloud. Buka Lainnya → Sinkron untuk menghubungkan.</div>`;
+  }
 
   // Komando Cepat (mendesak)
   const komList=D.komando.slice().reverse();
@@ -655,6 +677,13 @@ function kirimKomando(){
   save();toast('Komando dikirim!');
   document.getElementById('inp-kom').value='';
   renderBeranda();
+  // Aplikasi web tidak bisa kirim notifikasi kalau ditutup — tawarkan broadcast ke WA grup supaya pasti sampai
+  setTimeout(()=>{
+    openModal(`<div class="modal-title">⚡ Komando Terkirim <button class="modal-close" onclick="closeModal()">×</button></div>
+    <p style="font-size:13px;color:var(--fg2);margin-bottom:12px">Komando sudah tersimpan di aplikasi. Supaya anggota yang sedang tidak buka aplikasi juga segera tahu, broadcast juga ke WA grup:</p>
+    <button class="wa-btn" style="width:100%" onclick="shareWA('⚡ *KOMANDO PASKIBRA* ⚡\\n\\n${v.replace(/'/g,"\\'")}\\n\\n— ${RLBL[R]}');closeModal()">📤 Broadcast ke WA Grup</button>
+    <button class="btn btn-ghost btn-full" style="margin-top:8px" onclick="closeModal()">Lewati</button>`);
+  },300);
 }
 function hapusKomando(id){D.komando=D.komando.filter(k=>k.id!==id);save();toast('Komando dihapus');renderBeranda();}
 function hapusPengumuman(id){D.pengumuman=D.pengumuman.filter(p=>p.id!==id);save();toast('Pengumuman dihapus');renderBeranda();}
