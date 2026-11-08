@@ -437,6 +437,28 @@ function migrasiAngkatan(){
     }
   });
   if(changed)try{localStorage.setItem(SK,JSON.stringify(D));}catch(e){}
+  migrasiKodeEtik();
+}
+function migrasiKodeEtik(){
+  if(!D.info)return;
+  let changed=false;
+  const salam=D.info.find(i=>i.judul==='Salam PASKIBRA');
+  if(salam&&/SETIAWAN/.test(salam.isi)){
+    salam.isi='Ucapkan "PASKIBRA, BERADAB, RELIGIUS, CERDAS, DISIPLIN DAN TANGGUH!" saat bertemu sesama anggota. Kepada Pembina/Pelatih: sikap sempurna terlebih dahulu. Salam dibalas dengan "TANGGUH!". Merupakan ikrar untuk senantiasa menjaga adab dan sopan santun, hormat kepada Pembina dan Pelatih, menghargai Senior, PPS, PPI, dan sesama rekan angkatan, serta membentuk mental yang kokoh dan tangguh, pikiran yang cerdas, pribadi yang religius, sikap disiplin dan sigap, jiwa yang kreatif, penampilan yang rapi dari atas hingga bawah, serta kemampuan PBB yang baik dan trengginas.';
+    changed=true;
+  }
+  if(!D.info.find(i=>i.judul==='Jati Diri Anggota PASKIBRA')){
+    const idx=D.info.findIndex(i=>i.judul==='Salam PASKIBRA');
+    const item={id:uid(),kat:'Kode Etik',judul:'Jati Diri Anggota PASKIBRA',isi:'Setiap anggota wajib mencerminkan slogan "PASKIBRA, BERADAB, RELIGIUS, CERDAS, DISIPLIN DAN TANGGUH": Beradab — sopan santun dan hormat kepada Pembina, Pelatih, Senior, PPS, PPI, serta sesama rekan angkatan. Religius — menjalankan ibadah sesuai keyakinan dan menjaga akhlak. Cerdas — berpikir kritis dan mau terus belajar. Disiplin — tepat waktu, taat aturan, dan sigap dalam bertindak. Tangguh — bermental kokoh, kreatif, berpenampilan rapi dari atas hingga bawah, serta memiliki kemampuan PBB yang baik dan trengginas.'};
+    if(idx>=0)D.info.splice(idx+1,0,item);else D.info.push(item);
+    changed=true;
+  }
+  const adab=D.info.find(i=>i.judul==='Adab kepada Senior & Pembina');
+  if(adab&&!/PPI/.test(adab.isi)){
+    adab.isi='Berbicara dengan sopan, tidak memotong kalimat. Minta izin sebelum bicara dengan menacungkan tangan. Panggil dengan "Kak" untuk Senior, PPS, dan PPI, "Pak/Bu" untuk Pembina/Pelatih. Tidak boleh duduk lebih tinggi dari Pembina saat rapat. Saling menghargai dan menjaga kekompakan dengan sesama rekan angkatan.';
+    changed=true;
+  }
+  if(changed)try{localStorage.setItem(SK,JSON.stringify(D));}catch(e){}
 }
 function saveGS(){
   if(!GS_URL)return;
