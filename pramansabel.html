@@ -118,6 +118,7 @@ input,select,textarea{font-family:inherit}
 .btn-blue{background:var(--accent2);color:#fff}
 .btn-ok{background:var(--ok);color:#fff}
 .btn-warn{background:var(--warn);color:#fff}
+.btn-danger{background:var(--danger);color:#fff}
 .btn-ghost{background:transparent;color:var(--fg);border:1.5px solid var(--border)}
 .btn-sm{padding:7px 14px;font-size:12px}
 .btn-full{width:100%;justify-content:center}
@@ -1544,30 +1545,47 @@ function renderTatib(){
           ${D.anggota.filter(a=>a.status==='aktif').map(a=>`<option value="${esc(a.nama)}">${esc(a.nama)} (${RLBL[a.role]||a.role})</option>`).join('')}
         </select>
       </div>
+      <div class="field"><label>Waktu Kejadian</label><input id="lap-waktu" type="datetime-local" value="${nowLocalInput()}"></div>
       <div class="field"><label>Jenis Pelanggaran</label>
-        <select id="lap-jenis">
-          ${D.adat.map(a=>`<option>${a.kode} - ${esc(a.jenis)}</option>`).join('')}
-          <option>Lainnya (tulis di keterangan)</option>
+        <select id="lap-jenis" onchange="setPoinLap(this.value)">
+          ${D.adat.map(a=>`<option value="${esc(a.kode)} - ${esc(a.jenis)}" data-poin="${a.poin}" data-tindakan="${esc(a.tindakan||'')}">${a.kode} - ${esc(a.jenis)}</option>`).join('')}
+          <option value="Lainnya (tulis di keterangan)" data-poin="1" data-tindakan="">Lainnya (tulis di keterangan)</option>
         </select>
       </div>
+      <div class="field"><label>Hukuman/Tindakan <span style="color:var(--fg3);font-weight:400">(otomatis sesuai Adat, hanya referensi — tetap diputuskan TATIB)</span></label><textarea id="lap-tindakan" readonly placeholder="Pilih jenis pelanggaran dulu">${esc(D.adat[0]?.tindakan||'')}</textarea></div>
       <div class="field"><label>Keterangan Kejadian</label><textarea id="lap-ket" placeholder="Ceritakan kejadian yang Anda lihat..."></textarea></div>
       <div class="field"><label>Foto Bukti</label><input type="file" accept="image/*" id="lap-foto" onchange="prevLapFoto(this)"><img id="lap-foto-prev" class="photo-prev" style="display:none"></div>
       <button class="btn btn-warn btn-full" onclick="kirimLaporanPel()">📢 Kirim Laporan</button>
     </div>`;
   }
 
-  html+=`<div class="sec">📋 Daftar Pelanggaran</div>`;
-  if(!D.pelanggaran.length) html+='<div style="color:var(--fg3);font-size:13px">Belum ada catatan pelanggaran.</div>';
-  D.pelanggaran.slice().reverse().forEach(p=>{
+  const bisaKelola=C.catat_pel(R)||R==='pembina';
+  const pelAktif=D.pelanggaran.filter(p=>p.status!=='selesai');
+  const pelArsip=D.pelanggaran.filter(p=>p.status==='selesai');
+
+  function renderItemPel(p){
     const isAduan=p.status==='aduan';
-    html+=`<div class="item${isAduan?' style="border-left:3px solid var(--warn)"':''}"><div class="item-head"><div><div class="item-title">${esc(p.nama)} ${isAduan?'<span class="badge badge-warn">Aduan</span>':''}</div><div class="item-sub">${esc(p.jenis)} · ${p.waktuKejadian?'Kejadian: '+jamTgl(p.waktuKejadian):tgl(p.tgl)}</div></div><span class="badge badge-danger">${p.poin} poin</span></div>
+    const isSelesai=p.status==='selesai';
+    let h=`<div class="item${isAduan?' style="border-left:3px solid var(--warn)"':''}"><div class="item-head"><div><div class="item-title">${esc(p.nama)} ${isAduan?'<span class="badge badge-warn">Aduan</span>':''}${isSelesai?'<span class="badge badge-ok">✅ Selesai Dihukum</span>':''}</div><div class="item-sub">${esc(p.jenis)} · ${p.waktuKejadian?'Kejadian: '+jamTgl(p.waktuKejadian):tgl(p.tgl)}</div></div><span class="badge badge-danger">${p.poin} poin</span></div>
     ${p.tindakan?`<div style="font-size:12px;color:var(--warn);margin-top:4px;font-weight:600">⚖️ Hukuman: ${esc(p.tindakan)}</div>`:''}
     ${p.catatan?`<div style="font-size:12px;color:var(--fg2);margin-top:4px">${esc(p.catatan)}</div>`:''}
     ${p.foto?`<img src="${p.foto}" class="photo-prev">`:'' }
     ${isAduan&&C.catat_pel(R)?`<div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-ok btn-sm" onclick="verifikasiAduan('${p.id}','terverifikasi')">✓ Verifikasi</button><button class="btn btn-primary btn-sm" onclick="verifikasiAduan('${p.id}','diteruskan')">📤 Teruskan ke Pembina</button><button class="btn btn-ghost btn-sm" onclick="verifikasiAduan('${p.id}','diabaikan')">✗ Abaikan</button></div>`:''}
     ${p.status==='diteruskan'&&R==='pembina'?`<div style="margin-top:8px"><span class="badge badge-warn">Diteruskan oleh TATIB</span> <button class="btn btn-ok btn-sm" onclick="verifikasiAduan('${p.id}','terverifikasi')">✓ Proses</button></div>`:''}
+    ${bisaKelola&&!isAduan&&!isSelesai?`<div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-ok btn-sm" onclick="selesaiPel('${p.id}')">✅ Sudah Dihukum (Arsipkan)</button><button class="btn btn-danger btn-sm" onclick="hapusPel('${p.id}')">🗑️ Hapus</button></div>`:''}
+    ${bisaKelola&&isSelesai?`<div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-ghost btn-sm" onclick="hapusPel('${p.id}')">🗑️ Hapus dari Arsip</button></div>`:''}
     </div>`;
-  });
+    return h;
+  }
+
+  html+=`<div class="sec">📋 Daftar Pelanggaran Aktif</div>`;
+  if(!pelAktif.length) html+='<div style="color:var(--fg3);font-size:13px">Belum ada catatan pelanggaran aktif.</div>';
+  pelAktif.slice().reverse().forEach(p=>{html+=renderItemPel(p);});
+
+  if(pelArsip.length){
+    html+=`<div class="sec">🗄️ Arsip — Sudah Dihukum (${pelArsip.length})</div>`;
+    pelArsip.slice().reverse().forEach(p=>{html+=renderItemPel(p);});
+  }
 
   html+=`<div class="sec">📜 Daftar Adat & Jenis Pelanggaran</div>`;
   D.adat.forEach(a=>{
@@ -1613,6 +1631,18 @@ function verifikasiAduan(id,status){
   const p=D.pelanggaran.find(x=>x.id===id);if(!p)return;
   p.status=status;save();toast(status==='terverifikasi'?'Aduan diverifikasi':'Aduan diabaikan');renderTabKegiatan('tatib');
 }
+function selesaiPel(id){
+  const p=D.pelanggaran.find(x=>x.id===id);if(!p)return;
+  if(!confirm(`Tandai pelanggaran ${p.nama} sudah selesai dihukum? Data akan dipindah ke Arsip (tidak dihapus).`))return;
+  p.status='selesai';p.tglSelesai=Date.now();p.diselesaikanOleh=RLBL[R]||R;
+  save();toast('Dipindahkan ke Arsip');renderTabKegiatan('tatib');
+}
+function hapusPel(id){
+  const p=D.pelanggaran.find(x=>x.id===id);if(!p)return;
+  if(!confirm(`Hapus permanen catatan pelanggaran ${p.nama} (${p.jenis})? Tindakan ini tidak bisa dibatalkan.`))return;
+  D.pelanggaran=D.pelanggaran.filter(x=>x.id!==id);
+  save();toast('Catatan pelanggaran dihapus');renderTabKegiatan('tatib');
+}
 function simpanPel(){
   const nama=document.getElementById('pl-nama').value;
   if(!nama)return toast('Pilih nama anggota');
@@ -1626,13 +1656,21 @@ function prevLapFoto(inp){
   const f=inp.files[0];if(!f)return;
   kompressFoto(f,data=>{const img=document.getElementById('lap-foto-prev');img.src=data;img.style.display='block';});
 }
+function setPoinLap(v){
+  const opt=document.querySelector(`#lap-jenis option[value="${CSS.escape(v)}"]`);
+  if(opt) document.getElementById('lap-tindakan').value=opt.dataset.tindakan||'';
+}
 function kirimLaporanPel(){
   const nama=document.getElementById('lap-nama').value;
   if(!nama)return toast('Pilih nama anggota yang dilaporkan');
   const ket=document.getElementById('lap-ket').value.trim();
   if(!ket)return toast('Tulis keterangan kejadian');
   const foto=document.getElementById('lap-foto-prev')?.src||null;
-  D.pelanggaran.push({id:uid(),nama,anggotaId:D.anggota.find(a=>a.nama===nama)?.id,jenis:document.getElementById('lap-jenis').value,poin:1,tgl:Date.now(),catatan:'[ADUAN ANGGOTA] '+ket,foto:foto&&foto.startsWith('data:')?foto:null,status:'aduan',dilaporkanOleh:RLBL[R]});
+  const jenisSel=document.getElementById('lap-jenis');
+  const opt=jenisSel.selectedOptions[0];
+  const waktuInp=document.getElementById('lap-waktu').value;
+  const waktuKejadian=waktuInp?new Date(waktuInp).getTime():Date.now();
+  D.pelanggaran.push({id:uid(),nama,anggotaId:D.anggota.find(a=>a.nama===nama)?.id,jenis:jenisSel.value,poin:parseInt(opt?.dataset.poin)||1,tindakan:document.getElementById('lap-tindakan').value.trim(),waktuKejadian,tgl:Date.now(),catatan:'[ADUAN ANGGOTA] '+ket,foto:foto&&foto.startsWith('data:')?foto:null,status:'aduan',dilaporkanOleh:RLBL[R]});
   save();toast('Laporan terkirim ke TATIB & Pembina');
   document.getElementById('lap-nama').value='';
   document.getElementById('lap-ket').value='';
