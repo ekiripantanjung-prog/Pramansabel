@@ -490,6 +490,8 @@ const C={
 // ═══════════════════════════════════════════
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,6)}
 function tgl(d){return new Date(d||Date.now()).toLocaleDateString('id-ID',{day:'2-digit',month:'short',year:'numeric'})}
+function jamTgl(d){if(!d)return '';return new Date(d).toLocaleString('id-ID',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'})+' WIB'}
+function nowLocalInput(){const d=new Date();d.setMinutes(d.getMinutes()-d.getTimezoneOffset());return d.toISOString().slice(0,16);}
 function toast(msg,dur=2500){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),dur)}
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
 function fmtRp(n){return'Rp '+Number(n).toLocaleString('id-ID')}
@@ -1558,7 +1560,8 @@ function renderTatib(){
   if(!D.pelanggaran.length) html+='<div style="color:var(--fg3);font-size:13px">Belum ada catatan pelanggaran.</div>';
   D.pelanggaran.slice().reverse().forEach(p=>{
     const isAduan=p.status==='aduan';
-    html+=`<div class="item${isAduan?' style="border-left:3px solid var(--warn)"':''}"><div class="item-head"><div><div class="item-title">${esc(p.nama)} ${isAduan?'<span class="badge badge-warn">Aduan</span>':''}</div><div class="item-sub">${esc(p.jenis)} · ${tgl(p.tgl)}</div></div><span class="badge badge-danger">${p.poin} poin</span></div>
+    html+=`<div class="item${isAduan?' style="border-left:3px solid var(--warn)"':''}"><div class="item-head"><div><div class="item-title">${esc(p.nama)} ${isAduan?'<span class="badge badge-warn">Aduan</span>':''}</div><div class="item-sub">${esc(p.jenis)} · ${p.waktuKejadian?'Kejadian: '+jamTgl(p.waktuKejadian):tgl(p.tgl)}</div></div><span class="badge badge-danger">${p.poin} poin</span></div>
+    ${p.tindakan?`<div style="font-size:12px;color:var(--warn);margin-top:4px;font-weight:600">⚖️ Hukuman: ${esc(p.tindakan)}</div>`:''}
     ${p.catatan?`<div style="font-size:12px;color:var(--fg2);margin-top:4px">${esc(p.catatan)}</div>`:''}
     ${p.foto?`<img src="${p.foto}" class="photo-prev">`:'' }
     ${isAduan&&C.catat_pel(R)?`<div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-ok btn-sm" onclick="verifikasiAduan('${p.id}','terverifikasi')">✓ Verifikasi</button><button class="btn btn-primary btn-sm" onclick="verifikasiAduan('${p.id}','diteruskan')">📤 Teruskan ke Pembina</button><button class="btn btn-ghost btn-sm" onclick="verifikasiAduan('${p.id}','diabaikan')">✗ Abaikan</button></div>`:''}
@@ -1581,20 +1584,26 @@ function modalCatatPel(){
       ${D.anggota.filter(a=>a.status==='aktif').map(a=>`<option value="${esc(a.nama)}">${esc(a.nama)} (${RLBL[a.role]||a.role})</option>`).join('')}
     </select>
   </div>
+  <div class="field"><label>Waktu Kejadian</label><input id="pl-waktu" type="datetime-local" value="${nowLocalInput()}"></div>
   <div class="field"><label>Jenis Pelanggaran</label>
     <select id="pl-jenis" onchange="setPoinPel(this.value)">
-      ${D.adat.map(a=>`<option value="${esc(a.jenis)}" data-poin="${a.poin}">${a.kode} - ${esc(a.jenis)}</option>`).join('')}
-      <option value="Lainnya" data-poin="1">Lainnya</option>
+      ${D.adat.map(a=>`<option value="${esc(a.jenis)}" data-poin="${a.poin}" data-tindakan="${esc(a.tindakan||'')}">${a.kode} - ${esc(a.jenis)}</option>`).join('')}
+      <option value="Lainnya" data-poin="1" data-tindakan="">Lainnya</option>
     </select>
   </div>
   <div class="field"><label>Poin</label><input id="pl-poin" type="number" value="1" min="1" max="20"></div>
+  <div class="field"><label>Hukuman/Tindakan <span style="color:var(--fg3);font-weight:400">(otomatis sesuai Adat, bisa diubah)</span></label><textarea id="pl-tindakan" placeholder="Pilih jenis pelanggaran dulu, atau tulis manual untuk 'Lainnya'"></textarea></div>
   <div class="field"><label>Catatan</label><textarea id="pl-cat" placeholder="Keterangan tambahan..."></textarea></div>
   <div class="field"><label>Foto Bukti</label><input type="file" accept="image/*" id="pl-foto" onchange="prevPelFoto(this)"><img id="pl-foto-prev" class="photo-prev" style="display:none"></div>
   <button class="btn btn-warn btn-full" onclick="simpanPel()">⚠️ Catat</button>`);
+  setPoinPel(document.getElementById('pl-jenis').value);
 }
 function setPoinPel(v){
   const opt=document.querySelector(`#pl-jenis option[value="${v}"]`);
-  if(opt) document.getElementById('pl-poin').value=opt.dataset.poin||1;
+  if(opt){
+    document.getElementById('pl-poin').value=opt.dataset.poin||1;
+    document.getElementById('pl-tindakan').value=opt.dataset.tindakan||'';
+  }
 }
 function prevPelFoto(inp){
   const f=inp.files[0];if(!f)return;
@@ -1608,7 +1617,9 @@ function simpanPel(){
   const nama=document.getElementById('pl-nama').value;
   if(!nama)return toast('Pilih nama anggota');
   const foto=document.getElementById('pl-foto-prev')?.src||null;
-  D.pelanggaran.push({id:uid(),nama,anggotaId:D.anggota.find(a=>a.nama===nama)?.id,jenis:document.getElementById('pl-jenis').value,poin:parseInt(document.getElementById('pl-poin').value)||1,tgl:Date.now(),catatan:document.getElementById('pl-cat').value.trim(),foto:foto&&foto.startsWith('data:')?foto:null,status:'tercatat'});
+  const waktuInp=document.getElementById('pl-waktu').value;
+  const waktuKejadian=waktuInp?new Date(waktuInp).getTime():Date.now();
+  D.pelanggaran.push({id:uid(),nama,anggotaId:D.anggota.find(a=>a.nama===nama)?.id,jenis:document.getElementById('pl-jenis').value,poin:parseInt(document.getElementById('pl-poin').value)||1,tindakan:document.getElementById('pl-tindakan').value.trim(),waktuKejadian,tgl:Date.now(),catatan:document.getElementById('pl-cat').value.trim(),foto:foto&&foto.startsWith('data:')?foto:null,status:'tercatat'});
   save();closeModal();toast('Pelanggaran dicatat');renderTabKegiatan('tatib');
 }
 function prevLapFoto(inp){
@@ -1883,7 +1894,7 @@ function renderRekapPembina(){
       ${aduanPending.length?`<div style="background:rgba(201,117,5,.1);border:1px solid var(--warn);border-radius:8px;padding:10px;margin-bottom:10px">
         <div style="font-size:12px;font-weight:700;color:var(--warn);margin-bottom:8px">⚠️ ADUAN PERLU DIVERIFIKASI</div>
         ${aduanPending.map(p=>`<div class="item"><div class="item-title">${esc(p.nama)}</div><div class="item-sub">${esc(p.jenis)} · dilaporkan oleh ${esc(p.dilaporkanOleh||'-')}</div></div>`).join('')}
-        <button class="btn btn-warn btn-full" style="margin-top:8px" onclick="nav('kegiatan');setTimeout(()=>renderTabKegiatan('tatib'),100)">Verifikasi Sekarang →</button>
+        <button class="btn btn-warn btn-full" style="margin-top:8px" onclick="goScreen('kegiatan');setTimeout(()=>renderTabKegiatan('tatib'),100)">Verifikasi Sekarang →</button>
       </div>`:''}
       ${perluPerhatian.length?`<div style="background:rgba(191,42,32,.08);border-radius:8px;padding:10px">
         <div style="font-size:12px;font-weight:700;color:var(--danger);margin-bottom:8px">🚨 PERLU TINDAKAN (≥5 poin)</div>
@@ -1908,7 +1919,7 @@ function renderRekapPembina(){
         <div class="stat-box" style="flex:1"><div class="n" style="color:var(--warn)">${prokerPending}</div><div class="l">Pending ACC</div></div>
         <div class="stat-box" style="flex:1"><div class="n">${D.proker.length}</div><div class="l">Total</div></div>
       </div>
-      ${prokerPending?`<button class="btn btn-warn btn-full" onclick="nav('kegiatan');setTimeout(()=>renderTabKegiatan('proker'),100)">ACC Proker Pending →</button>`:''}
+      ${prokerPending?`<button class="btn btn-warn btn-full" onclick="goScreen('kegiatan');setTimeout(()=>renderTabKegiatan('proker'),100)">ACC Proker Pending →</button>`:''}
     </div>
 
     ${topAnggota.length?`<div class="sec">🏆 TOP PEMETAAN PPI</div>
