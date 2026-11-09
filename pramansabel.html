@@ -1862,6 +1862,36 @@ function tambahPeserta(lid){
 }
 
 // PEMETAAN
+// Ubah hasil tes Smapta (angka mentah) jadi skor 1-5 relatif terhadap rekan seangkatan yang sudah pernah dites.
+// Kenapa relatif (persentil), bukan patokan angka tetap: standar kelulusan PPI beda-beda tiap daerah/tahun,
+// jadi yang paling jujur dan aman dipakai di sini adalah "seberapa unggul dibanding teman-temannya sendiri".
+function smaptaLatestMap(){
+  const m={};
+  D.smapta.forEach(s=>{if(!m[s.nama]||s.tgl>m[s.nama].tgl)m[s.nama]=s;});
+  return m;
+}
+function smaptaSkorObjektif(nama,latestMap){
+  const all=Object.values(latestMap);
+  const me=latestMap[nama];
+  if(!me||all.length<2)return null;
+  const persentil=(k,baik)=>{
+    const v=me[k];if(v==null)return null;
+    const lain=all.filter(a=>a.nama!==nama).map(a=>a[k]).filter(x=>x!=null);
+    if(!lain.length)return null;
+    const lebihBuruk=lain.filter(x=>baik==='tinggi'?x<v:x>v).length;
+    return lebihBuruk/lain.length; // 0..1, 1 = paling unggul
+  };
+  const ps=[persentil('pushup','tinggi'),persentil('situp','tinggi'),persentil('shuttle','rendah')].filter(x=>x!=null);
+  if(!ps.length)return null;
+  const avg=ps.reduce((a,b)=>a+b,0)/ps.length;
+  return Math.round((1+avg*4)*10)/10; // 0..1 -> skala 1..5
+}
+function skorGabungan(p,latestMap){
+  const smScore=smaptaSkorObjektif(p.nama,latestMap);
+  const fisikGab=smScore!=null?Math.round(((p.fisik+smScore)/2)*10)/10:p.fisik;
+  const s=Math.round((p.pb+fisikGab+p.mental+p.disiplin+p.kepemimpinan+p.komunikasi)/6*10)/10;
+  return {s,smScore,fisikGab};
+}
 function renderPemetaan(){
   let html='';
   if(C.pemetaan_edit(R)){
@@ -1871,16 +1901,31 @@ function renderPemetaan(){
   const daftar=D.pemetaan;
   if(!daftar.length) html+='<div class="alert alert-warn">Belum ada data pemetaan kemampuan.</div>';
 
+  const latestMap=smaptaLatestMap();
+
+  if(daftar.length){
+    const ranking=daftar.map(p=>{const g=skorGabungan(p,latestMap);return{p,...g};}).sort((a,b)=>b.s-a.s);
+    html+=`<div class="sec">📊 Ranking Potensi Lulus PPI (Pemetaan + Smapta)</div>
+    <div style="font-size:11px;color:var(--fg2);margin-bottom:8px">Skor gabungan: 5 aspek Pemetaan (PBB, Mental, Disiplin, Kepemimpinan, Komunikasi) + Fisik gabungan (nilai Fisik Pemetaan dipadukan dengan hasil tes Smapta, dibandingkan relatif dengan rekan seangkatan). Tanpa data Smapta, Fisik hanya pakai nilai Pemetaan.</div>
+    <div class="card" style="overflow-x:auto;padding:0">
+    <table style="width:100%;border-collapse:collapse;font-size:12px">
+      <tr style="text-align:left;background:var(--sunk)"><th style="padding:8px">#</th><th style="padding:8px">Nama</th><th style="padding:8px">Skor</th><th style="padding:8px">Level Potensi</th><th style="padding:8px">Data Smapta</th></tr>
+      ${ranking.map((r,i)=>{const[lvl,lvlC]=levelPPI(r.s);
+        return`<tr style="border-top:1px solid var(--border)"><td style="padding:8px">${i+1}</td><td style="padding:8px;font-weight:600">${esc(r.p.nama)}</td><td style="padding:8px;font-weight:700">${r.s}</td><td style="padding:8px"><span class="badge ${lvlC==='ok'?'badge-ok':lvlC==='b'?'badge-info':lvlC==='g'?'badge-warn':'badge-grey'}">${lvl}</span></td><td style="padding:8px;color:var(--fg2)">${r.smScore!=null?`Fisik Smapta: ${r.smScore}/5`:'belum ada tes'}</td></tr>`;
+      }).join('')}
+    </table></div>`;
+  }
+
   daftar.forEach(p=>{
-    const s=skor(p);
+    const{s,smScore,fisikGab}=skorGabungan(p,latestMap);
     const [lvl,lvlC]=levelPPI(s);
-    const poinW=Math.round(s/5*100);
     html+=`<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
       <div><div style="font-weight:700;font-size:15px">${esc(p.nama)}</div><div style="font-size:12px;color:var(--fg2)">${esc(p.kelas||'-')}</div></div>
-      <div style="text-align:right"><div style="font-size:22px;font-weight:900;font-family:'Exo 2',sans-serif;color:var(--accent)">${s}</div><div style="font-size:11px;color:var(--fg2)">/ 5.0</div></div>
+      <div style="text-align:right"><div style="font-size:22px;font-weight:900;font-family:'Exo 2',sans-serif;color:var(--accent)">${s}</div><div style="font-size:11px;color:var(--fg2)">/ 5.0${smScore!=null?' (+Smapta)':''}</div></div>
     </div>
     <div class="badge ${lvlC==='ok'?'badge-ok':lvlC==='b'?'badge-info':lvlC==='g'?'badge-warn':'badge-grey'}" style="margin-bottom:10px">${lvl}</div>
-    ${ASPEK.map((k,i)=>`<div class="gauge-row"><div class="gauge-label">${ASPEK_LBL[i]}</div><div class="gauge-bar"><div class="gauge-fill" style="width:${(p[k]||0)/5*100}%"></div></div><div class="gauge-val">${p[k]||0}</div></div>`).join('')}
+    ${ASPEK.map((k,i)=>`<div class="gauge-row"><div class="gauge-label">${ASPEK_LBL[i]}${k==='fisik'&&smScore!=null?' (gab. Smapta)':''}</div><div class="gauge-bar"><div class="gauge-fill" style="width:${(k==='fisik'?fisikGab:p[k]||0)/5*100}%"></div></div><div class="gauge-val">${k==='fisik'?fisikGab:(p[k]||0)}</div></div>`).join('')}
+    ${smScore!=null?`<div style="font-size:11px;color:var(--fg2);margin-top:4px">Fisik Pemetaan (subjektif): ${p.fisik}/5 · Fisik Smapta (data tes, persentil seangkatan): ${smScore}/5</div>`:`<div style="font-size:11px;color:var(--fg2);margin-top:4px">Belum ada data tes Smapta — Fisik hanya dari nilai Pemetaan. Catat hasil tes di tab Smapta agar skor lebih akurat.</div>`}
     ${p.catatan?`<div style="font-size:12px;color:var(--fg2);margin-top:8px;padding-top:8px;border-top:1px solid var(--border)">Catatan: ${esc(p.catatan)}</div>`:''}
     ${C.pemetaan_edit(R)?`<button class="btn btn-ghost btn-sm" style="margin-top:10px" onclick="modalEditPemetaan('${p.id}')">✏️ Edit Nilai</button>`:''}
     </div>`;
@@ -2388,7 +2433,9 @@ function renderLaporanKinerja(){
   const bulan=getBulanTahun();
   const noAnggota=D.anggota.filter(a=>a.status==='aktif').map((a,i)=>`   ${String(i+1).padStart(2,' ')}. ${a.nama} \u2014 ${a.kelas||'-'} (${RLBL[a.role]||a.role})`).join('\n')||'   (belum ada data)';
   const prokerList=D.proker.slice(0,10).map((p,i)=>`   ${i+1}. ${p.judul} (${tgl(p.tgl)}) \u2014 ${p.accPembina&&p.accPelatih?'Terlaksana':'Direncanakan'}`).join('\n')||'   (belum ada data)';
-  const pemetaanList=D.pemetaan.map((p,i)=>{const s=skor(p);const[lv]=levelPPI(s);return`   ${i+1}. ${p.nama} \u2014 Skor: ${s}/5.0 (${lv})`;}).join('\n')||'   (belum ada data)';
+  const smLatestForLap=smaptaLatestMap();
+  const pemetaanList=D.pemetaan.map(p=>({p,...skorGabungan(p,smLatestForLap)})).sort((a,b)=>b.s-a.s)
+    .map((r,i)=>`   ${i+1}. ${r.p.nama} \u2014 Skor: ${r.s}/5.0 (${levelPPI(r.s)[0]})${r.smScore!=null?` [+Smapta: ${r.smScore}/5]`:' [belum ada tes Smapta]'}`).join('\n')||'   (belum ada data)';
 
   const lapTeks=
 `LAPORAN KEGIATAN
