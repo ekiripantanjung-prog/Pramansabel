@@ -401,7 +401,7 @@ function defD(){return{
   komando:[],
   pengumuman:[],
   pemetaan:[],
-  smapta:[],
+  samapta:[],
   materi:[],
   izin:[],
   ttd:null, // base64 TTD Pembina
@@ -1478,7 +1478,7 @@ function renderKegiatan(){
     <button class="tab" onclick="tabKegiatan('tatib',this)">TATIB</button>
     <button class="tab" onclick="tabKegiatan('lomba',this)">Lomba</button>
     <button class="tab" onclick="tabKegiatan('pemetaan',this)">Pemetaan</button>
-    <button class="tab" onclick="tabKegiatan('smapta',this)">Smapta</button>
+    <button class="tab" onclick="tabKegiatan('samapta',this)">Samapta</button>
     <button class="tab" onclick="tabKegiatan('share',this)">Share</button>
   </div><div id="tab-kegiatan"></div>`;
   el.innerHTML=tabs;
@@ -1495,7 +1495,7 @@ function renderTabKegiatan(t){
   else if(t==='tatib') el.innerHTML=renderTatib();
   else if(t==='lomba') el.innerHTML=renderLomba();
   else if(t==='pemetaan') el.innerHTML=renderPemetaan();
-  else if(t==='smapta') el.innerHTML=renderSmapta();
+  else if(t==='samapta') el.innerHTML=renderSamapta();
   else if(t==='share') el.innerHTML=renderShare();
 }
 
@@ -1862,15 +1862,15 @@ function tambahPeserta(lid){
 }
 
 // PEMETAAN
-// Ubah hasil tes Smapta (angka mentah) jadi skor 1-5 relatif terhadap rekan seangkatan yang sudah pernah dites.
+// Ubah hasil tes Samapta (angka mentah) jadi skor 1-5 relatif terhadap rekan seangkatan yang sudah pernah dites.
 // Kenapa relatif (persentil), bukan patokan angka tetap: standar kelulusan PPI beda-beda tiap daerah/tahun,
 // jadi yang paling jujur dan aman dipakai di sini adalah "seberapa unggul dibanding teman-temannya sendiri".
-function smaptaLatestMap(){
+function samaptaLatestMap(){
   const m={};
-  D.smapta.forEach(s=>{if(!m[s.nama]||s.tgl>m[s.nama].tgl)m[s.nama]=s;});
+  D.samapta.forEach(s=>{if(!m[s.nama]||s.tgl>m[s.nama].tgl)m[s.nama]=s;});
   return m;
 }
-function smaptaSkorObjektif(nama,latestMap){
+function samaptaSkorObjektif(nama,latestMap){
   const all=Object.values(latestMap);
   const me=latestMap[nama];
   if(!me||all.length<2)return null;
@@ -1887,7 +1887,7 @@ function smaptaSkorObjektif(nama,latestMap){
   return Math.round((1+avg*4)*10)/10; // 0..1 -> skala 1..5
 }
 function skorGabungan(p,latestMap){
-  const smScore=smaptaSkorObjektif(p.nama,latestMap);
+  const smScore=samaptaSkorObjektif(p.nama,latestMap);
   const fisikGab=smScore!=null?Math.round(((p.fisik+smScore)/2)*10)/10:p.fisik;
   const s=Math.round((p.pb+fisikGab+p.mental+p.disiplin+p.kepemimpinan+p.komunikasi)/6*10)/10;
   return {s,smScore,fisikGab};
@@ -1901,17 +1901,17 @@ function renderPemetaan(){
   const daftar=D.pemetaan;
   if(!daftar.length) html+='<div class="alert alert-warn">Belum ada data pemetaan kemampuan.</div>';
 
-  const latestMap=smaptaLatestMap();
+  const latestMap=samaptaLatestMap();
 
   if(daftar.length){
     const ranking=daftar.map(p=>{const g=skorGabungan(p,latestMap);return{p,...g};}).sort((a,b)=>b.s-a.s);
-    html+=`<div class="sec">📊 Ranking Potensi Lulus PPI (Pemetaan + Smapta)</div>
-    <div style="font-size:11px;color:var(--fg2);margin-bottom:8px">Skor gabungan: 5 aspek Pemetaan (PBB, Mental, Disiplin, Kepemimpinan, Komunikasi) + Fisik gabungan (nilai Fisik Pemetaan dipadukan dengan hasil tes Smapta, dibandingkan relatif dengan rekan seangkatan). Tanpa data Smapta, Fisik hanya pakai nilai Pemetaan.</div>
+    html+=`<div class="sec">📊 Ranking Potensi Lulus PPI (Pemetaan + Samapta)</div>
+    <div style="font-size:11px;color:var(--fg2);margin-bottom:8px">Skor gabungan: 5 aspek Pemetaan (PBB, Mental, Disiplin, Kepemimpinan, Komunikasi) + Fisik gabungan (nilai Fisik Pemetaan dipadukan dengan hasil tes Samapta, dibandingkan relatif dengan rekan seangkatan). Tanpa data Samapta, Fisik hanya pakai nilai Pemetaan.</div>
     <div class="card" style="overflow-x:auto;padding:0">
     <table style="width:100%;border-collapse:collapse;font-size:12px">
-      <tr style="text-align:left;background:var(--sunk)"><th style="padding:8px">#</th><th style="padding:8px">Nama</th><th style="padding:8px">Skor</th><th style="padding:8px">Level Potensi</th><th style="padding:8px">Data Smapta</th></tr>
+      <tr style="text-align:left;background:var(--sunk)"><th style="padding:8px">#</th><th style="padding:8px">Nama</th><th style="padding:8px">Skor</th><th style="padding:8px">Level Potensi</th><th style="padding:8px">Data Samapta</th></tr>
       ${ranking.map((r,i)=>{const[lvl,lvlC]=levelPPI(r.s);
-        return`<tr style="border-top:1px solid var(--border)"><td style="padding:8px">${i+1}</td><td style="padding:8px;font-weight:600">${esc(r.p.nama)}</td><td style="padding:8px;font-weight:700">${r.s}</td><td style="padding:8px"><span class="badge ${lvlC==='ok'?'badge-ok':lvlC==='b'?'badge-info':lvlC==='g'?'badge-warn':'badge-grey'}">${lvl}</span></td><td style="padding:8px;color:var(--fg2)">${r.smScore!=null?`Fisik Smapta: ${r.smScore}/5`:'belum ada tes'}</td></tr>`;
+        return`<tr style="border-top:1px solid var(--border)"><td style="padding:8px">${i+1}</td><td style="padding:8px;font-weight:600">${esc(r.p.nama)}</td><td style="padding:8px;font-weight:700">${r.s}</td><td style="padding:8px"><span class="badge ${lvlC==='ok'?'badge-ok':lvlC==='b'?'badge-info':lvlC==='g'?'badge-warn':'badge-grey'}">${lvl}</span></td><td style="padding:8px;color:var(--fg2)">${r.smScore!=null?`Fisik Samapta: ${r.smScore}/5`:'belum ada tes'}</td></tr>`;
       }).join('')}
     </table></div>`;
   }
@@ -1921,11 +1921,11 @@ function renderPemetaan(){
     const [lvl,lvlC]=levelPPI(s);
     html+=`<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
       <div><div style="font-weight:700;font-size:15px">${esc(p.nama)}</div><div style="font-size:12px;color:var(--fg2)">${esc(p.kelas||'-')}</div></div>
-      <div style="text-align:right"><div style="font-size:22px;font-weight:900;font-family:'Exo 2',sans-serif;color:var(--accent)">${s}</div><div style="font-size:11px;color:var(--fg2)">/ 5.0${smScore!=null?' (+Smapta)':''}</div></div>
+      <div style="text-align:right"><div style="font-size:22px;font-weight:900;font-family:'Exo 2',sans-serif;color:var(--accent)">${s}</div><div style="font-size:11px;color:var(--fg2)">/ 5.0${smScore!=null?' (+Samapta)':''}</div></div>
     </div>
     <div class="badge ${lvlC==='ok'?'badge-ok':lvlC==='b'?'badge-info':lvlC==='g'?'badge-warn':'badge-grey'}" style="margin-bottom:10px">${lvl}</div>
-    ${ASPEK.map((k,i)=>`<div class="gauge-row"><div class="gauge-label">${ASPEK_LBL[i]}${k==='fisik'&&smScore!=null?' (gab. Smapta)':''}</div><div class="gauge-bar"><div class="gauge-fill" style="width:${(k==='fisik'?fisikGab:p[k]||0)/5*100}%"></div></div><div class="gauge-val">${k==='fisik'?fisikGab:(p[k]||0)}</div></div>`).join('')}
-    ${smScore!=null?`<div style="font-size:11px;color:var(--fg2);margin-top:4px">Fisik Pemetaan (subjektif): ${p.fisik}/5 · Fisik Smapta (data tes, persentil seangkatan): ${smScore}/5</div>`:`<div style="font-size:11px;color:var(--fg2);margin-top:4px">Belum ada data tes Smapta — Fisik hanya dari nilai Pemetaan. Catat hasil tes di tab Smapta agar skor lebih akurat.</div>`}
+    ${ASPEK.map((k,i)=>`<div class="gauge-row"><div class="gauge-label">${ASPEK_LBL[i]}${k==='fisik'&&smScore!=null?' (gab. Samapta)':''}</div><div class="gauge-bar"><div class="gauge-fill" style="width:${(k==='fisik'?fisikGab:p[k]||0)/5*100}%"></div></div><div class="gauge-val">${k==='fisik'?fisikGab:(p[k]||0)}</div></div>`).join('')}
+    ${smScore!=null?`<div style="font-size:11px;color:var(--fg2);margin-top:4px">Fisik Pemetaan (subjektif): ${p.fisik}/5 · Fisik Samapta (data tes, persentil seangkatan): ${smScore}/5</div>`:`<div style="font-size:11px;color:var(--fg2);margin-top:4px">Belum ada data tes Samapta — Fisik hanya dari nilai Pemetaan. Catat hasil tes di tab Samapta agar skor lebih akurat.</div>`}
     ${p.catatan?`<div style="font-size:12px;color:var(--fg2);margin-top:8px;padding-top:8px;border-top:1px solid var(--border)">Catatan: ${esc(p.catatan)}</div>`:''}
     ${C.pemetaan_edit(R)?`<button class="btn btn-ghost btn-sm" style="margin-top:10px" onclick="modalEditPemetaan('${p.id}')">✏️ Edit Nilai</button>`:''}
     </div>`;
@@ -1972,26 +1972,26 @@ function updatePemetaan(id){
   p.tgl=Date.now();save();closeModal();toast('Penilaian diperbarui');renderTabKegiatan('pemetaan');
 }
 
-// SMAPTA — perkembangan kesegaran jasmani balonpas/capas
-const SMAPTA_TES=[
+// SAMAPTA — perkembangan kesegaran jasmani balonpas/capas
+const SAMAPTA_TES=[
   {k:'pushup',lbl:'Push Up 1 Menit',unit:'kali',baik:'tinggi'},
   {k:'situp',lbl:'Sit Up 1 Menit',unit:'kali',baik:'tinggi'},
   {k:'shuttle',lbl:'Lari Shuttle Run',unit:'detik',baik:'rendah'},
 ];
-function renderSmapta(){
-  let html=`<div class="sec">💪 Perkembangan Smapta Balonpas</div>
+function renderSamapta(){
+  let html=`<div class="sec">💪 Perkembangan Samapta Balonpas</div>
   <div style="font-size:12px;color:var(--fg2);margin-bottom:12px">Catat hasil tes kesegaran jasmani (Push Up, Sit Up, Lari Shuttle Run) secara berkala untuk memantau perkembangan tiap Balonpas/Capas.</div>`;
   if(C.pemetaan_edit(R)){
-    html+=`<button class="btn btn-primary btn-sm" style="margin-bottom:12px" onclick="modalSmapta()">+ Catat Hasil Tes</button>`;
+    html+=`<button class="btn btn-primary btn-sm" style="margin-bottom:12px" onclick="modalSamapta()">+ Catat Hasil Tes</button>`;
   }
-  if(D.smapta.length){
-    html+=`<button class="btn btn-blue btn-sm" style="margin-bottom:12px;margin-left:8px" onclick="downloadSmaptaCSV()">📥 Rekap (Excel/CSV)</button>`;
+  if(D.samapta.length){
+    html+=`<button class="btn btn-blue btn-sm" style="margin-bottom:12px;margin-left:8px" onclick="downloadSamaptaCSV()">📥 Rekap (Excel/CSV)</button>`;
   }
-  const nama=[...new Set(D.smapta.map(s=>s.nama))];
+  const nama=[...new Set(D.samapta.map(s=>s.nama))];
   const calonTanpaTes=D.anggota.filter(a=>a.status==='aktif'&&['balonpas','capas'].includes(a.role)&&!nama.includes(a.nama));
-  if(!nama.length) html+='<div class="alert alert-warn">Belum ada catatan hasil tes Smapta.</div>';
+  if(!nama.length) html+='<div class="alert alert-warn">Belum ada catatan hasil tes Samapta.</div>';
   nama.forEach(n=>{
-    const rec=D.smapta.filter(s=>s.nama===n).sort((a,b)=>a.tgl-b.tgl);
+    const rec=D.samapta.filter(s=>s.nama===n).sort((a,b)=>a.tgl-b.tgl);
     const awal=rec[0],akhir=rec[rec.length-1];
     html+=`<div class="item"><div class="item-head"><div class="item-title">${esc(n)}</div><span class="badge badge-info">${rec.length}x tes</span></div>
     <table style="width:100%;border-collapse:collapse;margin-top:8px;font-size:12px">
@@ -2013,7 +2013,7 @@ function renderSmapta(){
       }).join('')}
     </table>
     ${rec.length>1?`<div style="font-size:11px;color:var(--fg2);margin-top:6px">Dari tes pertama (${tgl(awal.tgl)}) ke terakhir (${tgl(akhir.tgl)}): Push Up ${awal.pushup??'-'}→${akhir.pushup??'-'}, Sit Up ${awal.situp??'-'}→${akhir.situp??'-'}, Shuttle Run ${awal.shuttle??'-'}"→${akhir.shuttle??'-'}"</div>`:''}
-    ${C.pemetaan_edit(R)?`<button class="btn btn-ghost btn-sm" style="margin-top:8px" onclick="hapusSmaptaTerakhir('${n.replace(/'/g,"\\'")}')">🗑️ Hapus Catatan Terakhir</button>`:''}
+    ${C.pemetaan_edit(R)?`<button class="btn btn-ghost btn-sm" style="margin-top:8px" onclick="hapusSamaptaTerakhir('${n.replace(/'/g,"\\'")}')">🗑️ Hapus Catatan Terakhir</button>`:''}
     </div>`;
   });
   if(calonTanpaTes.length&&C.pemetaan_edit(R)){
@@ -2021,8 +2021,8 @@ function renderSmapta(){
   }
   return html;
 }
-function modalSmapta(){
-  openModal(`<div class="modal-title">Catat Hasil Tes Smapta <button class="modal-close" onclick="closeModal()">×</button></div>
+function modalSamapta(){
+  openModal(`<div class="modal-title">Catat Hasil Tes Samapta <button class="modal-close" onclick="closeModal()">×</button></div>
   <div class="field"><label>Nama Anggota</label>
     <select id="sm-nama">
       <option value="">-- Pilih --</option>
@@ -2034,37 +2034,37 @@ function modalSmapta(){
   <div class="field"><label>Sit Up 1 Menit (kali)</label><input id="sm-situp" type="number" min="0" placeholder="Jumlah repetisi"></div>
   <div class="field"><label>Lari Shuttle Run (detik)</label><input id="sm-shuttle" type="number" min="0" placeholder="Waktu tempuh dalam detik"></div>
   <div class="field"><label>Catatan</label><textarea id="sm-cat" placeholder="Opsional"></textarea></div>
-  <button class="btn btn-primary btn-full" onclick="simpanSmapta()">💾 Simpan</button>`);
+  <button class="btn btn-primary btn-full" onclick="simpanSamapta()">💾 Simpan</button>`);
 }
-function simpanSmapta(){
+function simpanSamapta(){
   const nama=document.getElementById('sm-nama').value;
   if(!nama)return toast('Pilih nama anggota');
   const num=id=>{const v=document.getElementById(id).value;return v===''?null:parseInt(v);};
-  D.smapta.push({id:uid(),nama,anggotaId:D.anggota.find(a=>a.nama===nama)?.id,
+  D.samapta.push({id:uid(),nama,anggotaId:D.anggota.find(a=>a.nama===nama)?.id,
     tgl:new Date(document.getElementById('sm-tgl').value||Date.now()).getTime(),
     pushup:num('sm-pushup'),situp:num('sm-situp'),shuttle:num('sm-shuttle'),
     catatan:document.getElementById('sm-cat').value.trim(),dicatatOleh:RLBL[R]});
-  save();closeModal();toast('Hasil tes disimpan');renderTabKegiatan('smapta');
+  save();closeModal();toast('Hasil tes disimpan');renderTabKegiatan('samapta');
 }
-function hapusSmaptaTerakhir(nama){
-  const rec=D.smapta.filter(s=>s.nama===nama).sort((a,b)=>b.tgl-a.tgl);
+function hapusSamaptaTerakhir(nama){
+  const rec=D.samapta.filter(s=>s.nama===nama).sort((a,b)=>b.tgl-a.tgl);
   if(!rec.length)return;
   if(!confirm(`Hapus catatan tes terakhir (${tgl(rec[0].tgl)}) milik ${nama}?`))return;
-  D.smapta=D.smapta.filter(s=>s.id!==rec[0].id);
-  save();toast('Catatan dihapus');renderTabKegiatan('smapta');
+  D.samapta=D.samapta.filter(s=>s.id!==rec[0].id);
+  save();toast('Catatan dihapus');renderTabKegiatan('samapta');
 }
-function downloadSmaptaCSV(){
+function downloadSamaptaCSV(){
   let csv='Tanggal,Nama,Push Up (kali),Sit Up (kali),Shuttle Run (detik),Catatan,Dicatat Oleh\n';
   const q=v=>`"${String(v==null?'':v).replace(/"/g,'""')}"`;
-  D.smapta.slice().sort((a,b)=>a.tgl-b.tgl).forEach(s=>{
+  D.samapta.slice().sort((a,b)=>a.tgl-b.tgl).forEach(s=>{
     csv+=[q(tgl(s.tgl)),q(s.nama),q(s.pushup??''),q(s.situp??''),q(s.shuttle??''),q(s.catatan||''),q(s.dicatatOleh||'')].join(',')+'\n';
   });
   const blob=new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8'});
   const url=URL.createObjectURL(blob);
   const a=document.createElement('a');
-  a.href=url;a.download=`rekap_smapta_balonpas_${new Date().toISOString().split('T')[0]}.csv`;a.click();
+  a.href=url;a.download=`rekap_samapta_balonpas_${new Date().toISOString().split('T')[0]}.csv`;a.click();
   URL.revokeObjectURL(url);
-  toast('📥 Rekap Smapta diunduh');
+  toast('📥 Rekap Samapta diunduh');
 }
 
 // SHARE CENTER
@@ -2433,9 +2433,9 @@ function renderLaporanKinerja(){
   const bulan=getBulanTahun();
   const noAnggota=D.anggota.filter(a=>a.status==='aktif').map((a,i)=>`   ${String(i+1).padStart(2,' ')}. ${a.nama} \u2014 ${a.kelas||'-'} (${RLBL[a.role]||a.role})`).join('\n')||'   (belum ada data)';
   const prokerList=D.proker.slice(0,10).map((p,i)=>`   ${i+1}. ${p.judul} (${tgl(p.tgl)}) \u2014 ${p.accPembina&&p.accPelatih?'Terlaksana':'Direncanakan'}`).join('\n')||'   (belum ada data)';
-  const smLatestForLap=smaptaLatestMap();
+  const smLatestForLap=samaptaLatestMap();
   const pemetaanList=D.pemetaan.map(p=>({p,...skorGabungan(p,smLatestForLap)})).sort((a,b)=>b.s-a.s)
-    .map((r,i)=>`   ${i+1}. ${r.p.nama} \u2014 Skor: ${r.s}/5.0 (${levelPPI(r.s)[0]})${r.smScore!=null?` [+Smapta: ${r.smScore}/5]`:' [belum ada tes Smapta]'}`).join('\n')||'   (belum ada data)';
+    .map((r,i)=>`   ${i+1}. ${r.p.nama} \u2014 Skor: ${r.s}/5.0 (${levelPPI(r.s)[0]})${r.smScore!=null?` [+Samapta: ${r.smScore}/5]`:' [belum ada tes Samapta]'}`).join('\n')||'   (belum ada data)';
 
   const lapTeks=
 `LAPORAN KEGIATAN
