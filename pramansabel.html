@@ -567,6 +567,7 @@ const C={
   balonpas_tambah:r=>C.anggota_edit(r)||r==='pps_aktif'||r==='pps_senior',
   balonpas_import_doc:r=>['sekretaris','ketua','pembina'].includes(r),
   proker_lampiran:r=>r==='ketua',
+  anggota_hapus:r=>['pembina','ketua','pelatih','sekretaris'].includes(r),
   naikkanCapas:r=>r==='pembina'||r==='pps_aktif'||r==='pelatih',
   edit_info:r=>r==='pembina',
   ttd:r=>r==='pembina',
@@ -1077,11 +1078,26 @@ function renderDaftarAnggota(){
       <input type="file" id="balonpas-doc-inp" accept=".doc,.docx,.xls,.xlsx,.pdf" style="display:none" onchange="importBalonpasDoc(this)">
     </div>`;
   }
-
+  html+=`<div class="field" style="margin-bottom:12px"><input id="da-search" type="text" placeholder="🔍 Cari nama anggota..." oninput="filterDaftarAnggota()" style="padding:9px 12px;border-radius:8px;border:1.5px solid var(--border);background:var(--bg);color:var(--fg);width:100%;box-sizing:border-box"></div>
+  <div id="da-list"></div>`;
+  setTimeout(filterDaftarAnggota,0);
+  return html;
+}
+function filterDaftarAnggota(){
+  const el=document.getElementById('da-list');if(!el)return;
+  const q=(document.getElementById('da-search')?.value||'').toLowerCase().trim();
+  el.innerHTML=renderDaftarAnggotaList(q);
+}
+function renderDaftarAnggotaList(q){
+  let html='';
+  let any=false;
   const groups={pps_aktif:`PPS Angkatan ${D.config.tahunAktif} (Aktif)`,pps_senior:`PPS Angkatan ${D.config.tahunSenior} (Senior)`,capas:'Capas (Calon Paskib)',balonpas:'Balonpas'};
   Object.entries(groups).forEach(([k,label])=>{
-    const list=D.anggota.filter(a=>a.role===k);
+    let list=D.anggota.filter(a=>a.role===k);
+    if(q) list=list.filter(a=>a.nama.toLowerCase().includes(q));
+    list=list.slice().sort((a,b)=>a.nama.localeCompare(b.nama,'id',{sensitivity:'base'}));
     if(!list.length)return;
+    any=true;
     html+=`<div class="sec">${RLBL[k]} (${list.length})</div>`;
     list.forEach(a=>{
       const st=a.status==='aktif'?'badge-ok':a.status==='purna'?'badge-info':'badge-danger';
@@ -1089,11 +1105,21 @@ function renderDaftarAnggota(){
       ${a.role==='capas'&&a.diajukanLantik?`<div style="font-size:12px;color:var(--warn);margin-top:4px;font-weight:600">📝 Diajukan untuk dilantik oleh ${esc(a.diajukanOleh||'-')} · menunggu ACC Pembina</div>`:''}
       ${C.anggota_edit(R)?`<div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-ghost btn-sm" onclick="modalEditAnggota('${a.id}')">Edit</button>${C.naikkanCapas(R)&&a.role==='balonpas'&&a.status==='aktif'?`<button class="btn btn-ok btn-sm" onclick="jadikanCapas('${a.id}')">🎗️ Jadikan Capas</button>`:''}${C.naikkanCapas(R)&&R!=='pembina'&&a.role==='capas'&&a.status==='aktif'&&!a.diajukanLantik?`<button class="btn btn-primary btn-sm" onclick="ajukanLantik('${a.id}')">📝 Ajukan Lantik</button>`:''}${R==='pembina'&&a.role==='capas'&&a.status==='aktif'?`<button class="btn btn-ok btn-sm" onclick="lantikAnggota('${a.id}')">✅ ACC & Lantik PPS</button>`:''}${(a.role==='balonpas'||a.role==='capas')&&a.status==='aktif'?`<button class="btn btn-warn btn-sm" onclick="modalKeluarBalonpas('${a.id}')">🚪 Keluarkan</button>`:''}${R==='pembina'?`<button class="btn btn-warn btn-sm" onclick="keluarAnggota('${a.id}')">Non-aktifkan</button>`:''}</div>`
       :((C.balonpas_tambah(R)||C.naikkanCapas(R))&&(a.role==='balonpas'||a.role==='capas')&&a.status==='aktif')?`<div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">${C.naikkanCapas(R)&&a.role==='balonpas'?`<button class="btn btn-ok btn-sm" onclick="jadikanCapas('${a.id}')">🎗️ Jadikan Capas</button>`:''}${C.naikkanCapas(R)&&a.role==='capas'&&!a.diajukanLantik?`<button class="btn btn-primary btn-sm" onclick="ajukanLantik('${a.id}')">📝 Ajukan Lantik</button>`:''}<button class="btn btn-warn btn-sm" onclick="modalKeluarBalonpas('${a.id}')">🚪 Keluarkan</button></div>`:''}
+      ${C.anggota_hapus(R)?`<div style="margin-top:8px"><button class="btn btn-danger btn-sm" onclick="hapusAnggotaPermanen('${a.id}')">🗑️ Hapus Permanen</button></div>`:''}
       </div>`;
     });
   });
-  if(!D.anggota.length) html+='<div class="alert alert-warn">Belum ada anggota. Tambahkan melalui tombol di atas.</div>';
+  if(!any) html='<div class="alert alert-warn">'+(q?'Tidak ada nama yang cocok dengan pencarian.':'Belum ada anggota. Tambahkan melalui tombol di atas.')+'</div>';
   return html;
+}
+function hapusAnggotaPermanen(id){
+  const a=D.anggota.find(x=>x.id===id);if(!a)return;
+  if(!confirm(`Hapus PERMANEN data "${a.nama}"?\n\nIni untuk membetulkan nama ganda/salah input. Data yang sudah dihapus TIDAK BISA dikembalikan (berbeda dengan Non-aktifkan).`))return;
+  if(!confirm(`Yakin sekali? Ketik OK di konfirmasi berikutnya untuk menghapus "${a.nama}" selama-lamanya.`))return;
+  D.anggota=D.anggota.filter(x=>x.id!==id);
+  save();
+  toast(`🗑️ Data "${a.nama}" telah dihapus permanen`);
+  filterDaftarAnggota();
 }
 
 function downloadTemplateCSV(){
