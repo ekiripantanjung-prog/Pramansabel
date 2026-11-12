@@ -850,8 +850,16 @@ function lihatSemuaRespon(tipe,id){
   ${list}
   ${belumHtml}`);
 }
-function hapusKomando(id){D.komando=D.komando.filter(k=>k.id!==id);save();toast('Komando dihapus');renderBeranda();}
-function hapusPengumuman(id){D.pengumuman=D.pengumuman.filter(p=>p.id!==id);save();toast('Pengumuman dihapus');renderBeranda();}
+function hapusKomando(id){
+  const k=D.komando.find(x=>x.id===id);if(!k)return;
+  if(!confirm(`Hapus komando ini?\n\n"${k.pesan.length>80?k.pesan.slice(0,80)+'...':k.pesan}"`))return;
+  D.komando=D.komando.filter(x=>x.id!==id);save();toast('Komando dihapus');renderBeranda();
+}
+function hapusPengumuman(id){
+  const p=D.pengumuman.find(x=>x.id===id);if(!p)return;
+  if(!confirm(`Hapus pengumuman ini?\n\n"${(p.pesan||'').length>80?p.pesan.slice(0,80)+'...':(p.pesan||'(lampiran tanpa teks)')}"`))return;
+  D.pengumuman=D.pengumuman.filter(x=>x.id!==id);save();toast('Pengumuman dihapus');renderBeranda();
+}
 function renderKomandoItem(k){
   const bisaEdit=C.komando_kirim(R)||['ketua','tatib'].includes(R);
   return `<div class="komando-box"><h3>⚡ Komando dari ${esc(k.dari)}</h3><p>${esc(k.pesan)}</p>${buildResponBar('komando',k)}<div class="kmeta" style="display:flex;justify-content:space-between;align-items:center">${tgl(k.tgl)} ${!k.dibaca?'<span class="badge badge-warn">Baru</span>':''}<div style="display:flex;gap:4px">${bisaEdit?`<button onclick="editKomando('${k.id}')" style="background:rgba(255,255,255,0.15);border:none;color:#fff;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer">✏️</button>`:''}<button onclick="hapusKomando('${k.id}')" style="background:rgba(255,255,255,0.2);border:none;color:#fff;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer">🗑</button></div></div></div>`;
@@ -2182,6 +2190,7 @@ function tambahPeserta(lid){
 }
 function hapusPeserta(lid,nama){
   const l=D.lomba.find(x=>x.id===lid);if(!l)return;
+  if(!confirm(`Hapus "${nama}" dari daftar peserta lomba ini?`))return;
   l.peserta=l.peserta.filter(p=>p!==nama);save();modalPesertaLomba(lid);toast('Peserta dihapus dari daftar');renderTabKegiatan('lomba');
 }
 
@@ -2563,6 +2572,7 @@ function renderLaporan(){
     <button class="tab on" onclick="tabLaporan('keuangan',this)">Keuangan</button>
     <button class="tab" onclick="tabLaporan('evaluasi',this)">Evaluasi</button>
     ${C.isPengurus(R)||C.isAnggota(R)?`<button class="tab" onclick="tabLaporan('ringkasan',this)">Laporan</button>`:''}
+    ${C.isPengurus(R)?`<button class="tab" onclick="tabLaporan('rekap',this)">📊 Rekap Periode</button>`:''}
   </div><div id="tab-laporan"></div>`;
   el.innerHTML=html;
   renderTabLaporan('keuangan');
@@ -2577,6 +2587,192 @@ function renderTabLaporan(t){
   if(t==='keuangan') el.innerHTML=renderKeuangan();
   else if(t==='evaluasi') el.innerHTML=renderEvaluasi();
   else if(t==='ringkasan') el.innerHTML=renderLaporanKinerja();
+  else if(t==='rekap') el.innerHTML=renderRekapPeriode();
+}
+
+// ═══ REKAP PERIODIK (Absensi, Pelanggaran, Keuangan) → PDF / Excel / Word ═══
+function renderRekapPeriode(){
+  return `<div class="card">
+    <div class="card-title">📊 Rekap Data Periodik</div>
+    <p style="font-size:12px;color:var(--fg2);margin-bottom:10px">Pilih jenis data dan rentang waktu, lalu unduh dalam format PDF, Excel, atau Word.</p>
+    <div class="field"><label>Jenis Data</label>
+      <select id="rk-jenis">
+        <option value="absensi">Absensi</option>
+        <option value="pelanggaran">Pelanggaran</option>
+        <option value="keuangan">Keuangan (Kas)</option>
+        <option value="semua">Semua Data (Gabungan)</option>
+      </select>
+    </div>
+    <div class="field"><label>Rentang Waktu</label>
+      <select id="rk-periode">
+        <option value="minggu">Per Minggu</option>
+        <option value="bulan" selected>Per Bulan</option>
+        <option value="semester">Per Semester</option>
+        <option value="tahun">Per Tahun</option>
+      </select>
+    </div>
+    <div class="field"><label>Tanggal Acuan (pilih tanggal yang termasuk dalam periode yang mau direkap)</label>
+      <input id="rk-tgl" type="date" value="${new Date().toISOString().split('T')[0]}">
+    </div>
+    <button class="btn btn-primary btn-full" onclick="tampilkanRekapPeriode()">🔍 Tampilkan Rekap</button>
+  </div>
+  <div id="rk-hasil"></div>`;
+}
+function parseTglAny(d){
+  if(d===null||d===undefined)return null;
+  if(typeof d==='number')return new Date(d);
+  if(d instanceof Date)return d;
+  if(typeof d==='string'){
+    const m=d.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if(m)return new Date(+m[3],+m[2]-1,+m[1]);
+    const t=new Date(d);
+    if(!isNaN(t.getTime()))return t;
+  }
+  return null;
+}
+function hitungRentangPeriode(jenis,ref){
+  let start,end;
+  if(jenis==='minggu'){
+    const day=ref.getDay();
+    const diffToMonday=(day===0?-6:1-day);
+    start=new Date(ref);start.setDate(ref.getDate()+diffToMonday);start.setHours(0,0,0,0);
+    end=new Date(start);end.setDate(start.getDate()+6);end.setHours(23,59,59,999);
+  } else if(jenis==='bulan'){
+    start=new Date(ref.getFullYear(),ref.getMonth(),1,0,0,0,0);
+    end=new Date(ref.getFullYear(),ref.getMonth()+1,0,23,59,59,999);
+  } else if(jenis==='semester'){
+    if(ref.getMonth()<6){start=new Date(ref.getFullYear(),0,1,0,0,0,0);end=new Date(ref.getFullYear(),5,30,23,59,59,999);}
+    else{start=new Date(ref.getFullYear(),6,1,0,0,0,0);end=new Date(ref.getFullYear(),11,31,23,59,59,999);}
+  } else {
+    start=new Date(ref.getFullYear(),0,1,0,0,0,0);end=new Date(ref.getFullYear(),11,31,23,59,59,999);
+  }
+  return {start,end};
+}
+function rekapAbsensi(start,end){
+  const counts={};
+  D.absensi.forEach(r=>{
+    const d=parseTglAny(r.tgl);if(!d||d<start||d>end)return;
+    if(!counts[r.anggotaId])counts[r.anggotaId]={hadir:0,izin:0,sakit:0,alfa:0};
+    if(counts[r.anggotaId][r.status]!==undefined)counts[r.anggotaId][r.status]++;
+  });
+  const rows=[];
+  D.anggota.filter(a=>['pps_aktif','pps_senior','balonpas','capas'].includes(a.role)).sort((a,b)=>a.nama.localeCompare(b.nama,'id',{sensitivity:'base'})).forEach(a=>{
+    const c=counts[a.id];if(!c)return;
+    rows.push([a.nama,a.kelas||'-',RLBL[a.role]||a.role,c.hadir,c.izin,c.sakit,c.alfa,c.hadir+c.izin+c.sakit+c.alfa]);
+  });
+  return {judul:'Rekap Absensi',kolom:['Nama','Kelas','Peran','Hadir','Izin','Sakit','Alfa','Total Sesi'],rows,
+    ringkasan:rows.length?[{label:'Jumlah Anggota Tercatat',value:rows.length}]:[]};
+}
+function rekapPelanggaran(start,end){
+  const list=D.pelanggaran.filter(p=>{const d=parseTglAny(p.tgl);return d&&d>=start&&d<=end;}).sort((a,b)=>(a.tgl||0)-(b.tgl||0));
+  const rows=list.map(p=>[tgl(p.tgl),p.nama,p.jenis,p.poin,p.tindakan||'-',p.status]);
+  const totalPoin=list.reduce((s,p)=>s+(p.poin||0),0);
+  return {judul:'Rekap Pelanggaran',kolom:['Tanggal','Nama','Jenis','Poin','Tindakan','Status'],rows,
+    ringkasan:[{label:'Jumlah Kejadian',value:list.length},{label:'Total Poin',value:totalPoin}]};
+}
+function rekapKeuangan(start,end){
+  const list=D.kas.filter(k=>{const d=parseTglAny(k.tgl);return d&&d>=start&&d<=end;}).sort((a,b)=>(a.tgl||0)-(b.tgl||0));
+  const rows=list.map(k=>[tgl(k.tgl),k.ket,k.jenis==='masuk'?'Pemasukan':'Pengeluaran',fmtRp(k.nominal)]);
+  const masuk=list.filter(k=>k.jenis==='masuk').reduce((s,k)=>s+k.nominal,0);
+  const keluar=list.filter(k=>k.jenis==='keluar').reduce((s,k)=>s+k.nominal,0);
+  return {judul:'Rekap Keuangan',kolom:['Tanggal','Keterangan','Jenis','Jumlah'],rows,
+    ringkasan:[{label:'Total Pemasukan Periode Ini',value:fmtRp(masuk)},{label:'Total Pengeluaran Periode Ini',value:fmtRp(keluar)},{label:'Selisih Periode Ini',value:fmtRp(masuk-keluar)}]};
+}
+function kumpulkanRekapData(jenis,start,end){
+  if(jenis==='absensi')return[rekapAbsensi(start,end)];
+  if(jenis==='pelanggaran')return[rekapPelanggaran(start,end)];
+  if(jenis==='keuangan')return[rekapKeuangan(start,end)];
+  return[rekapAbsensi(start,end),rekapPelanggaran(start,end),rekapKeuangan(start,end)];
+}
+function labelJenisRekap(j){return j==='absensi'?'Absensi':j==='pelanggaran'?'Pelanggaran':j==='keuangan'?'Keuangan':'Gabungan';}
+function fileDateLabel(d){return new Date(d).toISOString().split('T')[0];}
+function tampilkanRekapPeriode(){
+  const jenis=document.getElementById('rk-jenis').value;
+  const periode=document.getElementById('rk-periode').value;
+  const tglVal=document.getElementById('rk-tgl').value;
+  if(!tglVal)return toast('Pilih tanggal acuan dulu');
+  const ref=new Date(tglVal+'T00:00:00');
+  if(isNaN(ref.getTime()))return toast('Tanggal acuan tidak valid');
+  const{start,end}=hitungRentangPeriode(periode,ref);
+  const data=kumpulkanRekapData(jenis,start,end);
+  window._rekapTerakhir={jenis,periode,start,end,data};
+  document.getElementById('rk-hasil').innerHTML=renderHasilRekap(data,start,end);
+}
+function renderHasilRekap(sections,start,end){
+  let html=`<div class="card" style="margin-top:12px">
+    <div style="font-size:12px;color:var(--fg2);margin-bottom:10px">Periode: <strong>${tgl(start)} – ${tgl(end)}</strong></div>`;
+  sections.forEach(sec=>{
+    html+=`<div class="sec">${esc(sec.judul)}</div>`;
+    if(!sec.rows.length){
+      html+='<div class="alert alert-warn" style="font-size:12px">Tidak ada data pada periode ini.</div>';
+    } else {
+      html+=`<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead><tr>${sec.kolom.map(k=>`<th style="text-align:left;padding:6px;border-bottom:2px solid var(--border)">${esc(k)}</th>`).join('')}</tr></thead>
+        <tbody>${sec.rows.map(r=>`<tr>${r.map(c=>`<td style="padding:6px;border-bottom:1px solid var(--border)">${esc(String(c))}</td>`).join('')}</tr>`).join('')}</tbody>
+      </table></div>`;
+    }
+    if(sec.ringkasan&&sec.ringkasan.length){
+      html+=`<div style="margin-top:6px;font-size:12px;color:var(--fg2)">${sec.ringkasan.map(r=>`<strong>${esc(r.label)}:</strong> ${esc(String(r.value))}`).join(' &nbsp;·&nbsp; ')}</div>`;
+    }
+  });
+  html+=`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">
+    <button class="btn btn-danger btn-sm" onclick="exportRekapPDF()">📄 Unduh PDF</button>
+    <button class="btn btn-ok btn-sm" onclick="exportRekapExcel()">📊 Unduh Excel</button>
+    <button class="btn btn-blue btn-sm" onclick="exportRekapWord()">📝 Unduh Word</button>
+  </div></div>`;
+  return html;
+}
+function _bodyRekapHTML(Rk){
+  let body=`<h2 style="margin:0 0 4px;font-family:Arial,sans-serif">Rekap ${labelJenisRekap(Rk.jenis)}</h2>
+  <div style="font-size:12px;color:#555;font-family:Arial,sans-serif;margin-bottom:4px">PASMANSABEL — PASKIBRA MAN 1 Belitung</div>
+  <div style="font-size:12px;color:#555;font-family:Arial,sans-serif;margin-bottom:16px">Periode: ${tgl(Rk.start)} – ${tgl(Rk.end)} &nbsp;·&nbsp; Dicetak: ${tgl(Date.now())}</div>`;
+  Rk.data.forEach(sec=>{
+    body+=`<h3 style="margin:18px 0 6px;font-size:15px;font-family:Arial,sans-serif">${esc(sec.judul)}</h3>`;
+    if(!sec.rows.length){
+      body+=`<div style="font-size:12px;color:#777;font-family:Arial,sans-serif">Tidak ada data pada periode ini.</div>`;
+    } else {
+      body+=`<table border="1" cellspacing="0" cellpadding="5" style="border-collapse:collapse;font-size:11px;width:100%;font-family:Arial,sans-serif"><tr>${sec.kolom.map(k=>`<th style="background:#f2f2f2;text-align:left">${esc(k)}</th>`).join('')}</tr>${sec.rows.map(r=>`<tr>${r.map(c=>`<td>${esc(String(c))}</td>`).join('')}</tr>`).join('')}</table>`;
+    }
+    if(sec.ringkasan&&sec.ringkasan.length){
+      body+=`<div style="margin-top:6px;font-size:11px;font-family:Arial,sans-serif">${sec.ringkasan.map(r=>`<b>${esc(r.label)}:</b> ${esc(String(r.value))}`).join(' &nbsp;|&nbsp; ')}</div>`;
+    }
+  });
+  return body;
+}
+function exportRekapPDF(){
+  const Rk=window._rekapTerakhir;if(!Rk)return toast('Tampilkan rekap dulu sebelum mengunduh');
+  if(typeof html2pdf==='undefined')return toast('⚠️ Modul PDF belum siap (butuh koneksi internet saat pertama kali membuka aplikasi). Coba muat ulang aplikasi.');
+  const div=document.createElement('div');
+  div.style.cssText='padding:20px;color:#111';
+  div.innerHTML=_bodyRekapHTML(Rk);
+  const fname=`Rekap_${labelJenisRekap(Rk.jenis)}_${fileDateLabel(Rk.start)}_${fileDateLabel(Rk.end)}.pdf`;
+  toast('⏳ Membuat PDF...');
+  html2pdf().from(div).set({margin:10,filename:fname,html2canvas:{scale:2},jsPDF:{unit:'mm',format:'a4',orientation:'portrait'}}).save();
+}
+function exportRekapExcel(){
+  const Rk=window._rekapTerakhir;if(!Rk)return toast('Tampilkan rekap dulu sebelum mengunduh');
+  if(typeof XLSX==='undefined')return toast('⚠️ Modul Excel belum siap (butuh koneksi internet saat pertama kali membuka aplikasi). Coba muat ulang aplikasi.');
+  const wb=XLSX.utils.book_new();
+  Rk.data.forEach(sec=>{
+    const aoa=[[sec.judul],[`Periode: ${tgl(Rk.start)} - ${tgl(Rk.end)}`],[],sec.kolom,...sec.rows];
+    if(sec.ringkasan&&sec.ringkasan.length){aoa.push([]);sec.ringkasan.forEach(r=>aoa.push([r.label,r.value]));}
+    const ws=XLSX.utils.aoa_to_sheet(aoa);
+    let sheetName=sec.judul.replace('Rekap ','').slice(0,31)||'Data';
+    XLSX.utils.book_append_sheet(wb,ws,sheetName);
+  });
+  const fname=`Rekap_${labelJenisRekap(Rk.jenis)}_${fileDateLabel(Rk.start)}_${fileDateLabel(Rk.end)}.xlsx`;
+  XLSX.writeFile(wb,fname);
+}
+function exportRekapWord(){
+  const Rk=window._rekapTerakhir;if(!Rk)return toast('Tampilkan rekap dulu sebelum mengunduh');
+  const html=`<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+  <head><meta charset='utf-8'><title>Rekap</title></head><body>${_bodyRekapHTML(Rk)}</body></html>`;
+  const blob=new Blob(['﻿'+html],{type:'application/msword'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;a.download=`Rekap_${labelJenisRekap(Rk.jenis)}_${fileDateLabel(Rk.start)}_${fileDateLabel(Rk.end)}.doc`;a.click();
+  URL.revokeObjectURL(url);
+  toast('📝 File Word diunduh');
 }
 
 function renderKeuangan(){
@@ -3151,7 +3347,10 @@ function renderSinkron(){
     <p style="font-size:12px;color:var(--fg2);margin-top:10px">⬇️ Ambil: mengambil data dari Google Sheet (cocok saat buka di perangkat baru)<br>⬆️ Simpan: mengirim data dari HP ini ke Google Sheet</p>
   </div>`:'<div class="alert alert-warn" style="margin-top:12px">Isi URL Apps Script dulu untuk mulai sinkron.</div>'}`;
 }
-function hapusTTD(){D.ttd=null;save();toast('TTD dihapus');renderTabPengaturan('ttd');}
+function hapusTTD(){
+  if(!confirm('Hapus tanda tangan digital yang tersimpan? Kamu harus menggambar ulang TTD kalau suatu saat dibutuhkan lagi.'))return;
+  D.ttd=null;save();toast('TTD dihapus');renderTabPengaturan('ttd');
+}
 function buatTTDBaru(){
   openModal(`<div class="modal-title">Buat Tanda Tangan <button class="modal-close" onclick="closeModal()">×</button></div>
   <p style="font-size:12px;color:var(--fg2);margin-bottom:10px">Tanda tangan di area di bawah ini:</p>
@@ -3201,6 +3400,7 @@ function renderConfig(){
   </div>`;
 }
 function hapusPinRole(role){
+  if(!confirm(`Hapus PIN untuk peran "${RLBL[role]}"? Anggota dengan peran ini tidak akan bisa login pakai PIN sampai PIN baru dibuat lagi.`))return;
   const p=getPins();delete p[role];savePins(p);
   toast('PIN '+RLBL[role]+' dihapus');renderTabPengaturan('config');
 }
