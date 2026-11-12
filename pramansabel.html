@@ -1454,7 +1454,7 @@ function renderAbsensi(){
     return'<div class="alert alert-warn">Hanya Sekretaris yang dapat mengisi absensi.</div>';
   }
   const sesiTabs=SESI.map((s,i)=>`<button class="tab${i===0?' on':''}" onclick="tabSesi(${i},this)">${s}</button>`).join('');
-  const dlBtn=C.absensi_edit(R)?`<button class="btn btn-blue btn-sm" style="float:right;margin-bottom:8px" onclick="downloadAbsensiCSV()">📥 Download CSV</button>`:'';
+  const dlBtn=(C.absensi_edit(R)||C.isPengurus(R))?`<button class="btn btn-blue btn-sm" style="float:right;margin-bottom:8px" onclick="downloadAbsensiCSV()">📥 Download CSV</button>`:'';
   return`${dlBtn}<div class="tabs">${sesiTabs}</div><div id="tab-sesi"></div>`;
 }
 function downloadAbsensiCSV(){
@@ -1511,8 +1511,8 @@ function renderSesi(si){
         </select></div>`;
     });
     html+=`</div>`;
-  } else if(C.isAnggota(R)){
-    // Anggota/balonpas lihat rekap absensi semua (read-only)
+  } else if(C.isAnggota(R)||C.isPengurus(R)){
+    // Anggota/balonpas/pengurus (Pembina, Pelatih, Ketua, dll) lihat rekap absensi semua (read-only)
     html+=`<div class="card"><div class="card-title" style="font-size:13px">📋 Data Absensi ${sesiNama}</div>`;
     D.anggota.filter(a=>['pps_aktif','pps_senior','balonpas'].includes(a.role)&&a.status==='aktif').forEach(a=>{
       const rec=D.absensi.find(x=>x.anggotaId===a.id&&x.sesi===si&&x.tgl===today);
