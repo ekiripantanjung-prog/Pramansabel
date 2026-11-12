@@ -217,6 +217,10 @@ input,select,textarea{font-family:inherit}
 .wa-btn{background:#25D366;color:#fff;border-radius:var(--rr);padding:10px 16px;font-size:14px;font-weight:600;display:flex;align-items:center;gap:8px;width:100%;justify-content:center}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>if(window.pdfjsLib)pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';</script>
 </head>
 <body>
 
@@ -561,6 +565,8 @@ const C={
   laporan:r=>r==='pembina',
   anggota_edit:r=>['pembina','ketua'].includes(r),
   balonpas_tambah:r=>C.anggota_edit(r)||r==='pps_aktif'||r==='pps_senior',
+  balonpas_import_doc:r=>['sekretaris','ketua','pembina'].includes(r),
+  proker_lampiran:r=>r==='ketua',
   naikkanCapas:r=>r==='pembina'||r==='pps_aktif'||r==='pelatih',
   edit_info:r=>r==='pembina',
   ttd:r=>r==='pembina',
@@ -1065,6 +1071,12 @@ function renderDaftarAnggota(){
       <button class="btn btn-primary btn-sm" onclick="modalTambahBalonpas()">+ Tambah Data Balonpas</button>
     </div>`;
   }
+  if(C.balonpas_import_doc(R)){
+    html+=`<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+      <button class="btn btn-blue btn-sm" onclick="document.getElementById('balonpas-doc-inp').click()">📥 Input Balonpas dari Word/Excel/PDF</button>
+      <input type="file" id="balonpas-doc-inp" accept=".doc,.docx,.xls,.xlsx,.pdf" style="display:none" onchange="importBalonpasDoc(this)">
+    </div>`;
+  }
 
   const groups={pps_aktif:`PPS Angkatan ${D.config.tahunAktif} (Aktif)`,pps_senior:`PPS Angkatan ${D.config.tahunSenior} (Senior)`,capas:'Capas (Calon Paskib)',balonpas:'Balonpas'};
   Object.entries(groups).forEach(([k,label])=>{
@@ -1146,6 +1158,119 @@ function importCSV(inp){
     document.querySelectorAll('#s-anggota .tab')[0].classList.add('on');
   };
   reader.readAsText(file);
+}
+
+// ═══ IMPORT BALONPAS DARI WORD / EXCEL / PDF ═══
+function importBalonpasDoc(inp){
+  const file=inp.files[0];if(!file)return;
+  const ext=(file.name.split('.').pop()||'').toLowerCase();
+  toast('⏳ Membaca file...');
+  if(ext==='xlsx'||ext==='xls'){
+    const reader=new FileReader();
+    reader.onload=e=>{
+      try{
+        const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});
+        const ws=wb.Sheets[wb.SheetNames[0]];
+        const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+        parseBalonpasRows(rows);
+      }catch(err){toast('Gagal membaca Excel: '+err.message);}
+      inp.value='';
+    };
+    reader.readAsArrayBuffer(file);
+  } else if(ext==='docx'||ext==='doc'){
+    if(ext==='doc')return toast('Format .doc lama tidak didukung, pakai .docx'),inp.value='';
+    const reader=new FileReader();
+    reader.onload=e=>{
+      mammoth.extractRawText({arrayBuffer:e.target.result}).then(res=>{
+        showBalonpasTextPreview(res.value,file.name);
+      }).catch(err=>toast('Gagal membaca Word: '+err.message));
+      inp.value='';
+    };
+    reader.readAsArrayBuffer(file);
+  } else if(ext==='pdf'){
+    const reader=new FileReader();
+    reader.onload=async e=>{
+      try{
+        const pdf=await pdfjsLib.getDocument({data:new Uint8Array(e.target.result)}).promise;
+        let teks='';
+        for(let i=1;i<=pdf.numPages;i++){
+          const page=await pdf.getPage(i);
+          const content=await page.getTextContent();
+          let lastY=null,baris='';
+          content.items.forEach(it=>{
+            if(lastY!==null&&Math.abs(it.transform[5]-lastY)>4){baris+='\n';}
+            baris+=it.str+' ';
+            lastY=it.transform[5];
+          });
+          teks+=baris+'\n';
+        }
+        showBalonpasTextPreview(teks,file.name);
+      }catch(err){toast('Gagal membaca PDF: '+err.message);}
+      inp.value='';
+    };
+    reader.readAsArrayBuffer(file);
+  } else {
+    toast('Format tidak didukung. Gunakan .xlsx, .docx, atau .pdf');
+    inp.value='';
+  }
+}
+// Excel: coba deteksi kolom nama/kelas/hp dari header, kalau tidak ada anggap kolom A = nama
+function parseBalonpasRows(rows){
+  if(!rows.length)return toast('File Excel kosong');
+  let startIdx=0,iNama=0,iKelas=-1,iHp=-1;
+  const header=(rows[0]||[]).map(h=>String(h||'').toLowerCase().trim());
+  if(header.includes('nama')){
+    startIdx=1;
+    iNama=header.indexOf('nama');
+    iKelas=header.indexOf('kelas');
+    iHp=header.indexOf('hp');
+  }
+  const list=[];
+  rows.slice(startIdx).forEach(r=>{
+    const nama=String(r[iNama]||'').trim();
+    if(!nama)return;
+    list.push({nama,kelas:iKelas>=0?String(r[iKelas]||'').trim():'',hp:iHp>=0?String(r[iHp]||'').trim():''});
+  });
+  if(!list.length)return toast('Tidak ada nama terbaca dari file Excel');
+  showBalonpasListPreview(list);
+}
+// Word & PDF: teks mentah ditampilkan dulu agar bisa dirapikan user, lalu dipecah per baris jadi nama
+function showBalonpasTextPreview(teks,namaFile){
+  const bersih=teks.split('\n').map(l=>l.trim()).filter(Boolean).join('\n');
+  openModal(`<div class="modal-title">Pratinjau: ${esc(namaFile)} <button class="modal-close" onclick="closeModal()">×</button></div>
+  <p style="font-size:12px;color:var(--fg2);margin-bottom:8px">Rapikan teks di bawah (hapus baris yang bukan nama), satu nama per baris, lalu klik Proses.</p>
+  <textarea id="bp-rawtext" style="min-height:220px;font-size:13px">${esc(bersih)}</textarea>
+  <button class="btn btn-primary btn-full" style="margin-top:10px" onclick="prosesBalonpasText()">➡️ Proses Jadi Daftar Balonpas</button>`);
+}
+function prosesBalonpasText(){
+  const teks=document.getElementById('bp-rawtext').value;
+  const list=teks.split('\n').map(l=>l.trim()).filter(Boolean).map(nama=>({nama,kelas:'',hp:''}));
+  if(!list.length)return toast('Tidak ada nama untuk diproses');
+  showBalonpasListPreview(list);
+}
+// Konfirmasi akhir sebelum data balonpas benar-benar disimpan
+function showBalonpasListPreview(list){
+  openModal(`<div class="modal-title">Konfirmasi Data Balonpas <button class="modal-close" onclick="closeModal()">×</button></div>
+  <p style="font-size:12px;color:var(--fg2);margin-bottom:8px">${list.length} nama terdeteksi. Hilangkan centang untuk melewati nama yang tidak valid.</p>
+  <div style="max-height:320px;overflow:auto;border:1px solid var(--border);border-radius:8px;padding:8px">
+  ${list.map((x,i)=>`<label style="display:flex;align-items:center;gap:8px;padding:6px 2px;font-size:13.5px"><input type="checkbox" checked data-bp-idx="${i}" class="bp-chk">${esc(x.nama)}${x.kelas?' · '+esc(x.kelas):''}</label>`).join('')}
+  </div>
+  <button class="btn btn-ok btn-full" style="margin-top:10px" onclick='simpanBalonpasList(${JSON.stringify(list).replace(/'/g,"&#39;")})'>✅ Simpan Semua yang Dicentang</button>`);
+}
+function simpanBalonpasList(list){
+  const checks=document.querySelectorAll('.bp-chk');
+  let added=0,skip=0;
+  checks.forEach(chk=>{
+    if(!chk.checked)return;
+    const x=list[+chk.dataset.bpIdx];
+    if(!x||!x.nama){skip++;return;}
+    if(D.anggota.find(a=>a.nama.toLowerCase()===x.nama.toLowerCase())){skip++;return;}
+    D.anggota.push({id:uid(),nama:x.nama,kelas:x.kelas||'',role:'balonpas',jabatan:'Calon PPS',hp:x.hp||'',status:'aktif',tglDaftar:Date.now()});
+    added++;
+  });
+  save();closeModal();
+  toast(`✅ ${added} data balonpas tersimpan${skip?' ('+skip+' dilewati)':''}`);
+  tabAnggota('daftar',null);
 }
 
 function modalTambahAnggota(){
@@ -1324,9 +1449,6 @@ function renderSesi(si){
   const today=new Date().toLocaleDateString('id-ID');
   const isEditor=C.absensi_edit(R);
 
-  // Hanya tampilkan izin untuk sesi Rabu
-  const bisaIzin=si===0;
-
   let html=`<div class="sec">${sesiNama} — ${today}</div>`;
   if(isEditor){
     html+=`<div class="card">`;
@@ -1338,7 +1460,7 @@ function renderSesi(si){
         <select onchange="setAbsensi('${a.id}',${si},'${today}',this.value)" style="padding:4px 8px;border-radius:6px;border:1.5px solid var(--border);background:var(--bg);color:var(--fg);font-size:12px">
           <option value="hadir"${v==='hadir'?' selected':''}>Hadir</option>
           <option value="alfa"${v==='alfa'?' selected':''}>Alfa</option>
-          ${bisaIzin?`<option value="izin"${v==='izin'?' selected':''}>Izin</option>`:''}
+          <option value="izin"${v==='izin'?' selected':''}>Izin</option>
           <option value="sakit"${v==='sakit'?' selected':''}>Sakit</option>
         </select></div>`;
     });
@@ -1605,6 +1727,7 @@ function renderProker(){
     html+=`<div class="item"><div class="item-head"><div><div class="item-title">${esc(p.judul)}</div><div class="item-sub">${tgl(p.tgl)} · ${esc(p.jenis)}</div></div><span class="badge ${stClass}">${stLabel}</span></div>
     <div style="font-size:12px;margin-top:6px;color:var(--fg2)">Pembina ${accP} · Pelatih ${accL}</div>
     <div style="font-size:13px;margin-top:6px">${esc(p.isi||'')}</div>
+    ${p.lampiran?`<div style="margin-top:8px"><a href="${p.lampiran}" download="${esc(p.lampiranNama||'lampiran')}" class="btn btn-ghost btn-sm" style="text-decoration:none;display:inline-block">📎 Unduh Lampiran: ${esc(p.lampiranNama||'file')}</a></div>`:''}
     <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
       ${C.proker_acc(R)&&!p['acc'+((R==='pembina'?'Pembina':'Pelatih'))]?`<button class="btn btn-ok btn-sm" onclick="accProker('${p.id}','${R}')">✓ Setujui</button>`:''}
       ${p.accPembina&&p.accPelatih?`<button class="wa-btn" style="font-size:12px;padding:7px 12px;width:auto" onclick="shareWA('Proker: ${esc(p.judul)}\\n${esc(p.isi||'')}')">Share ke WA</button>`:''}
@@ -1620,12 +1743,35 @@ function modalProker(){
   <div class="field"><label>Jenis</label><select id="pk-jenis"><option>Latihan Rutin</option><option>Kegiatan Khusus</option><option>Lomba/Seleksi</option><option>Upacara</option><option>Lainnya</option></select></div>
   <div class="field"><label>Tanggal Rencana</label><input id="pk-tgl" type="date" value="${new Date().toISOString().split('T')[0]}"></div>
   <div class="field"><label>Isi / Deskripsi</label><textarea id="pk-isi" placeholder="Deskripsi kegiatan, tujuan, sasaran..."></textarea></div>
+  ${C.proker_lampiran(R)?`<div class="field"><label>Lampiran Dokumen (Word/Excel/PDF, opsional, maks 400KB)</label><input id="pk-file" type="file" accept=".doc,.docx,.xls,.xlsx,.pdf"></div>`:''}
   <button class="btn btn-primary btn-full" onclick="simpanProker()">📋 Simpan Proker</button>`);
 }
 function simpanProker(){
   const j=document.getElementById('pk-judul').value.trim();
   if(!j)return toast('Judul harus diisi');
-  D.proker.push({id:uid(),judul:j,jenis:document.getElementById('pk-jenis').value,tgl:document.getElementById('pk-tgl').value,isi:document.getElementById('pk-isi').value.trim(),accPembina:false,accPelatih:false,dibuatOleh:RLBL[R]});
+  const fileInp=document.getElementById('pk-file');
+  const file=fileInp&&fileInp.files[0];
+  const dataBaru={id:uid(),judul:j,jenis:document.getElementById('pk-jenis').value,tgl:document.getElementById('pk-tgl').value,isi:document.getElementById('pk-isi').value.trim(),accPembina:false,accPelatih:false,dibuatOleh:RLBL[R]};
+  if(file){
+    const MAXSZ=400*1024;
+    if(file.size>MAXSZ){
+      toast('⚠️ File lampiran maksimal 400KB (karena disimpan di database cloud). Proker tetap disimpan tanpa lampiran.');
+      finishSimpanProker(dataBaru);
+      return;
+    }
+    const reader=new FileReader();
+    reader.onload=e=>{
+      dataBaru.lampiran=e.target.result;
+      dataBaru.lampiranNama=file.name;
+      finishSimpanProker(dataBaru);
+    };
+    reader.readAsDataURL(file);
+    return;
+  }
+  finishSimpanProker(dataBaru);
+}
+function finishSimpanProker(dataBaru){
+  D.proker.push(dataBaru);
   save();closeModal();toast('Proker berhasil dibuat, menunggu persetujuan');renderTabKegiatan('proker');
 }
 function accProker(id,role){
