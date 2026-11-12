@@ -32,7 +32,7 @@ const _ml = document.createElement('link');
 _ml.rel='manifest'; _ml.href=_murl;
 document.head.appendChild(_ml);
 if('serviceWorker' in navigator){
-  const _swCode = `self.addEventListener('install',e=>self.skipWaiting());self.addEventListener('fetch',e=>e.respondWith(fetch(e.request).catch(()=>new Response(''))));`;
+  const _swCode = `self.addEventListener('install',e=>self.skipWaiting());self.addEventListener('activate',e=>self.clients.claim());self.addEventListener('fetch',e=>e.respondWith(fetch(e.request).catch(()=>new Response(''))));self.addEventListener('notificationclick',e=>{e.notification.close();e.waitUntil(self.clients.matchAll({type:'window'}).then(cl=>{for(const c of cl){if('focus' in c)return c.focus();}if(self.clients.openWindow)return self.clients.openWindow('./pramansabel.html');}));});`;
   const _swBlob = new Blob([_swCode],{type:'text/javascript'});
   navigator.serviceWorker.register(URL.createObjectURL(_swBlob)).catch(()=>{});
 }
@@ -357,6 +357,7 @@ function defD(){return{
   proker:[],
   evaluasi:[],
   lomba:[],
+  agenda:[],
   adat:[
     {id:'a1',kode:'A-01',jenis:'Hadir tidak tepat waktu',poin:2,tindakan:'Sanksi Sedang (PushUp 25x)'},
     {id:'a2',kode:'A-02',jenis:'Atribut/seragam latihan tidak lengkap',poin:1,tindakan:'Sanksi Ringan (PushUp 10x)'},
@@ -515,6 +516,26 @@ function showNotif(judul,pesan){
   el.innerHTML=`<div style="font-weight:700;font-size:13px">${judul}</div><div style="font-size:12px;margin-top:4px;opacity:.9">${pesan.substring(0,80)}${pesan.length>80?'...':''}</div>`;
   document.body.appendChild(el);
   setTimeout(()=>el.remove(),4000);
+  // Juga tampilkan notifikasi asli OS (muncul di notification bar HP), selama
+  // aplikasi/tab masih berjalan (termasuk saat layar HP dikunci atau app di-minimize).
+  kirimNotifOS(judul,pesan);
+}
+function mintaIzinNotif(){
+  if(!('Notification' in window))return;
+  if(Notification.permission==='default'){
+    Notification.requestPermission().catch(()=>{});
+  }
+}
+function kirimNotifOS(judul,pesan){
+  if(!('Notification' in window)||Notification.permission!=='granted')return;
+  const opts={body:pesan.substring(0,150),icon:_logoB64,badge:_logoB64,tag:'pramansabel-'+Date.now(),vibrate:[200,100,200]};
+  try{
+    if('serviceWorker' in navigator && navigator.serviceWorker.ready){
+      navigator.serviceWorker.ready.then(reg=>reg.showNotification(judul,opts)).catch(()=>{try{new Notification(judul,opts);}catch(e){}});
+    } else {
+      new Notification(judul,opts);
+    }
+  }catch(e){}
 }
 
 // ═══════════════════════════════════════════
@@ -533,6 +554,7 @@ const C={
   keuangan_view:r=>true, // semua bisa lihat, hanya bendahara yang bisa catat
   komando_kirim:r=>r==='pembina'||(r==='pelatih'&&D.config.pelatih_komando),
   pengumuman_kirim:r=>['pembina','pelatih','ketua','sekretaris'].includes(r),
+  agenda_buat:r=>['pembina','pelatih','ketua','sekretaris'].includes(r),
   pemetaan_edit:r=>['pelatih','pembina','aspelatih1','aspelatih2','pps_aktif','pps_senior'].includes(r)||r==='balonpas',
   laporan:r=>r==='pembina',
   anggota_edit:r=>['pembina','ketua'].includes(r),
@@ -601,6 +623,7 @@ function _proceedLogin(r){
   document.getElementById('hdr-sub').textContent='PASKIBRA MAN 1 Belitung';
   buildNav();
   goScreen('beranda');
+  mintaIzinNotif();
 }
 function doLogin(r){
   // Selalu ambil data terbaru dari cloud dulu sebelum cek PIN
@@ -671,6 +694,9 @@ function renderBeranda(){
     // Tandai dibaca cukup di memori lokal saja, jangan kirim ke cloud tiap render
     if(adaBaruKom){try{localStorage.setItem(SK,JSON.stringify(D));}catch(e){}}
   }
+
+  // Agenda / Kegiatan Mendatang — bisa dilihat semua peran, hanya role tertentu yang bisa isi
+  html+=renderAgendaBeranda();
 
   // Pengumuman
   const pngList=D.pengumuman.slice().reverse();
@@ -1469,6 +1495,68 @@ function accIzin(id,status){
 }
 
 // ═══════════════════════════════════════════
+// AGENDA / KEGIATAN MENDATANG
+// Bisa dilihat semua peran (anggota & balonpas termasuk), hanya pembina/pelatih/
+// ketua PPS aktif/sekretaris yang bisa isi, edit, atau hapus.
+// ═══════════════════════════════════════════
+function renderAgendaBeranda(){
+  const now=Date.now()-86400000; // tetap tampilkan agenda hari ini
+  const list=D.agenda.filter(a=>!a.tgl||new Date(a.tgl).getTime()>=now).sort((a,b)=>new Date(a.tgl||0)-new Date(b.tgl||0));
+  let html=`<div class="sec">📅 AGENDA / KEGIATAN SELANJUTNYA</div>`;
+  if(C.agenda_buat(R)){
+    html+=`<button class="btn btn-primary btn-sm" style="margin-bottom:10px" onclick="modalAgenda()">+ Tambah Kegiatan</button>`;
+  }
+  if(!list.length){
+    html+='<div class="alert alert-warn" style="margin-bottom:10px">Belum ada kegiatan/even yang dijadwalkan.</div>';
+  } else {
+    list.forEach(a=>{
+      html+=`<div class="item" style="margin-bottom:8px"><div class="item-head"><div><div class="item-title">${esc(a.judul)}</div><div class="item-sub">${tgl(a.tgl)}${a.waktu?' · '+esc(a.waktu):''}${a.tempat?' · '+esc(a.tempat):''}</div></div></div>
+      ${a.keterangan?`<div style="font-size:13px;margin-top:6px;color:var(--fg2)">${esc(a.keterangan)}</div>`:''}
+      <div style="font-size:11px;color:var(--fg3);margin-top:6px">Dibuat oleh ${esc(a.dibuatOleh||'-')}</div>
+      ${C.agenda_buat(R)?`<div style="margin-top:8px;display:flex;gap:8px"><button class="btn btn-ghost btn-sm" onclick="modalEditAgenda('${a.id}')">✏️ Edit</button><button class="btn btn-ghost btn-sm" style="color:#ef4444" onclick="hapusAgenda('${a.id}')">🗑 Hapus</button></div>`:''}
+      </div>`;
+    });
+  }
+  return html;
+}
+function modalAgenda(){
+  openModal(`<div class="modal-title">Tambah Kegiatan/Even <button class="modal-close" onclick="closeModal()">×</button></div>
+  <div class="field"><label>Nama Kegiatan/Even</label><input id="ag-judul" placeholder="Misal: Lomba LKBB Toboali"></div>
+  <div class="field"><label>Tanggal</label><input id="ag-tgl" type="date" value="${new Date().toISOString().split('T')[0]}"></div>
+  <div class="field"><label>Jam (opsional)</label><input id="ag-waktu" placeholder="Misal: 07.00 WIB"></div>
+  <div class="field"><label>Tempat</label><input id="ag-tempat" placeholder="Lokasi kegiatan"></div>
+  <div class="field"><label>Keterangan (opsional)</label><textarea id="ag-ket" placeholder="Info tambahan untuk anggota..."></textarea></div>
+  <button class="btn btn-primary btn-full" onclick="simpanAgenda()">📅 Simpan Kegiatan</button>`);
+}
+function simpanAgenda(){
+  const j=document.getElementById('ag-judul').value.trim();
+  if(!j)return toast('Nama kegiatan harus diisi');
+  D.agenda.push({id:uid(),judul:j,tgl:document.getElementById('ag-tgl').value,waktu:document.getElementById('ag-waktu').value.trim(),tempat:document.getElementById('ag-tempat').value.trim(),keterangan:document.getElementById('ag-ket').value.trim(),dibuatOleh:RLBL[R]});
+  save();closeModal();toast('Kegiatan ditambahkan');renderBeranda();
+}
+function modalEditAgenda(aid){
+  const a=D.agenda.find(x=>x.id===aid);if(!a)return;
+  openModal(`<div class="modal-title">Edit Kegiatan/Even <button class="modal-close" onclick="closeModal()">×</button></div>
+  <div class="field"><label>Nama Kegiatan/Even</label><input id="ag-judul" value="${esc(a.judul)}"></div>
+  <div class="field"><label>Tanggal</label><input id="ag-tgl" type="date" value="${esc(a.tgl||'')}"></div>
+  <div class="field"><label>Jam (opsional)</label><input id="ag-waktu" value="${esc(a.waktu||'')}"></div>
+  <div class="field"><label>Tempat</label><input id="ag-tempat" value="${esc(a.tempat||'')}"></div>
+  <div class="field"><label>Keterangan (opsional)</label><textarea id="ag-ket">${esc(a.keterangan||'')}</textarea></div>
+  <button class="btn btn-primary btn-full" onclick="simpanEditAgenda('${aid}')">💾 Simpan Perubahan</button>`);
+}
+function simpanEditAgenda(aid){
+  const a=D.agenda.find(x=>x.id===aid);if(!a)return;
+  const j=document.getElementById('ag-judul').value.trim();
+  if(!j)return toast('Nama kegiatan harus diisi');
+  a.judul=j;a.tgl=document.getElementById('ag-tgl').value;a.waktu=document.getElementById('ag-waktu').value.trim();a.tempat=document.getElementById('ag-tempat').value.trim();a.keterangan=document.getElementById('ag-ket').value.trim();
+  save();closeModal();toast('Kegiatan diperbarui');renderBeranda();
+}
+function hapusAgenda(aid){
+  if(!confirm('Hapus kegiatan ini?'))return;
+  D.agenda=D.agenda.filter(x=>x.id!==aid);save();toast('Kegiatan dihapus');renderBeranda();
+}
+
+// ═══════════════════════════════════════════
 // KEGIATAN
 // ═══════════════════════════════════════════
 function renderKegiatan(){
@@ -1821,12 +1909,50 @@ function renderLomba(){
   if(!D.lomba.length) html+='<div class="alert alert-warn">Belum ada data lomba.</div>';
   D.lomba.slice().reverse().forEach(l=>{
     const stClass=l.status==='selesai'?'badge-info':l.status==='berjalan'?'badge-ok':'badge-warn';
+    const peserta=l.peserta||[];
     html+=`<div class="item"><div class="item-head"><div><div class="item-title">${esc(l.nama)}</div><div class="item-sub">${tgl(l.tgl)} · ${esc(l.tempat||'-')}</div></div><span class="badge ${stClass}">${esc(l.status)}</span></div>
-    <div style="font-size:12px;color:var(--fg2);margin-top:4px">Kategori: ${esc(l.kat||'-')} · Peserta: ${(l.peserta||[]).length} orang</div>
-    ${C.proker_acc(R)||C.proker_buat(R)?`<button class="btn btn-ghost btn-sm" style="margin-top:8px" onclick="modalPesertaLomba('${l.id}')">👥 Kelola Peserta</button>`:''}
+    <div style="font-size:12px;color:var(--fg2);margin-top:4px">Kategori: ${esc(l.kat||'-')} · Peserta terpilih: ${peserta.length} orang</div>
+    <div style="margin-top:8px;padding:8px 10px;background:rgba(255,255,255,0.04);border-radius:8px">
+      <div style="font-size:11px;color:var(--fg3);font-weight:700;margin-bottom:4px">👥 YANG TERPILIH IKUT LOMBA INI</div>
+      ${peserta.length?peserta.map((p,i)=>`<div style="font-size:13px;padding:2px 0">${i+1}. ${esc(p)}</div>`).join(''):'<div style="font-size:12px;color:var(--fg3)">Belum ada yang dipilih pembina/pelatih.</div>'}
+    </div>
+    ${C.proker_acc(R)||C.proker_buat(R)?`<div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-ghost btn-sm" onclick="modalPesertaLomba('${l.id}')">👥 Kelola Peserta</button><button class="btn btn-ghost btn-sm" onclick="umumkanLomba('${l.id}')">📢 Umumkan Hasil</button><button class="btn btn-ghost btn-sm" onclick="modalEditLomba('${l.id}')">✏️ Edit</button><button class="btn btn-ghost btn-sm" style="color:#ef4444" onclick="hapusLomba('${l.id}')">🗑 Hapus</button></div>`:''}
     </div>`;
   });
   return html;
+}
+function modalEditLomba(lid){
+  const l=D.lomba.find(x=>x.id===lid);if(!l)return;
+  openModal(`<div class="modal-title">Edit Lomba <button class="modal-close" onclick="closeModal()">×</button></div>
+  <div class="field"><label>Nama Lomba</label><input id="lb-nama" value="${esc(l.nama)}"></div>
+  <div class="field"><label>Tanggal</label><input id="lb-tgl" type="date" value="${esc(l.tgl||'')}"></div>
+  <div class="field"><label>Tempat</label><input id="lb-tempat" value="${esc(l.tempat||'')}"></div>
+  <div class="field"><label>Kategori</label><input id="lb-kat" value="${esc(l.kat||'')}"></div>
+  <div class="field"><label>Status</label><select id="lb-status">
+    <option value="upcoming"${l.status==='upcoming'?' selected':''}>Akan Datang</option>
+    <option value="berjalan"${l.status==='berjalan'?' selected':''}>Berjalan</option>
+    <option value="selesai"${l.status==='selesai'?' selected':''}>Selesai</option>
+  </select></div>
+  <button class="btn btn-primary btn-full" onclick="simpanEditLomba('${lid}')">💾 Simpan Perubahan</button>`);
+}
+function simpanEditLomba(lid){
+  const l=D.lomba.find(x=>x.id===lid);if(!l)return;
+  const n=document.getElementById('lb-nama').value.trim();
+  if(!n)return toast('Nama lomba harus diisi');
+  l.nama=n;l.tgl=document.getElementById('lb-tgl').value;l.tempat=document.getElementById('lb-tempat').value.trim();l.kat=document.getElementById('lb-kat').value.trim();l.status=document.getElementById('lb-status').value;
+  save();closeModal();toast('Data lomba diperbarui');renderTabKegiatan('lomba');
+}
+function hapusLomba(lid){
+  if(!confirm('Hapus data lomba ini beserta daftar pesertanya?'))return;
+  D.lomba=D.lomba.filter(x=>x.id!==lid);save();toast('Lomba dihapus');renderTabKegiatan('lomba');
+}
+function umumkanLomba(lid){
+  const l=D.lomba.find(x=>x.id===lid);if(!l)return;
+  const peserta=l.peserta||[];
+  if(!peserta.length)return toast('Belum ada peserta yang dipilih');
+  const pesan=`HASIL SELEKSI LOMBA: ${l.nama}\n📅 ${tgl(l.tgl)} · 📍 ${l.tempat||'-'}\n\nYang terpilih ikut (${peserta.length} orang):\n${peserta.map((p,i)=>`${i+1}. ${p}`).join('\n')}\n\nSelamat untuk yang terpilih, tetap latihan dan jaga kekompakan!`;
+  D.pengumuman.push({id:uid(),pesan,tgl:Date.now(),dari:RLBL[R],dibaca:false,lampiran:null});
+  save();toast('📢 Hasil seleksi diumumkan ke semua anggota & balonpas');renderTabKegiatan('lomba');
 }
 function modalLomba(){
   openModal(`<div class="modal-title">Tambah Lomba <button class="modal-close" onclick="closeModal()">×</button></div>
@@ -1846,7 +1972,7 @@ function modalPesertaLomba(lid){
   const l=D.lomba.find(x=>x.id===lid);if(!l)return;
   openModal(`<div class="modal-title">Peserta: ${esc(l.nama)} <button class="modal-close" onclick="closeModal()">×</button></div>
   <div style="margin-bottom:12px"><strong>Peserta terpilih (${l.peserta.length}):</strong>
-  ${l.peserta.map(p=>`<div style="padding:4px 0;font-size:13px">• ${esc(p)}</div>`).join('')||'<div style="color:var(--fg3);font-size:13px">Belum ada peserta</div>'}
+  ${l.peserta.map(p=>`<div style="padding:4px 0;font-size:13px;display:flex;justify-content:space-between;align-items:center">• ${esc(p)} <button onclick="hapusPeserta('${lid}','${esc(p).replace(/'/g,"\\'")}')" style="background:rgba(239,68,68,0.15);color:#ef4444;border:none;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer">Hapus</button></div>`).join('')||'<div style="color:var(--fg3);font-size:13px">Belum ada peserta</div>'}
   </div>
   <div class="field"><label>Tambah Peserta</label>
     <select id="lp-sel">
@@ -1858,7 +1984,11 @@ function modalPesertaLomba(lid){
 }
 function tambahPeserta(lid){
   const l=D.lomba.find(x=>x.id===lid);const v=document.getElementById('lp-sel').value;
-  if(!v||!l)return;l.peserta.push(v);save();closeModal();toast('Peserta ditambahkan');renderTabKegiatan('lomba');
+  if(!v||!l)return;l.peserta.push(v);save();modalPesertaLomba(lid);toast('Peserta ditambahkan');renderTabKegiatan('lomba');
+}
+function hapusPeserta(lid,nama){
+  const l=D.lomba.find(x=>x.id===lid);if(!l)return;
+  l.peserta=l.peserta.filter(p=>p!==nama);save();modalPesertaLomba(lid);toast('Peserta dihapus dari daftar');renderTabKegiatan('lomba');
 }
 
 // PEMETAAN
