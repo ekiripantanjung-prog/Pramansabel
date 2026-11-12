@@ -2672,10 +2672,10 @@ function rekapPelanggaran(start,end){
 }
 function rekapKeuangan(start,end){
   const list=D.kas.filter(k=>{const d=parseTglAny(k.tgl);return d&&d>=start&&d<=end;}).sort((a,b)=>(a.tgl||0)-(b.tgl||0));
-  const rows=list.map(k=>[tgl(k.tgl),k.ket,k.jenis==='masuk'?'Pemasukan':'Pengeluaran',fmtRp(k.nominal)]);
+  const rows=list.map(k=>[tgl(k.tgl),k.ket,k.kategori||'Lainnya',k.jenis==='masuk'?'Pemasukan':'Pengeluaran',fmtRp(k.nominal),k.dicatatOleh||'-']);
   const masuk=list.filter(k=>k.jenis==='masuk').reduce((s,k)=>s+k.nominal,0);
   const keluar=list.filter(k=>k.jenis==='keluar').reduce((s,k)=>s+k.nominal,0);
-  return {judul:'Rekap Keuangan',kolom:['Tanggal','Keterangan','Jenis','Jumlah'],rows,
+  return {judul:'Rekap Keuangan',kolom:['Tanggal','Keterangan','Kategori','Jenis','Jumlah','Dicatat Oleh'],rows,
     ringkasan:[{label:'Total Pemasukan Periode Ini',value:fmtRp(masuk)},{label:'Total Pengeluaran Periode Ini',value:fmtRp(keluar)},{label:'Selisih Periode Ini',value:fmtRp(masuk-keluar)}]};
 }
 function kumpulkanRekapData(jenis,start,end){
@@ -2775,6 +2775,10 @@ function exportRekapWord(){
   toast('📝 File Word diunduh');
 }
 
+const KATEGORI_KAS={
+  masuk:['Iuran Anggota','Donasi/Sumbangan','Dana Sekolah/BOS','Hasil Usaha/Jualan','Sponsor','Lainnya'],
+  keluar:['Konsumsi','Peralatan & Perlengkapan','Transport','Seragam/Atribut','Administrasi','Kegiatan/Lomba','Lainnya']
+};
 function renderKeuangan(){
   if(!C.keuangan_view(R)) return'<div class="alert alert-warn">Akses terbatas.</div>';
   const masuk=D.kas.filter(k=>k.jenis==='masuk').reduce((s,k)=>s+k.nominal,0);
@@ -2786,12 +2790,17 @@ function renderKeuangan(){
   </div>
   <div class="card" style="text-align:center;margin-bottom:12px"><div style="font-size:13px;color:var(--fg2)">Saldo Kas</div><div style="font-size:28px;font-weight:900;font-family:'Exo 2',sans-serif;color:${saldo>=0?'var(--ok)':'var(--danger)'}">${fmtRp(saldo)}</div></div>`;
 
+  // Rincian per kategori — biar anggota gampang lihat ke mana saja uang mengalir
+  html+=renderRincianKategoriKas();
+
   if(C.keuangan_edit(R)){
     html+=`<div class="card">
       <div class="card-title">Catat Transaksi</div>
-      <div class="field"><label>Keterangan</label><input id="ks-ket" placeholder="Keterangan transaksi"></div>
+      <div class="field"><label>Jenis</label><select id="ks-jenis" onchange="updateKategoriKas()"><option value="masuk">Pemasukan</option><option value="keluar">Pengeluaran</option></select></div>
+      <div class="field"><label>Kategori</label><select id="ks-kategori">${KATEGORI_KAS.masuk.map(k=>`<option>${k}</option>`).join('')}</select></div>
+      <div class="field"><label>Keterangan</label><input id="ks-ket" placeholder="Contoh: Iuran bulan November - Kelas X IPA 1"></div>
       <div class="field"><label>Jumlah (Rp)</label><input id="ks-nom" type="number" placeholder="0"></div>
-      <div class="field"><label>Jenis</label><select id="ks-jenis"><option value="masuk">Pemasukan</option><option value="keluar">Pengeluaran</option></select></div>
+      <div class="field"><label>Bukti/Nota (opsional, foto struk/kuitansi)</label><input type="file" accept="image/*" id="ks-foto" onchange="prevKasFoto(this)"><img id="ks-foto-prev" class="photo-prev" style="display:none"></div>
       <button class="btn btn-primary btn-full" onclick="catatKas()">💾 Catat</button>
     </div>`;
   }
@@ -2799,19 +2808,79 @@ function renderKeuangan(){
   if(C.keuangan_edit(R)||C.proker_acc(R)){
     html+=`<button class="btn btn-blue btn-sm" style="margin-bottom:10px" onclick="downloadKeuanganCSV()">📥 Download Excel (CSV)</button>`;
   }
-  html+=`<div class="sec">📋 Riwayat Transaksi</div>`;
-  D.kas.slice().reverse().forEach(k=>{
-    html+=`<div class="kas-item"><div><div style="font-weight:600;font-size:14px">${esc(k.ket)}</div><div style="font-size:11px;color:var(--fg2)">${tgl(k.tgl)}</div></div><div style="font-weight:700;color:${k.jenis==='masuk'?'var(--ok)':'var(--danger)'}">${k.jenis==='masuk'?'+':'-'}${fmtRp(k.nominal)}</div></div>`;
-  });
-  if(!D.kas.length) html+='<div style="color:var(--fg3);font-size:13px">Belum ada transaksi.</div>';
+  html+=`<div class="field" style="margin-bottom:10px"><select id="ks-filter" onchange="filterRiwayatKas()" style="padding:8px 10px;border-radius:8px;border:1.5px solid var(--border);background:var(--bg);color:var(--fg);width:100%;box-sizing:border-box">
+    <option value="semua">Semua Transaksi</option>
+    <option value="masuk">Hanya Pemasukan</option>
+    <option value="keluar">Hanya Pengeluaran</option>
+  </select></div>
+  <div class="sec">📋 Riwayat Transaksi</div>
+  <div id="kas-list"></div>`;
+  setTimeout(filterRiwayatKas,0);
   return html;
 }
+function renderRincianKategoriKas(){
+  const byKat={};
+  D.kas.forEach(k=>{
+    const key=k.jenis+'|'+(k.kategori||'Lainnya');
+    byKat[key]=(byKat[key]||0)+k.nominal;
+  });
+  const masukEntries=Object.entries(byKat).filter(([k])=>k.startsWith('masuk|')).sort((a,b)=>b[1]-a[1]);
+  const keluarEntries=Object.entries(byKat).filter(([k])=>k.startsWith('keluar|')).sort((a,b)=>b[1]-a[1]);
+  if(!masukEntries.length&&!keluarEntries.length)return'';
+  let html='<div class="card" style="margin-bottom:12px"><div class="card-title" style="font-size:13px">📊 Rincian per Kategori</div>';
+  if(masukEntries.length){
+    html+='<div style="font-size:12px;font-weight:700;color:var(--ok);margin:8px 0 4px">Pemasukan</div>';
+    masukEntries.forEach(([k,v])=>{html+=`<div style="display:flex;justify-content:space-between;font-size:12.5px;padding:3px 0"><span>${esc(k.split('|')[1])}</span><span style="font-weight:600">${fmtRp(v)}</span></div>`;});
+  }
+  if(keluarEntries.length){
+    html+='<div style="font-size:12px;font-weight:700;color:var(--danger);margin:10px 0 4px">Pengeluaran</div>';
+    keluarEntries.forEach(([k,v])=>{html+=`<div style="display:flex;justify-content:space-between;font-size:12.5px;padding:3px 0"><span>${esc(k.split('|')[1])}</span><span style="font-weight:600">${fmtRp(v)}</span></div>`;});
+  }
+  html+='</div>';
+  return html;
+}
+function updateKategoriKas(){
+  const jenis=document.getElementById('ks-jenis').value;
+  document.getElementById('ks-kategori').innerHTML=KATEGORI_KAS[jenis].map(k=>`<option>${k}</option>`).join('');
+}
+function prevKasFoto(inp){
+  const f=inp.files[0];if(!f)return;
+  kompressFoto(f,data=>{const img=document.getElementById('ks-foto-prev');img.src=data;img.style.display='block';});
+}
+function renderKasItem(k){
+  return `<div class="kas-item" style="flex-direction:column;align-items:stretch;gap:4px">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+      <div><div style="font-weight:600;font-size:14px">${esc(k.ket)}</div><div style="font-size:11px;color:var(--fg2)">${tgl(k.tgl)} · ${esc(k.kategori||'Lainnya')}${k.dicatatOleh?' · oleh '+esc(k.dicatatOleh):''}</div></div>
+      <div style="font-weight:700;white-space:nowrap;color:${k.jenis==='masuk'?'var(--ok)':'var(--danger)'}">${k.jenis==='masuk'?'+':'-'}${fmtRp(k.nominal)}</div>
+    </div>
+    ${k.buktiFoto||C.keuangan_edit(R)?`<div style="display:flex;gap:8px">${k.buktiFoto?`<button class="btn btn-ghost btn-sm" onclick="lihatBuktiKas('${k.id}')">🧾 Lihat Bukti</button>`:''}${C.keuangan_edit(R)?`<button class="btn btn-ghost btn-sm" style="color:#ef4444" onclick="hapusKas('${k.id}')">🗑 Hapus</button>`:''}</div>`:''}
+  </div>`;
+}
+function filterRiwayatKas(){
+  const el=document.getElementById('kas-list');if(!el)return;
+  const f=document.getElementById('ks-filter')?.value||'semua';
+  let list=D.kas.slice().reverse();
+  if(f!=='semua')list=list.filter(k=>k.jenis===f);
+  el.innerHTML=list.length?list.map(renderKasItem).join(''):'<div style="color:var(--fg3);font-size:13px">Belum ada transaksi.</div>';
+}
+function lihatBuktiKas(id){
+  const k=D.kas.find(x=>x.id===id);if(!k||!k.buktiFoto)return;
+  openModal(`<div class="modal-title">🧾 Bukti Transaksi <button class="modal-close" onclick="closeModal()">×</button></div>
+  <div style="font-size:13px;font-weight:700;margin-bottom:8px">${esc(k.ket)} — ${fmtRp(k.nominal)}</div>
+  <img src="${k.buktiFoto}" style="width:100%;border-radius:10px">`);
+}
+function hapusKas(id){
+  const k=D.kas.find(x=>x.id===id);if(!k)return;
+  if(!confirm(`Hapus transaksi "${k.ket}" (${fmtRp(k.nominal)})? Tindakan ini tidak bisa dibatalkan.`))return;
+  D.kas=D.kas.filter(x=>x.id!==id);
+  save();toast('Transaksi dihapus');renderTabLaporan('keuangan');
+}
 function downloadKeuanganCSV(){
-  let csv='Tanggal,Keterangan,Jenis,Jumlah\n';
-  D.kas.forEach(k=>{csv+=`"${tgl(k.tgl)}","${k.ket}","${k.jenis==='masuk'?'Pemasukan':'Pengeluaran'}","${k.nominal}"\n`;});
+  let csv='Tanggal,Keterangan,Kategori,Jenis,Jumlah,Dicatat Oleh\n';
+  D.kas.forEach(k=>{csv+=`"${tgl(k.tgl)}","${k.ket}","${k.kategori||'Lainnya'}","${k.jenis==='masuk'?'Pemasukan':'Pengeluaran'}","${k.nominal}","${k.dicatatOleh||'-'}"\n`;});
   const masuk=D.kas.filter(k=>k.jenis==='masuk').reduce((s,k)=>s+k.nominal,0);
   const keluar=D.kas.filter(k=>k.jenis==='keluar').reduce((s,k)=>s+k.nominal,0);
-  csv+=`\n"","Total Pemasukan","","${masuk}"\n"","Total Pengeluaran","","${keluar}"\n"","Saldo Kas","","${masuk-keluar}"\n`;
+  csv+=`\n"","Total Pemasukan","","","${masuk}",""\n"","Total Pengeluaran","","","${keluar}",""\n"","Saldo Kas","","","${masuk-keluar}",""\n`;
   const blob=new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8'});
   const url=URL.createObjectURL(blob);
   const a=document.createElement('a');
@@ -2823,7 +2892,10 @@ function catatKas(){
   const ket=document.getElementById('ks-ket').value.trim();
   const nom=parseFloat(document.getElementById('ks-nom').value)||0;
   if(!ket||!nom)return toast('Isi keterangan dan jumlah');
-  D.kas.push({id:uid(),tgl:Date.now(),ket,nominal:nom,jenis:document.getElementById('ks-jenis').value});
+  const jenis=document.getElementById('ks-jenis').value;
+  const kategori=document.getElementById('ks-kategori').value;
+  const fotoSrc=document.getElementById('ks-foto-prev')?.src||null;
+  D.kas.push({id:uid(),tgl:Date.now(),ket,nominal:nom,jenis,kategori,buktiFoto:fotoSrc&&fotoSrc.startsWith('data:')?fotoSrc:null,dicatatOleh:RLBL[R]});
   save();toast('Transaksi dicatat');renderTabLaporan('keuangan');
 }
 
