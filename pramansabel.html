@@ -640,6 +640,10 @@ setInterval(async()=>{
     const activeScreen=document.querySelector('.screen.on')?.id?.replace('s-','');
     const sedangMengetik=document.activeElement&&['INPUT','TEXTAREA'].includes(document.activeElement.tagName);
     if(activeScreen==='beranda'&&!sedangMengetik)renderBeranda();
+    // Tab Kegiatan (Proker/Tahunan) juga disegarkan supaya kiriman dari HP lain
+    // langsung terlihat tanpa harus pindah menu — kecuali sedang mengisi form.
+    const modalBuka=document.getElementById('overlay')?.classList.contains('show');
+    if(activeScreen==='kegiatan'&&!sedangMengetik&&!modalBuka&&window._tabKegAktif&&document.getElementById('tab-kegiatan'))renderTabKegiatan(window._tabKegAktif);
   });
 },5000);
 function showNotif(judul,pesan){
@@ -1884,6 +1888,7 @@ function tabKegiatan(t,btn){
   renderTabKegiatan(t);
 }
 function renderTabKegiatan(t){
+  window._tabKegAktif=t;
   const el=document.getElementById('tab-kegiatan');
   if(t==='proker') el.innerHTML=renderProker();
   else if(t==='tahunan') el.innerHTML=renderProkerTahunan();
@@ -1897,6 +1902,11 @@ function renderTabKegiatan(t){
 // PROKER
 function renderProker(){
   let html='';
+  if(C.proker_acc(R)){
+    const kunci=R==='pembina'?'accPembina':'accPelatih';
+    const nTunggu=(D.prokerTahunan||[]).filter(x=>!x[kunci]).length;
+    if(nTunggu)html+=`<div class="alert alert-warn" style="margin-bottom:12px;cursor:pointer" onclick="tabKegiatan('tahunan',document.querySelectorAll('#s-kegiatan .tab')[1])">📅 Ada <b>${nTunggu} Proker Tahunan</b> menunggu persetujuan. <u>Buka tab Tahunan →</u></div>`;
+  }
   if(C.proker_buat(R)){
     html+=`<button class="btn btn-primary btn-sm" style="margin-bottom:12px" onclick="modalProker()">+ Buat Proker</button>
     <button class="btn btn-blue btn-sm" style="margin-bottom:12px;margin-left:8px" onclick="modalProposal()">📄 Buat Proposal</button>`;
