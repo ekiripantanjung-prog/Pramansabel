@@ -4019,7 +4019,118 @@ function renderSinkron(){
     <p style="font-size:12px;color:var(--fg2);margin-bottom:10px">Cek langsung apa yang tersimpan di cloud dari HP ini — tekan tombol ini lalu screenshot hasilnya kalau perlu dikirim ke developer.</p>
     <button class="btn btn-ghost btn-sm btn-full" onclick="cekDiagnostikSinkron()">🔍 Cek Status Sinkron</button>
     <div id="diag-sinkron-hasil"></div>
-  </div>`:'<div class="alert alert-warn" style="margin-top:12px">Isi URL Apps Script dulu untuk mulai sinkron.</div>'}`;
+  </div>${R==='pembina'?renderArsipCard():''}`:'<div class="alert alert-warn" style="margin-top:12px">Isi URL Apps Script dulu untuk mulai sinkron.</div>'}`;
+}
+// ═══════════════════════════════════════════
+// ARSIP & BERSIHKAN DATA LAMA (khusus Pembina, disarankan tiap serah terima jabatan)
+// 1) hitung data sebelum tanggal batas  2) unduh arsip (Excel rekap + cadangan lengkap)
+// 3) hapus data lama dari aplikasi & cloud. Saldo kas lama dipindah jadi "Saldo awal"
+//    supaya saldo kas tidak berubah. Hapus memakai tandaHapus() agar tidak muncul lagi
+//    dari HP lain / cloud saat sinkron.
+// ═══════════════════════════════════════════
+const ARSIP_KATEGORI=[
+  {k:'absensi',n:'Absensi',on:true},{k:'komando',n:'Komando',on:true},{k:'pengumuman',n:'Pengumuman',on:true},
+  {k:'izin',n:'Izin',on:true},{k:'agenda',n:'Agenda',on:true},{k:'evaluasi',n:'Evaluasi',on:true},
+  {k:'pelanggaran',n:'Pelanggaran',on:true},{k:'kas',n:'Kas (saldo tetap dibawa)',on:true},
+  {k:'proker',n:'Proker per-kegiatan',on:true},{k:'samapta',n:'Samapta',on:true},{k:'lomba',n:'Lomba (riwayat prestasi)',on:false}
+];
+function arsipBatasDefault(){const d=new Date();const y=d.getMonth()>=6?d.getFullYear():d.getFullYear()-1;return y+'-07-01';}
+function renderArsipCard(){
+  return`<div class="card" style="margin-top:12px">
+    <div class="card-title">🗄️ Arsip & Bersihkan Data Lama</div>
+    <p style="font-size:12px;color:var(--fg2);margin-bottom:10px">Lakukan <b>setahun sekali</b> (saat serah terima jabatan) supaya aplikasi tetap ringan. Data <b>sebelum</b> tanggal batas akan diunduh sebagai arsip, lalu dihapus dari aplikasi. Data anggota, adat, info, dan Proker Tahunan tidak disentuh.</p>
+    <div class="field"><label>Tanggal batas (data sebelum tanggal ini dibersihkan)</label>
+      <input type="date" id="arsip-batas" value="${window._arsipBatas||arsipBatasDefault()}" max="${new Date().toISOString().slice(0,10)}" onchange="window._arsipBatas=this.value;window._arsipSiap=null;hitungArsip()"></div>
+    <button class="btn btn-ghost btn-sm btn-full" onclick="hitungArsip()">1️⃣ Hitung data lama</button>
+    <div id="arsip-hasil"></div>
+  </div>`;
+}
+function arsipLbl(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function arsipUkuran(n){return n<1000?n+' kar.':Math.round(n/1000)+' rb kar.';}
+function arsipBatasDate(){const v=document.getElementById('arsip-batas')?.value||arsipBatasDefault();const[y,m,d]=v.split('-').map(Number);return new Date(y,m-1,d,0,0,0,0);}
+function arsipLama(k,batas){return (D[k]||[]).filter(x=>{if(!x)return false;const t=parseTglAny(x.tgl);return t&&!isNaN(t.getTime())&&t<batas;});}
+function arsipDipilih(){return ARSIP_KATEGORI.filter(c=>{const el=document.getElementById('arsip-c-'+c.k);return el?el.checked:c.on;}).map(c=>c.k);}
+function hitungArsip(){
+  const el=document.getElementById('arsip-hasil');if(!el)return;
+  const batas=arsipBatasDate();
+  let total=0,uk=0;
+  const baris=ARSIP_KATEGORI.map(c=>{
+    const lama=arsipLama(c.k,batas);const sz=JSON.stringify(lama).length;
+    if(c.on){total+=lama.length;uk+=sz;}
+    return`<label style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px">
+      <span><input type="checkbox" id="arsip-c-${c.k}" ${c.on?'checked':''} ${lama.length?'':'disabled'} onchange="window._arsipSiap=null;hitungArsipRingkas()"> ${c.n}</span>
+      <span style="color:var(--fg2)">${lama.length} data · ${lama.length?arsipUkuran(sz):'-'}</span></label>`;}).join('');
+  el.innerHTML=`<div style="margin-top:10px">${baris}</div>
+    <div id="arsip-ringkas" style="font-size:12px;margin:10px 0"></div>
+    <button class="btn btn-blue btn-sm btn-full" onclick="unduhArsip()">2️⃣ Unduh Arsip (Excel rekap + cadangan lengkap)</button>
+    <button class="btn btn-sm btn-full" id="arsip-hapus" style="margin-top:8px;background:#b91c1c;color:#fff" onclick="hapusDataLama()">3️⃣ Hapus Data Lama dari Aplikasi</button>
+    <p style="font-size:11px;color:var(--fg2);margin-top:6px">Tombol 3 baru bisa dipakai setelah arsip diunduh (tombol 2). Simpan file arsipnya di Google Drive.</p>`;
+  hitungArsipRingkas();
+}
+function hitungArsipRingkas(){
+  const el=document.getElementById('arsip-ringkas');if(!el)return;
+  const batas=arsipBatasDate();let n=0,sz=0;
+  arsipDipilih().forEach(k=>{const l=arsipLama(k,batas);n+=l.length;sz+=JSON.stringify(l).length;});
+  el.innerHTML=n?`Akan dibersihkan: <b>${n} data</b> sebelum <b>${tgl(batas)}</b> · menghemat ±<b>${arsipUkuran(sz)}</b>${window._arsipSiap?' <span style="color:#22c55e">✅ Arsip sudah diunduh</span>':''}`
+    :'✅ Tidak ada data lama sebelum tanggal ini.';
+  const b=document.getElementById('arsip-hapus');if(b){b.disabled=!n||!window._arsipSiap;b.style.opacity=b.disabled?.45:1;}
+}
+function unduhArsip(){
+  const batas=arsipBatasDate();const kat=arsipDipilih();
+  let awal=batas;kat.forEach(k=>arsipLama(k,batas).forEach(x=>{const t=parseTglAny(x.tgl);if(t<awal)awal=t;}));
+  const akhir=new Date(batas.getTime()-1);const lbl=arsipLbl(batas);
+  // 1) Cadangan lengkap (seluruh data aplikasi, bisa dipulihkan bila perlu)
+  try{
+    const blob=new Blob([JSON.stringify({dibuat:new Date().toISOString(),batas:lbl,data:{...D}})],{type:'application/json'});
+    const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`Cadangan_PASMANSABEL_sebelum_${lbl}.json`;a.click();
+    setTimeout(()=>URL.revokeObjectURL(a.href),4000);
+  }catch(e){return toast('❌ Gagal membuat cadangan: '+e.message);}
+  // 2) Rekap Excel periode yang akan dibersihkan
+  if(typeof XLSX!=='undefined'){
+    try{
+      const wb=XLSX.utils.book_new();
+      kumpulkanRekapData('gabungan',awal,akhir).forEach(sec=>{
+        const aoa=[[sec.judul],[`Periode: ${tgl(awal)} - ${tgl(akhir)}`],[],sec.kolom,...sec.rows];
+        if(sec.ringkasan&&sec.ringkasan.length){aoa.push([]);sec.ringkasan.forEach(r=>aoa.push([r.label,r.value]));}
+        XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(aoa),(sec.judul.replace('Rekap ','')||'Data').slice(0,31));
+      });
+      const daftar=(k,kol,f)=>{const l=arsipLama(k,batas);if(l.length)XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([kol,...l.map(f)]),k.charAt(0).toUpperCase()+k.slice(1));};
+      daftar('komando',['Tanggal','Dari','Pesan'],x=>[tgl(x.tgl),x.dari||'-',x.pesan||'']);
+      daftar('pengumuman',['Tanggal','Dari','Pesan'],x=>[tgl(x.tgl),x.dari||'-',x.pesan||'']);
+      daftar('proker',['Tanggal','Judul','Jenis','Isi','Pembina','Pelatih'],x=>[tgl(x.tgl),x.judul||'',x.jenis||'',x.isi||'',x.accPembina?'✓':'',x.accPelatih?'✓':'']);
+      daftar('agenda',['Tanggal','Judul','Tempat','Keterangan'],x=>[x.tgl,x.judul||'',x.tempat||'',x.keterangan||'']);
+      daftar('evaluasi',['Tanggal','Judul','Isi'],x=>[x.tgl,x.judul||'',x.isi||'']);
+      daftar('izin',['Tanggal','Nama','Sesi','Alasan','Status'],x=>[x.tgl,x.nama||'',SESI[x.sesi]||x.sesi,x.alasan||'',x.status||'']);
+      XLSX.writeFile(wb,`Arsip_PASMANSABEL_sampai_${arsipLbl(akhir)}.xlsx`);
+    }catch(e){toast('⚠️ Rekap Excel gagal dibuat, tapi cadangan lengkap sudah diunduh');}
+  }else toast('⚠️ Modul Excel belum siap — cadangan lengkap (.json) tetap diunduh');
+  window._arsipSiap=lbl;
+  toast('📥 Arsip diunduh. Simpan file-nya di Google Drive, lalu tekan tombol 3️⃣',4500);
+  hitungArsipRingkas();
+}
+function hapusDataLama(){
+  const batas=arsipBatasDate();const lbl=arsipLbl(batas);
+  if(window._arsipSiap!==lbl)return toast('Unduh arsip dulu (tombol 2️⃣) sebelum menghapus');
+  const kat=arsipDipilih();let n=0;kat.forEach(k=>n+=arsipLama(k,batas).length);
+  if(!n)return toast('Tidak ada data lama untuk dihapus');
+  const ketik=prompt(`⚠️ ${n} data sebelum ${tgl(batas)} akan DIHAPUS PERMANEN dari aplikasi dan cloud.\n\nPastikan file arsip sudah tersimpan.\n\nKetik HAPUS untuk melanjutkan:`);
+  if(ketik===null)return;
+  if(String(ketik).trim().toUpperCase()!=='HAPUS')return toast('Dibatalkan — tulisan tidak sesuai');
+  // Kas: bawa saldo lama sebagai "Saldo awal" supaya saldo kas tidak berubah
+  if(kat.includes('kas')){
+    const lamaKas=arsipLama('kas',batas);
+    const saldo=lamaKas.reduce((s,k)=>s+(k.jenis==='masuk'?1:-1)*(Number(k.nominal)||0),0);
+    if(lamaKas.length&&saldo!==0){
+      D.kas.push({id:uid(),tgl:batas.getTime(),ket:'Saldo awal (dari arsip sebelum '+tgl(batas)+')',nominal:Math.abs(saldo),jenis:saldo>=0?'masuk':'keluar',kategori:'Saldo Awal',buktiFoto:null,dicatatOleh:'Sistem Arsip'});
+    }
+  }
+  kat.forEach(k=>{arsipLama(k,batas).forEach(x=>tandaHapus(k,x.id));});
+  if(typeof hitungUlangTotalAbsen==='function')hitungUlangTotalAbsen();
+  window._arsipSiap=null;
+  save();
+  toast(`🗑 ${n} data lama dibersihkan. Menyimpan ke cloud...`,4000);
+  setTimeout(()=>{if(typeof syncCloud==='function')syncCloud('push');},800);
+  hitungArsip();
 }
 async function cekDiagnostikSinkron(){
   const el=document.getElementById('diag-sinkron-hasil');
