@@ -1894,12 +1894,83 @@ function hapusProker(pid){
 
 function modalProker(){
   openModal(`<div class="modal-title">Buat Program Kerja <button class="modal-close" onclick="closeModal()">×</button></div>
+  ${C.proker_lampiran(R)?`<div class="field"><label>📄 Sudah punya dokumen proker (Word/PDF/Excel)? Baca otomatis isinya</label>
+  <input id="pk-baca" type="file" accept=".docx,.xls,.xlsx,.pdf" onchange="bacaDokumenProker(this)">
+  <p style="font-size:11px;color:var(--fg2);margin-top:4px">Isi dokumen akan dibaca ke kolom "Isi/Deskripsi" di bawah (bisa dirapikan dulu) — jadi tidak perlu diketik ulang, dan tidak memenuhi ruang penyimpanan cloud seperti melampirkan file mentah.</p></div>`:''}
   <div class="field"><label>Judul Proker</label><input id="pk-judul" placeholder="Judul program kerja"></div>
   <div class="field"><label>Jenis</label><select id="pk-jenis"><option>Latihan Rutin</option><option>Kegiatan Khusus</option><option>Lomba/Seleksi</option><option>Upacara</option><option>Lainnya</option></select></div>
   <div class="field"><label>Tanggal Rencana</label><input id="pk-tgl" type="date" value="${new Date().toISOString().split('T')[0]}"></div>
   <div class="field"><label>Isi / Deskripsi</label><textarea id="pk-isi" placeholder="Deskripsi kegiatan, tujuan, sasaran..."></textarea></div>
-  ${C.proker_lampiran(R)?`<div class="field"><label>Lampiran Dokumen (Word/Excel/PDF, opsional, maks 400KB)</label><input id="pk-file" type="file" accept=".doc,.docx,.xls,.xlsx,.pdf"></div>`:''}
+  ${C.proker_lampiran(R)?`<div class="field"><label>Lampiran Dokumen asli (opsional — hanya kalau benar-benar perlu file aslinya, bukan sekadar teksnya)</label><input id="pk-file" type="file" accept=".doc,.docx,.xls,.xlsx,.pdf"><p style="font-size:11px;color:var(--fg2);margin-top:4px">Ukuran maksimal dihitung otomatis dari sisa ruang cloud yang tersisa saat ini. Kalau cuma perlu isi teksnya, pakai "Baca otomatis isinya" di atas, bukan lampiran ini.</p></div>`:''}
   <button class="btn btn-primary btn-full" onclick="simpanProker()">📋 Simpan Proker</button>`);
+}
+function bacaDokumenProker(inp){
+  const file=inp.files[0];if(!file)return;
+  const ext=(file.name.split('.').pop()||'').toLowerCase();
+  toast('⏳ Membaca dokumen...');
+  if(ext==='docx'){
+    const reader=new FileReader();
+    reader.onload=e=>{
+      mammoth.extractRawText({arrayBuffer:e.target.result}).then(res=>{
+        isiProkerDariDokumen(res.value,file.name);
+      }).catch(err=>toast('Gagal membaca Word: '+err.message));
+      inp.value='';
+    };
+    reader.readAsArrayBuffer(file);
+  } else if(ext==='pdf'){
+    const reader=new FileReader();
+    reader.onload=async e=>{
+      try{
+        const pdf=await pdfjsLib.getDocument({data:new Uint8Array(e.target.result)}).promise;
+        let teks='';
+        for(let i=1;i<=pdf.numPages;i++){
+          const page=await pdf.getPage(i);
+          const content=await page.getTextContent();
+          let lastY=null,baris='';
+          content.items.forEach(it=>{
+            if(lastY!==null&&Math.abs(it.transform[5]-lastY)>4){baris+='\n';}
+            baris+=it.str+' ';
+            lastY=it.transform[5];
+          });
+          teks+=baris+'\n';
+        }
+        isiProkerDariDokumen(teks,file.name);
+      }catch(err){toast('Gagal membaca PDF: '+err.message);}
+      inp.value='';
+    };
+    reader.readAsArrayBuffer(file);
+  } else if(ext==='xlsx'||ext==='xls'){
+    const reader=new FileReader();
+    reader.onload=e=>{
+      try{
+        const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});
+        const ws=wb.Sheets[wb.SheetNames[0]];
+        const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+        const teks=rows.map(r=>r.join(' | ')).join('\n');
+        isiProkerDariDokumen(teks,file.name);
+      }catch(err){toast('Gagal membaca Excel: '+err.message);}
+      inp.value='';
+    };
+    reader.readAsArrayBuffer(file);
+  } else {
+    toast('Format tidak didukung untuk dibaca otomatis. Gunakan .docx, .xlsx, atau .pdf');
+    inp.value='';
+  }
+}
+// Isi hasil baca dokumen ke form Proker — hanya TEKS yang disimpan (bukan file
+// mentah), jadi ukurannya kecil dan tidak membebani kapasitas cloud seperti
+// melampirkan dokumen aslinya.
+function isiProkerDariDokumen(teks,namaFile){
+  const bersih=teks.split('\n').map(l=>l.trim()).filter(Boolean).join('\n');
+  if(!bersih)return toast('Tidak ada teks yang bisa dibaca dari file ini');
+  const isiEl=document.getElementById('pk-isi');
+  const judulEl=document.getElementById('pk-judul');
+  if(isiEl)isiEl.value=bersih;
+  if(judulEl&&!judulEl.value.trim()){
+    const baris1=bersih.split('\n')[0]||'';
+    if(baris1&&baris1.length<=120)judulEl.value=baris1;
+  }
+  toast('✅ Isi dokumen "'+namaFile+'" berhasil dibaca — cek & rapikan di kolom Isi/Deskripsi');
 }
 function simpanProker(){
   const j=document.getElementById('pk-judul').value.trim();
