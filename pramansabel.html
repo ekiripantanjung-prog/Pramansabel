@@ -421,8 +421,21 @@ let R = null; // role saat ini
 
 const GS_DEFAULT='https://script.google.com/macros/s/AKfycbzdZ3IVx3jmo7HR3W1b2BFTjUGJs-z7JIJFJhdOV6FVuJkajqGEvtauONMrJuEX9bevxw/exec';
 let GS_URL='';try{GS_URL=localStorage.getItem('pramansabel_gsurl')||GS_DEFAULT;}catch(e){GS_URL=GS_DEFAULT;}
-let _lastLocalSave=0,_pendingPush=null;
-function save(){_lastLocalSave=Date.now();try{localStorage.setItem(SK,JSON.stringify(D));}catch(e){} saveGS();}
+let _lastLocalSave=0,_pendingPush=null,_gsPushTimer=null,_gsDirty=false;
+function save(){_lastLocalSave=Date.now();try{localStorage.setItem(SK,JSON.stringify(D));}catch(e){} scheduleGSPush();}
+function scheduleGSPush(){
+  if(!GS_URL)return;
+  _gsDirty=true;
+  clearTimeout(_gsPushTimer);
+  // Tunda 1.2 detik: beberapa save() yang terjadi berurutan (misal saat import
+  // massal) jadi 1 kali sinkron saja, dan memberi waktu untuk gabung data dulu.
+  _gsPushTimer=setTimeout(()=>{ if(_gsDirty){_gsDirty=false; saveGS(); } },1200);
+}
+document.addEventListener('visibilitychange',()=>{
+  // Kalau app ditutup/ditinggalkan sebelum jadwal sinkron jalan, dorong sekarang
+  // juga supaya data yang baru diinput tidak sempat hilang.
+  if(document.visibilityState==='hidden'&&_gsDirty){clearTimeout(_gsPushTimer);_gsDirty=false;saveGS();}
+});
 function load(){try{const s=localStorage.getItem(SK);if(s){const p=JSON.parse(s);const def=defD();D=Object.assign(def,p);D.config=Object.assign(def.config,p.config||{});migrasiAngkatan();}}catch(e){}}
 // Migrasi data lama (peran pps25/pps26/pps27/purnasenior & config angkatanAktif/angkatanPurna)
 // ke model baru: cuma 2 peran tetap yang bersirkulasi (pps_aktif, pps_senior).
@@ -468,13 +481,80 @@ function migrasiKodeEtik(){
   }
   if(changed)try{localStorage.setItem(SK,JSON.stringify(D));}catch(e){}
 }
-function saveGS(){
+// Field data yang berupa daftar/array (punya banyak item dengan id masing-masing).
+// Dipakai supaya sinkronisasi cloud menggabungkan, bukan menimpa habis.
+const DATA_ARRAY_KEYS=['anggota','absensi','pelanggaran','proker','evaluasi','lomba','agenda','adat','info','kas','komando','pengumuman','pemetaan','samapta','materi','izin'];
+function mergeField(key,localVal,cloudVal){
+  if(DATA_ARRAY_KEYS.includes(key)){
+    const cloudArr=Array.isArray(cloudVal)?cloudVal:[];
+    const localArr=Array.isArray(localVal)?localVal:[];
+    const map=new Map();
+    // Isi dari cloud dulu (mungkin ditambah/diubah dari HP lain), lalu data
+    // lokal menimpa per-item berdasarkan id — jadi item baru dari HP lain
+    // TETAP ada, dan perubahan yang baru kita buat juga tidak hilang.
+    cloudArr.forEach(it=>{ if(it&&it.id!=null)map.set(it.id,it); });
+    localArr.forEach(it=>{ if(it&&it.id!=null)map.set(it.id,it); });
+    return Array.from(map.values());
+  }
+  if(key==='pins'||key==='config')return Object.assign({},cloudVal||{},localVal||{});
+  if(key==='ttd')return(localVal!=null&&localVal!=='')?localVal:cloudVal;
+  return localVal!==undefined?localVal:cloudVal;
+}
+async function saveGS(){
   if(!GS_URL)return;
-  const d={...D,ttd:null};
+  let payload=D;
+  try{
+    // PENTING: ambil dulu data cloud terbaru sebelum menimpa, lalu gabung per-item.
+    // Sebelumnya device yang sinkron cloud terakhir akan menimpa HABIS seluruh
+    // data dengan datanya sendiri (snapshot lama) — inilah sebab proker/absensi
+    // yang baru diinput Ketua/Sekretaris bisa "hilang lagi" walau sudah tersimpan
+    // di HP-nya sendiri: HP lain yang auto-sync belakangan menimpa data itu
+        // dengan versi lamanya. Dengan digabung per-id, ini tidak terjadi lagi.
+    const r=await fetch(GS_URL+'?t='+Date.now());
+    const cloud=await r.json();
+    if(cloud&&!cloud.error&&cloud.anggota!==undefined){
+      const merged={};
+      const keys=new Set([...Object.keys(D),...Object.keys(cloud)]);
+      keys.forEach(k=>{ merged[k]=mergeField(k,D[k],cloud[k]); });
+      D=Object.assign(D,merged);
+      try{localStorage.setItem(SK,JSON.stringify(D));}catch(e){}
+      payload=D;
+    }
+  }catch(e){}
+  const d={...payload,ttd:null};
   _pendingPush=fetch(GS_URL,{method:'POST',body:JSON.stringify(d)}).catch(()=>{}).finally(()=>{_pendingPush=null;});
   return _pendingPush;
 }
-async function loadGS(){if(!GS_URL)return false;try{const r=await fetch(GS_URL+'?t='+Date.now());const d=await r.json();if(d&&!d.error&&d.anggota!==undefined){const ttdLama=D.ttd;const def=defD();D=Object.assign(def,d);D.config=Object.assign(def.config,d.config||{});migrasiAngkatan();if(!D.ttd&&ttdLama)D.ttd=ttdLama;try{localStorage.setItem(SK,JSON.stringify(D));}catch(e){}window._lastSyncTime=Date.now();return true;}}catch(e){}return false;}
+async function loadGS(){
+  if(!GS_URL)return false;
+  try{
+    const r=await fetch(GS_URL+'?t='+Date.now());
+    const d=await r.json();
+    if(d&&!d.error&&d.anggota!==undefined){
+      const ttdLama=D.ttd;
+      const def=defD();
+      const cloudFull=Object.assign(def,d);
+      // PENTING: gabung dengan data lokal yang sedang ada, JANGAN timpa habis.
+      // loadGS() dipanggil otomatis di banyak tempat (buka app, pindah layar,
+      // tiap 5 detik) — kalau ambil data cloud ini kebetulan selesai tepat
+      // setelah sesuatu baru disimpan di HP ini (misalnya baru klik "Simpan
+      // Proker"), menimpa habis D akan membuat input yang baru itu hilang
+      // lagi seolah tidak pernah tersimpan. Dengan digabung per-id, data yang
+      // baru dibuat di HP ini maupun dari HP lain sama-sama tetap ada.
+      const merged={};
+      const keys=new Set([...Object.keys(D),...Object.keys(cloudFull)]);
+      keys.forEach(k=>{ merged[k]=mergeField(k,D[k],cloudFull[k]); });
+      D=Object.assign(cloudFull,merged);
+      D.config=Object.assign(def.config,merged.config||{});
+      migrasiAngkatan();
+      if(!D.ttd&&ttdLama)D.ttd=ttdLama;
+      try{localStorage.setItem(SK,JSON.stringify(D));}catch(e){}
+      window._lastSyncTime=Date.now();
+      return true;
+    }
+  }catch(e){}
+  return false;
+}
 function tarikManual(){
   toast('🔄 Menarik data terbaru...');
   loadGS().then(ok=>{
@@ -482,7 +562,7 @@ function tarikManual(){
     else toast('❌ Gagal tarik data — cek koneksi internet');
   });
 }
-async function syncCloud(dir){if(!GS_URL){toast('⚠️ URL Google Sheet belum diisi di Pengaturan → Sinkron');return;}if(dir==='push'){toast('☁️ Menyimpan ke cloud...');fetch(GS_URL,{method:'POST',body:JSON.stringify(D)}).then(()=>toast('✅ Data tersimpan ke Google Sheet')).catch(()=>toast('❌ Gagal simpan ke cloud'));}else{toast('☁️ Mengambil data dari cloud...');const ok=await loadGS();if(ok){toast('✅ Data berhasil disinkron dari cloud');goScreen('beranda');}else toast('❌ Gagal ambil data dari cloud');}}
+async function syncCloud(dir){if(!GS_URL){toast('⚠️ URL Google Sheet belum diisi di Pengaturan → Sinkron');return;}if(dir==='push'){toast('☁️ Menyimpan ke cloud...');clearTimeout(_gsPushTimer);_gsDirty=false;try{await saveGS();toast('✅ Data tersimpan ke Google Sheet');}catch(e){toast('❌ Gagal simpan ke cloud');}}else{toast('☁️ Mengambil data dari cloud...');const ok=await loadGS();if(ok){toast('✅ Data berhasil disinkron dari cloud');goScreen('beranda');}else toast('❌ Gagal ambil data dari cloud');}}
 function saveGSURL(url){GS_URL=url.trim();try{localStorage.setItem('pramansabel_gsurl',GS_URL);}catch(e){}toast(GS_URL?'✅ URL tersimpan':'URL dikosongkan');tabPengaturan('sinkron',document.querySelector('#s-pengaturan .tab.on'));}
 load();
 // Auto-sync: ambil data dari cloud saat buka app
