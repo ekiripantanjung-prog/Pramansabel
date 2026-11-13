@@ -3622,7 +3622,49 @@ function renderSinkron(){
       <button class="btn btn-blue btn-sm" onclick="syncCloud('push')">⬆️ Simpan ke Cloud</button>
     </div>
     <p style="font-size:12px;color:var(--fg2);margin-top:10px">⬇️ Ambil: mengambil data dari Google Sheet (cocok saat buka di perangkat baru)<br>⬆️ Simpan: mengirim data dari HP ini ke Google Sheet</p>
+  </div>
+  <div class="card" style="margin-top:12px">
+    <div class="card-title">🔍 Diagnostik Sinkron</div>
+    <p style="font-size:12px;color:var(--fg2);margin-bottom:10px">Cek langsung apa yang tersimpan di cloud dari HP ini — tekan tombol ini lalu screenshot hasilnya kalau perlu dikirim ke developer.</p>
+    <button class="btn btn-ghost btn-sm btn-full" onclick="cekDiagnostikSinkron()">🔍 Cek Status Sinkron</button>
+    <div id="diag-sinkron-hasil"></div>
   </div>`:'<div class="alert alert-warn" style="margin-top:12px">Isi URL Apps Script dulu untuk mulai sinkron.</div>'}`;
+}
+async function cekDiagnostikSinkron(){
+  const el=document.getElementById('diag-sinkron-hasil');
+  if(!el)return;
+  el.innerHTML='<p style="font-size:12px;margin-top:10px">⏳ Mengecek...</p>';
+  const DATA_KEYS_DIAG=['anggota','absensi','pelanggaran','proker','evaluasi','lomba','agenda','adat','info','kas','komando','pengumuman','pemetaan','samapta','materi','izin'];
+  let html='';
+  try{
+    const t0=Date.now();
+    const r=await fetch(GS_URL+'?t='+Date.now());
+    const teks=await r.text();
+    const waktu=Date.now()-t0;
+    let d=null,parseError=null;
+    try{d=JSON.parse(teks);}catch(e){parseError=e.message;}
+    if(parseError||!d){
+      html=`<div class="alert alert-danger" style="margin-top:10px">❌ Respons dari cloud BUKAN data JSON yang valid (kemungkinan halaman login Google atau error akses).</div>
+      <p style="font-size:11px;color:var(--fg3);margin-top:6px">HTTP status: ${r.status} · Waktu: ${waktu}ms · Panjang respons: ${teks.length} karakter</p>
+      <div style="font-size:11px;background:var(--bg2,#0003);padding:8px;border-radius:8px;margin-top:6px;white-space:pre-wrap;word-break:break-all;max-height:160px;overflow:auto">${esc(teks.slice(0,500))}</div>`;
+    } else if(d.error){
+      html=`<div class="alert alert-danger" style="margin-top:10px">❌ Cloud mengembalikan error: ${esc(JSON.stringify(d.error))}</div>`;
+    } else {
+      const rows=DATA_KEYS_DIAG.map(k=>{
+        const v=d[k];
+        const n=Array.isArray(v)?v.length:(v?1:0);
+        return`<tr><td style="padding:3px 8px 3px 0">${k}</td><td style="padding:3px 0;text-align:right;font-weight:600">${n}</td></tr>`;
+      }).join('');
+      const prokerList=Array.isArray(d.proker)?d.proker.map(p=>'• '+(p.judul||'(tanpa judul)')).join('<br>'):'';
+      html=`<div class="alert alert-ok" style="margin-top:10px">✅ Berhasil terhubung ke cloud</div>
+      <p style="font-size:11px;color:var(--fg3);margin-top:6px">Waktu respons: ${waktu}ms · Ukuran data: ${teks.length.toLocaleString('id')} karakter</p>
+      <table style="font-size:12px;margin-top:8px;width:100%">${rows}</table>
+      ${prokerList?`<div style="font-size:12px;margin-top:8px"><b>Isi proker di cloud saat ini:</b><br>${prokerList}</div>`:'<div style="font-size:12px;margin-top:8px;color:var(--fg3)">Tidak ada data proker di cloud sama sekali.</div>'}`;
+    }
+  }catch(e){
+    html=`<div class="alert alert-danger" style="margin-top:10px">❌ Gagal menghubungi cloud: ${esc(e.message)}</div><p style="font-size:11px;color:var(--fg3);margin-top:6px">Cek koneksi internet HP ini, atau URL Apps Script di atas salah/sudah tidak aktif.</p>`;
+  }
+  el.innerHTML=html;
 }
 function hapusTTD(){
   if(!confirm('Hapus tanda tangan digital yang tersimpan? Kamu harus menggambar ulang TTD kalau suatu saat dibutuhkan lagi.'))return;
