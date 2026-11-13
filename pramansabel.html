@@ -2003,7 +2003,8 @@ function renderProker(){
   let html='';
   if(R==='pembina'){
     const nTunggu=(D.prokerTahunan||[]).filter(x=>!x.accPembina).length;
-    if(nTunggu)html+=`<div class="alert alert-warn" style="margin-bottom:12px;cursor:pointer" onclick="tabKegiatan('tahunan',document.querySelectorAll('#s-kegiatan .tab')[1])">📅 Ada <b>${nTunggu} Proker Tahunan</b> menunggu persetujuan. <u>Buka tab Tahunan →</u></div>`;
+    const nMasukan=(D.prokerTahunan||[]).filter(x=>!x.accPembina).reduce((n,x)=>n+((x.catatanPelatih||[]).length),0);
+    if(nTunggu)html+=`<div class="alert alert-warn" style="margin-bottom:12px;cursor:pointer" onclick="tabKegiatan('tahunan',document.querySelectorAll('#s-kegiatan .tab')[1])">📅 Ada <b>${nTunggu} Proker Tahunan</b> menunggu persetujuan${nMasukan?` · 💬 ${nMasukan} masukan Pelatih`:''}. <u>Buka tab Tahunan →</u></div>`;
   }
   if(C.proker_buat(R)){
     html+=`<button class="btn btn-primary btn-sm" style="margin-bottom:12px" onclick="modalProker()">+ Buat Proker</button>
@@ -2077,7 +2078,9 @@ function renderProkerTahunan(){
       <tr style="text-align:left;border-bottom:1px solid var(--border)"><th style="padding:4px">Kegiatan</th><th style="padding:4px">Bulan</th><th style="padding:4px">PJ</th></tr>
       ${(pt.items||[]).map(it=>`<tr style="border-bottom:1px solid var(--border)"><td style="padding:4px">${esc(it.nama)}</td><td style="padding:4px">${esc(it.bulan||'-')}</td><td style="padding:4px">${esc(it.pj||'-')}</td></tr>`).join('')}
     </table>
+    ${htmlCatatanPelatih(pt)}
     <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
+      ${PERAN_PELATIH.includes(R)?`<button class="btn btn-blue btn-sm" onclick="modalCatatanPelatih('${pt.id}')">💬 Beri Masukan</button>`:''}
       ${R==='pembina'&&!pt.accPembina?`<button class="btn btn-ok btn-sm" onclick="accProkerTahunan('${pt.id}','pembina')">✓ Setujui</button>`:''}
       <button class="btn btn-ghost btn-sm" onclick="exportProkerTahunanPDF('${pt.id}')">📄 PDF</button>
       <button class="btn btn-ghost btn-sm" onclick="exportProkerTahunanWord('${pt.id}')">📝 Word</button>
@@ -2087,6 +2090,46 @@ function renderProkerTahunan(){
   });
   return html;
 }
+// ── Catatan / masukan Pelatih untuk Proker Tahunan ──
+// Pelatih & Asisten Pelatih bisa memberi masukan (tidak wajib, tidak menahan
+// persetujuan). Pembina membaca masukan ini sebelum menekan Setujui, dan Ketua
+// melihatnya saat memperbaiki proker. Disimpan di pt.catatanPelatih = [{id,dari,role,isi,w}].
+const PERAN_PELATIH=['pelatih','aspelatih1','aspelatih2'];
+function htmlCatatanPelatih(pt){
+  const list=pt.catatanPelatih||[];
+  if(!list.length)return PERAN_PELATIH.includes(R)?'':`<div style="font-size:11px;color:var(--fg2);margin-top:8px">💬 Belum ada masukan dari Pelatih.</div>`;
+  return`<div style="margin-top:10px;border-left:3px solid #3b82f6;padding:6px 10px;background:rgba(59,130,246,.08);border-radius:6px">
+    <div style="font-size:12px;font-weight:700;margin-bottom:4px">💬 Masukan Pelatih (${list.length})</div>
+    ${list.map(c=>`<div style="font-size:12px;padding:5px 0;border-top:1px solid var(--border)">
+      <div style="color:var(--fg2);font-size:11px">${esc(c.dari||'-')} · ${tgl(c.w)}
+        ${(c.role===R||R==='pembina')?`<a href="#" style="color:#ef4444;margin-left:6px" onclick="event.preventDefault();hapusCatatanPelatih('${pt.id}','${c.id}')">hapus</a>`:''}</div>
+      <div style="white-space:pre-wrap">${esc(c.isi)}</div></div>`).join('')}
+  </div>`;
+}
+function modalCatatanPelatih(id){
+  const pt=D.prokerTahunan.find(x=>x.id===id);if(!pt)return;
+  openModal(`<div class="modal-title">💬 Masukan untuk Proker Tahunan <button class="modal-close" onclick="closeModal()">×</button></div>
+  <p style="font-size:12px;color:var(--fg2);margin-bottom:8px">${esc(pt.judul)} · ${esc(pt.tahun)}<br>Masukan ini dibaca Pembina sebelum menyetujui, dan dibaca Ketua untuk memperbaiki proker. Tidak menahan persetujuan.</p>
+  <div class="field"><label>Masukan / catatan</label><textarea id="cp-isi" rows="5" placeholder="Contoh: Latihan variasi formasi sebaiknya mulai Februari supaya siap untuk LKBB bulan Maret."></textarea></div>
+  <button class="btn btn-primary btn-full" id="cp-kirim" onclick="simpanCatatanPelatih('${id}')">💾 Kirim Masukan</button>`);
+}
+function simpanCatatanPelatih(id){
+  const btn=document.getElementById('cp-kirim');if(btn&&btn.disabled)return;
+  const isi=(document.getElementById('cp-isi')?.value||'').trim();
+  if(isi.length<5)return toast('Tulis masukannya dulu');
+  const pt=D.prokerTahunan.find(x=>x.id===id);if(!pt)return;
+  if(btn){btn.disabled=true;btn.textContent='Menyimpan…';}
+  if(!Array.isArray(pt.catatanPelatih))pt.catatanPelatih=[];
+  pt.catatanPelatih.push({id:uid(),dari:RLBL[R],role:R,isi,w:Date.now()});
+  save();closeModal();toast('💬 Masukan terkirim ke Pembina & Ketua');renderTabKegiatan('tahunan');
+}
+function hapusCatatanPelatih(id,cid){
+  const pt=D.prokerTahunan.find(x=>x.id===id);if(!pt||!pt.catatanPelatih)return;
+  if(!confirm('Hapus masukan ini?'))return;
+  pt.catatanPelatih=pt.catatanPelatih.filter(c=>c.id!==cid);
+  save();toast('Masukan dihapus');renderTabKegiatan('tahunan');
+}
+
 let _tahunanEditId=null,_tahunanItems=[];
 function modalProkerTahunan(editId){
   _tahunanEditId=editId||null;
@@ -2097,7 +2140,9 @@ function modalProkerTahunan(editId){
 function bukaModalTahunan(h){
   h=h||{};
   const isEdit=!!_tahunanEditId;
+  const ptAsli=isEdit?D.prokerTahunan.find(x=>x.id===_tahunanEditId):null;
   openModal(`<div class="modal-title">${isEdit?'Edit':'Buat'} Program Kerja Tahunan <button class="modal-close" onclick="closeModal()">×</button></div>
+  ${ptAsli&&(ptAsli.catatanPelatih||[]).length?htmlCatatanPelatih(ptAsli).replace(/<a href[^>]*>hapus<\/a>/g,''):''}
   <div class="field"><label>Tahun Ajaran</label><input id="pt-tahun" placeholder="Misal: 2026/2027" value="${esc(h.tahun||'')}"></div>
   <div class="field"><label>Judul</label><input id="pt-judul" placeholder="Program Kerja Tahunan PASKIBRA" value="${esc(h.judul!==undefined?h.judul:'Program Kerja Tahunan PASKIBRA MAN 1 Belitung')}"></div>
   <div class="field"><label>Visi</label><textarea id="pt-visi" placeholder="Visi kepengurusan...">${esc(h.visi||'')}</textarea></div>
@@ -2169,7 +2214,9 @@ function _bodyTahunanHTML(pt){
   <table style="width:100%;border-collapse:collapse;margin-top:12px" border="1" cellpadding="6">
     <tr style="background:#eee"><th>No</th><th>Nama Kegiatan</th><th>Bulan</th><th>Penanggung Jawab</th></tr>
     ${(pt.items||[]).map((it,i)=>`<tr><td>${i+1}</td><td>${esc(it.nama)}</td><td>${esc(it.bulan||'-')}</td><td>${esc(it.pj||'-')}</td></tr>`).join('')}
-  </table>`;
+  </table>
+  ${(pt.catatanPelatih||[]).length?`<p style="margin-top:14px"><b>Masukan Pelatih:</b></p><ul>${pt.catatanPelatih.map(c=>`<li>${esc(c.isi)} <i style="color:#666">(${esc(c.dari||'-')}, ${tgl(c.w)})</i></li>`).join('')}</ul>`:''}
+  <p style="margin-top:14px">Status: ${pt.accPembina?'<b>Disetujui Pembina</b>':'Menunggu persetujuan Pembina'}</p>`;
 }
 function exportProkerTahunanPDF(id){
   const pt=D.prokerTahunan.find(x=>x.id===id);if(!pt)return;
@@ -4303,7 +4350,7 @@ function resetData(){
 
 <div id="footer-cr" style="text-align:center;padding:16px;font-size:11px;color:var(--fg3);margin-top:8px;border-top:1px solid var(--border)">
   © 2026 Eki Ripan J.R, S.Pd., Gr. · Pembina PASKIBRA MAN 1 Belitung<br>
-  <span style="font-size:10px;opacity:.7">PASMANSABEL — Aplikasi Manajemen PASKIBRA MAN 1 Belitung</span><br><span style="font-size:10px;opacity:.6">Versi 13 Nov 2026 · 22.10</span>
+  <span style="font-size:10px;opacity:.7">PASMANSABEL — Aplikasi Manajemen PASKIBRA MAN 1 Belitung</span><br><span style="font-size:10px;opacity:.6">Versi 13 Nov 2026 · 22.20</span>
 </div>
 </body>
 </html>
