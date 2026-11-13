@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Program Kerja PASKIBRA MAN 1 Belitung</title>
+<style>
+  :root{--bg:#141414;--card:#202020;--line:#2e2e2e;--txt:#eaeaea;--mut:#9a9a9a;--red:#e0352b;--navy:#16306b;--green:#1fb85a}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+  .wrap{max-width:720px;margin:0 auto;padding:16px}
+  /* ======= KOMPONEN PROKER (salin mulai dari sini) ======= */
+  .pk-head{margin:4px 0 14px}
+  .pk-head h2{margin:0;font-size:20px}
+  .pk-head p{margin:4px 0 0;color:var(--mut);font-size:14px}
+  .pk-chips{display:flex;gap:8px;overflow-x:auto;padding-bottom:6px;margin-bottom:12px;scrollbar-width:none}
+  .pk-chips::-webkit-scrollbar{display:none}
+  .pk-chip{flex:0 0 auto;border:1px solid var(--line);background:var(--card);color:var(--txt);padding:8px 14px;border-radius:999px;font-size:14px;cursor:pointer}
+  .pk-chip.on{background:var(--navy);border-color:var(--navy)}
+  .pk-now{background:linear-gradient(135deg,#16306b,#0f2250);border-radius:14px;padding:14px 16px;margin-bottom:14px}
+  .pk-now small{color:#b9c6ea;font-size:12px;letter-spacing:.04em;text-transform:uppercase}
+  .pk-now h3{margin:4px 0 8px;font-size:17px}
+  .pk-month{background:var(--card);border-radius:14px;margin-bottom:12px;overflow:hidden}
+  .pk-month>summary{list-style:none;cursor:pointer;padding:14px 16px;font-weight:700;font-size:16px;display:flex;justify-content:space-between;align-items:center}
+  .pk-month>summary::-webkit-details-marker{display:none}
+  .pk-month>summary::after{content:"▾";color:var(--mut)}
+  .pk-month[open]>summary::after{content:"▴"}
+  .pk-badge{font-size:11px;font-weight:600;background:#1d3b25;color:#5fe08f;padding:3px 8px;border-radius:999px;margin-left:8px}
+  .pk-weeks{display:grid;gap:10px;padding:0 12px 12px}
+  .pk-week{border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+  .pk-week.cur{border-color:var(--red);box-shadow:0 0 0 1px var(--red) inset}
+  .pk-week b{display:block;font-size:13px;color:var(--mut);margin-bottom:4px}
+  .pk-week.cur b{color:#ff6b62}
+  .pk-week .t{font-weight:600;margin:2px 0}
+  .pk-week ul{margin:4px 0 0;padding-left:18px}
+  .pk-week li{margin:2px 0;font-size:14.5px;line-height:1.4}
+  .pk-table{width:100%;border-collapse:collapse;font-size:14px}
+  .pk-table td,.pk-table th{border-top:1px solid var(--line);padding:10px 12px;vertical-align:top;text-align:left}
+  .pk-table th{color:var(--mut);font-weight:600;font-size:12px;text-transform:uppercase}
+  .pk-note{color:var(--mut);font-size:13px;margin-top:8px}
+  @media(min-width:640px){.pk-weeks{grid-template-columns:1fr 1fr}}
+
+  /* ---- Form input siswa ---- */
+  .ik-form [hidden],#input-kegiatan [hidden]{display:none!important}
+  .ik-btn{border:0;border-radius:12px;padding:12px 16px;font-size:15px;font-weight:700;cursor:pointer;color:#fff;background:var(--navy)}
+  .ik-btn.red{background:var(--red)} .ik-btn.green{background:var(--green)}
+  .ik-btn.ghost{background:transparent;border:1px solid var(--line);color:var(--txt)}
+  .ik-btn:disabled{opacity:.5;cursor:not-allowed}
+  .ik-form{background:var(--card);border-radius:14px;padding:16px;margin:12px 0;display:grid;gap:12px}
+  .ik-form label{display:grid;gap:6px;font-size:13px;color:var(--mut);font-weight:600}
+  .ik-form input,.ik-form select,.ik-form textarea{width:100%;background:#151515;border:1px solid var(--line);color:var(--txt);border-radius:10px;padding:11px 12px;font:inherit;font-size:15px}
+  .ik-form textarea{min-height:84px;resize:vertical}
+  .ik-ref{border:1px dashed #3b5bab;background:#121b33;border-radius:12px;padding:10px 12px;font-size:14px}
+  .ik-ref b{color:#9fb6f0;font-size:12px;text-transform:uppercase;letter-spacing:.04em}
+  .ik-radio{display:flex;gap:8px;flex-wrap:wrap}
+  .ik-radio label{display:flex;align-items:center;gap:6px;background:#151515;border:1px solid var(--line);border-radius:10px;padding:9px 12px;color:var(--txt);font-weight:500}
+  .ik-radio input{width:auto}
+  .ik-warn{background:#3a2a10;color:#ffcf73;border-radius:10px;padding:10px 12px;font-size:14px}
+  .ik-card{background:var(--card);border-radius:14px;padding:14px 16px;margin-bottom:10px}
+  .ik-card h4{margin:0 0 4px;font-size:16px;display:flex;justify-content:space-between;gap:8px}
+  .ik-st{font-size:12px;padding:3px 10px;border-radius:999px;white-space:nowrap}
+  .ik-st.w{background:#3a2a10;color:#ffcf73} .ik-st.ok{background:#1d3b25;color:#5fe08f} .ik-st.no{background:#3d1717;color:#ff8a80}
+  .ik-meta{color:var(--mut);font-size:13.5px;margin:2px 0}
+  .ik-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+  .ik-role{display:flex;gap:6px;align-items:center;font-size:13px;color:var(--mut);margin:18px 0 6px}
+  .ik-role select{background:var(--card);color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:6px}
+  /* ======= sampai sini ======= */
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div id="proker-lengkap"></div>
+  <hr style="border:0;border-top:1px solid var(--line);margin:22px 0">
+  <div id="input-kegiatan"></div>
+</div>
+
+<script>
+/* =====================================================================
+   DATA PROGRAM KERJA — diambil dari "program_kerja_Paskibra_Mansabel1.pdf"
+   Periode Agustus – Desember 2026. Ubah di sini jika proker berubah.
+   ===================================================================== */
+const PROKER_PERIODE = { tahun: 2026, bulan: ["Agustus","September","Oktober","November","Desember"] };
+
+const PROKER = [
+  {
+    id:"umum", nama:"Umum", judul:"Format Program Kerja Paskibra",
+    sub:"Rancangan kegiatan mingguan Agustus – Desember",
+    catatan:"Pola kegiatan dapat dibuat berulang dengan perubahan satu kegiatan setiap bulan.",
+    jadwal:{
+      Agustus:[["PBB Dasar","Materi (PPI MAN + Lagu PBB)"],["Fisik + PBB Dasar"],["Latihan Pengibaran + PBB Dasar"],["PBB Dasar"]],
+      September:[["Latihan Pengibaran + PBB Dasar"],["Game + PBB"],["PBB Tingkat Lanjut + Pengulangan PBB Dasar"],["Fisik + PBB"]],
+      Oktober:[["PBB Tingkat Lanjut + Pengulangan PBB"],["Materi (Public Speaking) + PBB"],["Fisik + PBB"],["Latihan Pengibaran + PBB Tingkat Lanjut"]],
+      November:[["PBB Tingkat Lanjut + Pengulangan PBB"],["Fisik + PBB"],["Materi (TIU) + PBB"],["Latihan Pengibaran + PBB Tingkat Lanjut"]],
+      Desember:[["Fisik + PBB"],["PBB Tingkat Lanjut + Pengulangan PBB"],["Ulangan Wawasan Kebangsaan + PBB"],["Latihan Pengibaran + PBB Tingkat Lanjut"]]
+    }
+  },
+  {
+    id:"pbb", nama:"PBB", judul:"Persekbid PBB",
+    sub:"Pengaturan dan koordinasi jalannya latihan / kegiatan PBB",
+    jadwal:{
+      Agustus:[
+        {t:"PBB Dasar",i:["Sikap siap sempurna","Hormat","Istirahat di tempat"]},
+        {t:"PBB Dasar",i:["Sikap siap sempurna","Hormat","Istirahat di tempat","Lencang kanan & lencang kiri"]},
+        {t:"PBB Dasar",i:["Pengulangan materi PBB dasar"]},
+        {t:"Pengulangan & Variasi",i:["Hadap kanan & hadap kiri","Balik kanan"]}],
+      September:[
+        {t:"PBB Dasar",i:["Sikap siap sempurna, hormat, istirahat di tempat","Lencang kanan/kiri, hadap kanan/kiri, balik kanan"]},
+        {t:"PBB Dinamis",i:["Pengulangan gerakan","Jalan di tempat","4 langkah ke depan, belakang, kiri, & kanan"]},
+        {t:"Pengulangan",i:["Fokus penguatan PBB dasar"]},
+        {t:"PBB Dinamis",i:["Pengulangan + jalan di tempat","4 langkah ke depan, belakang, kiri, & kanan"]}],
+      Oktober:[
+        {t:"PBB Tingkat Lanjut",i:["Jalan di tempat","4 langkah ke depan, belakang, kiri, & kanan","Pengulangan PBB"]},
+        {t:"Langkah Tegap",i:["Latihan langkah tegap","Pengulangan materi PBB"]},
+        {t:"Pengulangan",i:["Evaluasi PBB + pengulangan menyeluruh"]},
+        {t:"PBB Tingkat Lanjut",i:["Langkah tegap","Maju jalan","Jalan di tempat"]}],
+      November:[
+        {t:"PBB Tingkat Lanjut",i:["Maju jalan + langkah tegap","Pengulangan PBB","Ditekankan gerakan patah-patah"]},
+        {t:"Penguatan Gerakan",i:["PBB + pengulangan","Ditekankan gerakan patah-patah"]},
+        {t:"Penguatan Gerakan",i:["PBB + pengulangan","Ditekankan gerakan patah-patah"]},
+        {t:"PBB Tingkat Lanjut",i:["Maju jalan","Pengulangan PBB menyeluruh"]}],
+      Desember:[
+        {t:"PBB Lanjut & Evaluasi",i:["PBB tingkat lanjut","Pengulangan PBB"]},
+        {t:"PBB Lanjut & Evaluasi",i:["Pengulangan materi","Ditekankan gerakan patah-patah"]},
+        {t:"PBB Lanjut & Evaluasi",i:["Pengulangan materi","Ditekankan gerakan patah-patah"]},
+        {t:"PBB Lanjut & Evaluasi",i:["PBB tingkat lanjut","Ditekankan gerakan patah-patah"]}]
+    }
+  },
+  {
+    id:"samapta", nama:"Samapta", judul:"Persekbid Samapta",
+    sub:"Latihan kesamaptaan / ketahanan fisik secara bertahap",
+    jadwal:(()=>{
+      // [JumpingJack, PushUp, SitUp] — JJ bisa string jika beda cowo/cewe
+      const s = {
+        Agustus:[[35,30,25],[35,30,30],[30,35,30],[35,30,35]],
+        September:[[40,30,25],[40,35,30],[40,35,30],[40,35,35]],
+        Oktober:[[40,35,50],[50,35,30],[50,35,35],[50,35,35]],
+        November:[["Cowo 80 · Cewe 70",40,35],[80,40,35],[80,45,40],["Cowo 90 · Cewe 80",45,40]],
+        Desember:[["Cowo 100 · Cewe 90",45,40],[100,50,40],[100,50,40],[100,50,40]]
+      };
+      const o={};
+      for(const b in s) o[b]=s[b].map(([jj,pu,su])=>({t:"Latihan Fisik",i:["Pemanasan","Jumping Jack: "+jj,"Push Up: "+pu,"Sit Up: "+su,"Lari"]}));
+      return o;
+    })()
+  },
+  {
+    id:"materi", nama:"Materi", judul:"Persekbid Materi",
+    sub:"Penyampaian materi Paskibra tahunan secara bertahap",
+    jadwal:{
+      Agustus:[["Nama-nama PPI Mansabel","12 Gerakan Dasar & Lagu"],["Materi Sejarah Paskibra Mansabel"],["Materi Wawasan Kebangsaan & Lagu"],["Materi Pengetahuan Luas (TIU)"]],
+      September:[["Cara Public Speaking yang Benar","Lagu"],["Sejarah Paskibra"],["Penjelasan mengenai Paskibraka"],["Materi Wawasan Kebangsaan & Lagu"]],
+      Oktober:[["Cara Public Speaking yang Benar","Lagu"],["Materi Wawasan Kebangsaan"],["Materi Pengetahuan Luas"],["Materi Sejarah Paskibra MAN & Lagu"]],
+      November:[["Materi Wawasan Kebangsaan & Lagu"],["Materi Sejarah Paskibra MAN"],["Materi Sejarah Paskibra"],["Cara Public Speaking yang Benar"]],
+      Desember:[["Materi Wawasan Kebangsaan & Lagu"],["Materi Sejarah Paskibra"],["12 Gerakan Dasar","Lagu"],["Cara Public Speaking yang Benar"]]
+    }
+  },
+  {
+    id:"tatib", nama:"Disiplin & Tatib", judul:"Persekbid Disiplin & Tata Tertib",
+    sub:"Pembinaan kedisiplinan, sikap, dan tata tertib anggota",
+    jadwal:{
+      Agustus:[["Pengawasan kerapian seluruh anggota"],["Evaluasi kedisiplinan saat dalam barisan"],["Pemantauan kedisiplinan waktu saat anggota datang"],["Rekap data pelanggaran adat"]],
+      September:[["Pengawasan barisan saat apel"],["Pemantauan tingkat kehadiran"],["Pengingatan kembali tentang adat yang tidak boleh dilanggar"],["Rekap data pelanggaran adat"]],
+      Oktober:[["Pemantauan kedisiplinan waktu saat anggota datang"],["Meninjau sikap & cara melatih saat pelatihan dilaksanakan"],["Pengawasan kerapian anggota"],["Rekap data pelanggaran adat"]],
+      November:[["Pemantauan ketertiban di area latihan"],["Pengawasan sikap seluruh anggota"],["Sesi sharing mengenai hambatan kedisiplinan"],["Rekap data pelanggaran adat"]],
+      Desember:[["Evaluasi selama pelatihan"],["Rekap data pelanggaran adat"],["Evaluasi ketepatan waktu"],["Pemberian sanksi"]]
+    }
+  },
+  {
+    id:"berkala", nama:"Program Berkala", judul:"Persekbid dengan Program Berkala",
+    sub:"Program kerja dan kegiatan rutin organisasi",
+    berkala:[
+      {bidang:"Kesehatan",program:"Pengecekan dan kesiapan P3K",waktu:"Setiap latihan",ket:"Memeriksa kelengkapan P3K, mendampingi balonpas saat lari, dan memantau balonpas ketika melakukan kegiatan di lapangan."},
+      {bidang:"Humas & Dokumentasi",program:"Paskibra Digital Archive: mengarsipkan foto, video, sertifikat, dan dokumentasi kegiatan.",waktu:"Setiap latihan",ket:"—"},
+      {bidang:"Perlengkapan",program:"Menyediakan perlengkapan yang dibutuhkan ekskul Paskibra MAN 1 Belitung; menjaga inventaris perlengkapan milik ekskul.",waktu:"Setiap latihan",ket:"—"}
+    ]
+  }
+];
+
+/* =====================================================================
+   TAMPILAN
+   ===================================================================== */
+const BULAN_ID = ["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
+
+// Minggu ke-n dalam bulan: tgl 1–7 = M1, 8–14 = M2, 15–21 = M3, 22+ = M4
+function posisiSekarang(d = new Date()){
+  return { bulan: BULAN_ID[d.getMonth()], minggu: Math.min(4, Math.ceil(d.getDate()/7)) };
+}
+
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]))}
+
+function normalisasi(x){ // terima ["a","b"] atau {t,i}
+  return Array.isArray(x) ? {t:"",i:x} : x;
+}
+
+function htmlMinggu(item, n, cur){
+  const m = normalisasi(item);
+  return `<div class="pk-week${cur?" cur":""}">
+    <b>Minggu ${n}${cur?" · minggu ini":""}</b>
+    ${m.t?`<div class="t">${esc(m.t)}</div>`:""}
+    <ul>${m.i.map(x=>`<li>${esc(x)}</li>`).join("")}</ul>
+  </div>`;
+}
+
+function renderProkerLengkap(el, aktifId){
+  const now = posisiSekarang();
+  aktifId = aktifId || "umum";
+  const bid = PROKER.find(p=>p.id===aktifId) || PROKER[0];
+
+  // Ringkasan "minggu ini" dari semua persekbid
+  const dalamPeriode = PROKER_PERIODE.bulan.includes(now.bulan);
+  let ringkas = "";
+  if(dalamPeriode){
+    const baris = PROKER.filter(p=>p.jadwal).map(p=>{
+      const m = normalisasi(p.jadwal[now.bulan][now.minggu-1]);
+      return `<li><b>${esc(p.nama)}:</b> ${esc([m.t,...m.i].filter(Boolean).join(" · "))}</li>`;
+    }).join("");
+    ringkas = `<div class="pk-now"><small>Minggu ini · ${now.bulan} minggu ${now.minggu}</small>
+      <h3>Agenda semua Persekbid</h3><ul style="margin:0;padding-left:18px">${baris}</ul></div>`;
+  }
+
+  const chips = PROKER.map(p=>`<button class="pk-chip${p.id===bid.id?" on":""}" data-id="${p.id}">${esc(p.nama)}</button>`).join("");
+
+  let isi = "";
+  if(bid.jadwal){
+    isi = PROKER_PERIODE.bulan.map(b=>{
+      const ini = b===now.bulan;
+      return `<details class="pk-month"${ini||!dalamPeriode?" open":""}>
+        <summary><span>${b} ${PROKER_PERIODE.tahun}${ini?'<span class="pk-badge">Bulan ini</span>':""}</span></summary>
+        <div class="pk-weeks">${bid.jadwal[b].map((w,i)=>htmlMinggu(w,i+1,ini&&now.minggu===i+1)).join("")}</div>
+      </details>`;
+    }).join("");
+  } else if(bid.berkala){
+    isi = `<div class="pk-month"><table class="pk-table">
+      <tr><th>Persekbid</th><th>Program</th><th>Waktu</th></tr>
+      ${bid.berkala.map(r=>`<tr><td><b>${esc(r.bidang)}</b></td><td>${esc(r.program)}${r.ket!=="—"?`<div class="pk-note">${esc(r.ket)}</div>`:""}</td><td>${esc(r.waktu)}</td></tr>`).join("")}
+    </table></div>`;
+  }
+
+  el.innerHTML = `
+    <div class="pk-head"><h2>Program Kerja ${PROKER_PERIODE.bulan[0]} – ${PROKER_PERIODE.bulan.at(-1)} ${PROKER_PERIODE.tahun}</h2>
+      <p>PASKIBRA MAN 1 Belitung</p></div>
+    ${ringkas}
+    <div class="pk-chips">${chips}</div>
+    <div class="pk-head"><h2 style="font-size:17px">${esc(bid.judul)}</h2><p>${esc(bid.sub)}</p></div>
+    ${isi}
+    ${bid.catatan?`<p class="pk-note">Catatan: ${esc(bid.catatan)}</p>`:""}`;
+
+  el.querySelectorAll(".pk-chip").forEach(c=>c.onclick=()=>renderProkerLengkap(el,c.dataset.id));
+}
+
+renderProkerLengkap(document.getElementById("proker-lengkap"));
+
+/* =====================================================================
+   INPUT KEGIATAN OLEH SISWA
+   Alur: Siswa input → status "Menunggu" → Pelatih ✅ → Pembina ✅ → "Disetujui"
+   Penyimpanan di bawah memakai localStorage (untuk contoh).
+   GANTI fungsi muatData() & simpanData() dengan penyimpanan aplikasi Bapak
+   (Firebase / Google Sheet / server) — bagian lain tidak perlu diubah.
+   ===================================================================== */
+const KEY = "pasmansabel_kegiatan";
+async function muatData(){ try{ return JSON.parse(localStorage.getItem(KEY))||[] }catch(e){ return [] } }
+async function simpanData(list){ try{ localStorage.setItem(KEY, JSON.stringify(list)) }catch(e){} }
+
+// Peran pengguna yang login. Di aplikasi asli, ambil dari data login.
+let PERAN = "Siswa";            // "Siswa" | "Ketua PPS" | "Pelatih" | "Pembina"
+let NAMA_LOGIN = "";
+
+function prokerUntuk(idBidang, tanggal){
+  const d = new Date(tanggal+"T00:00:00");
+  const p = posisiSekarang(d);
+  const bid = PROKER.find(x=>x.id===idBidang);
+  if(!bid || !bid.jadwal || !bid.jadwal[p.bulan]) return null;
+  const m = normalisasi(bid.jadwal[p.bulan][p.minggu-1]);
+  return { ...p, judul: m.t || m.i[0], butir: m.i };
+}
+
+function hariIni(){ const d=new Date(); d.setMinutes(d.getMinutes()-d.getTimezoneOffset()); return d.toISOString().slice(0,10) }
+function fmtTgl(s){ const d=new Date(s+"T00:00:00"); return d.getDate()+" "+BULAN_ID[d.getMonth()].slice(0,3)+" "+d.getFullYear() }
+
+async function renderInputKegiatan(el, bukaForm=false){
+  const data = await muatData();
+  const bidangInput = PROKER.filter(p=>p.jadwal);
+
+  const form = !bukaForm ? "" : `
+  <form class="ik-form" id="ik-form">
+    <details class="ik-ref" style="border-color:#5a4a1a;background:#1f1a0c">
+      <summary style="cursor:pointer;font-weight:700;color:#ffcf73">📋 Format pengisian (baca dulu)</summary>
+      <ol style="margin:8px 0 0;padding-left:18px;line-height:1.5">
+        <li><b>Satu kegiatan = satu input.</b> Satu Persekbid hanya sekali per tanggal. Jangan input ulang kalau sudah muncul di daftar.</li>
+        <li><b>Tekan Kirim sekali saja</b>, lalu tunggu sampai form tertutup.</li>
+        <li><b>Nama:</b> nama lengkap, bukan panggilan.</li>
+        <li><b>Tanggal:</b> tanggal latihan, bukan tanggal mengisi.</li>
+        <li><b>Judul:</b> otomatis dari proker. Ubah hanya jika pilih "Ada perubahan" dan tulis alasannya.</li>
+        <li><b>Evaluasi:</b> minimal 2 kalimat — yang <i>sudah bagus</i> dan yang <i>masih kurang</i>.<br>
+          Contoh: <i>"Langkah tegap sudah kompak. Tempo, power, dan patah-patah masih kurang, perlu diulang minggu depan."</i></li>
+        <li><b>Jumlah hadir:</b> angka saja, mis. 24.</li>
+        <li>Salah isi? Hapus selama masih <b>Menunggu</b>, lalu input lagi. Setelah disetujui Pelatih, minta Ketua PPS/Pembina.</li>
+      </ol>
+    </details>
+    <label>Nama penginput<input name="nama" required placeholder="Nama lengkap" value="${esc(NAMA_LOGIN)}"></label>
+    <label>Persekbid<select name="bidang">${bidangInput.map(p=>`<option value="${p.id}">${esc(p.nama)}</option>`).join("")}</select></label>
+    <label>Tanggal kegiatan<input type="date" name="tanggal" required value="${hariIni()}"></label>
+    <div class="ik-ref" id="ik-ref"></div>
+    <label>Pelaksanaan</label>
+    <div class="ik-radio">
+      <label><input type="radio" name="sesuai" value="ya" checked> Sesuai proker</label>
+      <label><input type="radio" name="sesuai" value="tidak"> Ada perubahan</label>
+    </div>
+    <label id="ik-alasan" hidden>Alasan perubahan<textarea name="alasan" placeholder="Mis. lapangan dipakai, hujan, materi belum tuntas…"></textarea></label>
+    <label>Judul kegiatan<input name="judul" required></label>
+    <label>Jenis<select name="jenis"><option>Latihan Rutin</option><option>Materi</option><option>Latihan Fisik</option><option>Latihan Pengibaran</option><option>Lainnya</option></select></label>
+    <label>Evaluasi / catatan<textarea name="catatan" required minlength="30" placeholder="Apa yang sudah bagus, apa yang masih kurang?"></textarea></label>
+    <label>Jumlah anggota hadir<input type="number" name="hadir" min="0" inputmode="numeric"></label>
+    <div class="ik-warn" id="ik-dobel" hidden></div>
+    <div class="ik-row">
+      <button class="ik-btn red" type="submit" id="ik-kirim">Kirim untuk disetujui</button>
+      <button class="ik-btn ghost" type="button" id="ik-batal">Batal</button>
+    </div>
+  </form>`;
+
+  const kartu = data.slice().sort((a,b)=>b.tanggal.localeCompare(a.tanggal)).map(k=>{
+    const st = k.ditolak ? ["no","Ditolak"] : (k.pelatih&&k.pembina) ? ["ok","Disetujui"] : ["w","Menunggu"];
+    const bid = PROKER.find(p=>p.id===k.bidang);
+    const bisaPelatih = PERAN==="Pelatih" && !k.pelatih && !k.ditolak;
+    const bisaPembina = PERAN==="Pembina" && k.pelatih && !k.pembina && !k.ditolak;
+    const bisaHapus = PERAN==="Pembina" || PERAN==="Ketua PPS" || (PERAN==="Siswa" && st[1]==="Menunggu" && !k.pelatih);
+    return `<div class="ik-card">
+      <h4><span>${esc(k.judul)}</span><span class="ik-st ${st[0]}">${st[1]}</span></h4>
+      <div class="ik-meta">${fmtTgl(k.tanggal)} · ${esc(bid?bid.nama:k.bidang)} · ${esc(k.jenis)}${k.hadir?` · ${k.hadir} hadir`:""}</div>
+      <div class="ik-meta">Oleh ${esc(k.nama)} · Pelatih ${k.pelatih?"✅":"⏳"} · Pembina ${k.pembina?"✅":"⏳"}</div>
+      <div class="ik-meta">${k.sesuai==="ya"?"✔ Sesuai proker":"⚠ Ada perubahan: "+esc(k.alasan||"-")}</div>
+      <p style="margin:8px 0 0">${esc(k.catatan)}</p>
+      <div class="ik-row">
+        ${bisaPelatih?`<button class="ik-btn" data-acc="pelatih" data-id="${k.id}">✍️ Setujui (Pelatih)</button>`:""}
+        ${bisaPembina?`<button class="ik-btn" data-acc="pembina" data-id="${k.id}">✍️ Setujui (Pembina)</button>`:""}
+        ${(bisaPelatih||bisaPembina)?`<button class="ik-btn ghost" data-tolak="${k.id}">Tolak</button>`:""}
+        ${bisaHapus?`<button class="ik-btn ghost" data-hapus="${k.id}" style="color:#ff6b62">🗑️ Hapus</button>`:""}
+      </div>
+    </div>`;
+  }).join("") || `<p class="pk-note">Belum ada kegiatan yang diinput.</p>`;
+
+  el.innerHTML = `
+    <div class="pk-head" style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+      <div><h2 style="font-size:17px">Kegiatan yang Diinput</h2><p>Siswa input → Pelatih ✅ → Pembina ✅</p></div>
+      ${!bukaForm && (PERAN==="Siswa"||PERAN==="Ketua PPS") ? `<button class="ik-btn red" id="ik-buka">+ Input</button>`:""}
+    </div>
+    ${form}
+    ${kartu}
+    <div class="ik-role">Coba sebagai:
+      <select id="ik-peran">${["Siswa","Ketua PPS","Pelatih","Pembina"].map(r=>`<option${r===PERAN?" selected":""}>${r}</option>`).join("")}</select>
+      <span>(hanya untuk contoh — di aplikasi ikut akun login)</span></div>`;
+
+  // ---- event ----
+  const $ = s=>el.querySelector(s);
+  $("#ik-peran").onchange = e=>{ PERAN=e.target.value; renderInputKegiatan(el) };
+  if($("#ik-buka")) $("#ik-buka").onclick = ()=>renderInputKegiatan(el,true);
+
+  el.querySelectorAll("[data-acc]").forEach(b=>b.onclick=async()=>{
+    const list=await muatData(); const k=list.find(x=>x.id===b.dataset.id);
+    k[b.dataset.acc]=true; k[b.dataset.acc+"_waktu"]=new Date().toISOString();
+    await simpanData(list); renderInputKegiatan(el);
+  });
+  el.querySelectorAll("[data-tolak]").forEach(b=>b.onclick=async()=>{
+    const list=await muatData(); list.find(x=>x.id===b.dataset.tolak).ditolak=true;
+    await simpanData(list); renderInputKegiatan(el);
+  });
+  el.querySelectorAll("[data-hapus]").forEach(b=>b.onclick=async()=>{
+    const id=b.dataset.hapus;
+    if(!confirm("Hapus kegiatan ini? Data tidak bisa dikembalikan.")) return;
+    b.disabled=true; b.textContent="Menghapus…";
+    try{
+      const lama=await muatData();
+      await simpanData(lama.filter(x=>x.id!==id));       // hapus berdasarkan ID unik, bukan judul
+      const cek=await muatData();                          // pastikan benar-benar terhapus di penyimpanan
+      if(cek.some(x=>x.id===id)) throw new Error("Data masih ada di penyimpanan");
+    }catch(err){
+      alert("Gagal menghapus: "+err.message+"\nCek hak akses akun ini di database.");
+    }
+    renderInputKegiatan(el);
+  });
+
+  if(!bukaForm) return;
+  const f=$("#ik-form");
+  const isiReferensi=()=>{
+    const r=prokerUntuk(f.bidang.value,f.tanggal.value);
+    $("#ik-ref").innerHTML = r
+      ? `<b>Proker ${esc(r.bulan)} minggu ${r.minggu}</b><div style="margin-top:4px">${esc(r.judul)}</div>
+         <ul style="margin:4px 0 0;padding-left:18px">${r.butir.map(x=>`<li>${esc(x)}</li>`).join("")}</ul>`
+      : `<b>Di luar periode proker</b><div style="margin-top:4px">Tanggal ini tidak ada di jadwal Agustus–Desember.</div>`;
+    if(f.sesuai.value==="ya" && r) f.judul.value = r.judul;
+    if(f.bidang.value==="samapta") f.jenis.value="Latihan Fisik";
+    else if(f.bidang.value==="materi") f.jenis.value="Materi";
+    else f.jenis.value="Latihan Rutin";
+    cekDobel();
+  };
+  const cekDobel=()=>{
+    const ada=data.find(k=>k.bidang===f.bidang.value && k.tanggal===f.tanggal.value);
+    $("#ik-dobel").hidden=!ada;
+    if(ada) $("#ik-dobel").textContent=`Sudah ada input untuk Persekbid ini di tanggal ${fmtTgl(ada.tanggal)} ("${ada.judul}" oleh ${ada.nama}). Tidak perlu input ulang.`;
+    $("#ik-kirim").disabled=!!ada;
+  };
+  f.bidang.onchange=isiReferensi; f.tanggal.onchange=isiReferensi;
+  f.querySelectorAll("[name=sesuai]").forEach(r=>r.onchange=()=>{
+    const ubah=f.sesuai.value==="tidak";
+    $("#ik-alasan").hidden=!ubah; f.alasan.required=ubah;
+    if(!ubah) isiReferensi();
+  });
+  $("#ik-batal").onclick=()=>renderInputKegiatan(el);
+  f.onsubmit=async e=>{
+    e.preventDefault();
+    const btn=$("#ik-kirim"); if(btn.disabled) return;
+    btn.disabled=true; btn.textContent="Mengirim…";   // cegah dobel klik
+    const v=Object.fromEntries(new FormData(f));
+    NAMA_LOGIN=v.nama;
+    const list=await muatData();
+    if(list.some(k=>k.bidang===v.bidang&&k.tanggal===v.tanggal)){ renderInputKegiatan(el); return; }
+    list.push({ id:Date.now().toString(36), ...v, hadir:v.hadir?+v.hadir:null,
+      pelatih:false, pembina:false, ditolak:false, dibuat:new Date().toISOString() });
+    await simpanData(list);
+    renderInputKegiatan(el);
+  };
+  isiReferensi();
+}
+
+renderInputKegiatan(document.getElementById("input-kegiatan"));
+</script>
+</body>
+</html>
