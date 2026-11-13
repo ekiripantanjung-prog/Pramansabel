@@ -814,12 +814,44 @@ function goScreen(id){
 // ═══════════════════════════════════════════
 // BERANDA
 // ═══════════════════════════════════════════
+// ── Pengingat arsip tahunan (khusus Pembina) ──
+// Muncul di Beranda bila: (a) sudah masuk Juli–Agustus (masa serah terima jabatan),
+// ada data sebelum 1 Juli, dan arsip tahun ini belum dilakukan; atau
+// (b) kapan pun, penyimpanan cloud sudah terpakai ≥ 70%.
+function pengingatArsipHTML(){
+  if(R!=='pembina')return '';
+  const now=new Date();
+  const thn=now.getMonth()>=6?now.getFullYear():now.getFullYear()-1;
+  const batas=new Date(thn,6,1);
+  const sudah=D.config&&D.config.arsipTerakhir&&D.config.arsipTerakhir>=thn+'-07-01';
+  const tunda=D.config&&D.config.arsipTunda&&D.config.arsipTunda>Date.now();
+  const kat=(typeof ARSIP_KATEGORI!=='undefined'?ARSIP_KATEGORI.filter(c=>c.on).map(c=>c.k):['absensi','komando','pengumuman','kas']);
+  const nLama=kat.reduce((n,k)=>n+(D[k]||[]).filter(x=>{const t=x&&parseTglAny(x.tgl);return t&&t<batas;}).length,0);
+  const pakai=Math.round(JSON.stringify(D).length/(typeof BATAS_CLOUD!=='undefined'?BATAS_CLOUD:50000)*100);
+  let msg='';
+  if(pakai>=70)msg=`⚠️ <b>Penyimpanan cloud sudah terpakai ${pakai}%.</b> Segera arsipkan data lama supaya data baru tetap bisa tersimpan.`;
+  else if(now.getMonth()>=6&&now.getMonth()<=7&&!sudah&&!tunda&&nLama)msg=`🗄️ <b>Waktunya arsip data tahunan!</b> Ada ${nLama} data sebelum 1 Juli ${thn}. Arsipkan & bersihkan supaya aplikasi tetap ringan untuk pengurus baru.`;
+  if(!msg)return '';
+  return`<div class="alert alert-warn" style="margin-bottom:10px;font-size:13px">${msg}
+    <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+      <button class="btn btn-primary btn-sm" onclick="bukaArsip()">Buka Arsip Data →</button>
+      ${pakai<70?`<button class="btn btn-ghost btn-sm" onclick="D.config.arsipTunda=Date.now()+7*864e5;save();renderBeranda()">Ingatkan minggu depan</button>`:''}
+    </div></div>`;
+}
+function bukaArsip(){
+  goScreen('pengaturan');
+  const tabs=[...document.querySelectorAll('#s-pengaturan .tab')];
+  const t=tabs.find(b=>b.textContent.includes('Sinkron'));
+  tabPengaturan('sinkron',t);
+  setTimeout(()=>{if(typeof hitungArsip==='function')hitungArsip();document.getElementById('arsip-batas')?.scrollIntoView({behavior:'smooth',block:'center'});},150);
+}
+
 function renderBeranda(){
   const el=document.getElementById('s-beranda');
   const unreadKom=D.komando.filter(k=>!k.dibaca).length;
   const unreadPng=D.pengumuman.filter(k=>!k.dibaca).length;
 
-  let html='';
+  let html=pengingatArsipHTML();
 
   // Status sinkron — supaya anggota bisa pastikan data sudah terhubung ke cloud
   if(GS_URL){
@@ -4126,6 +4158,7 @@ function hapusDataLama(){
   }
   kat.forEach(k=>{arsipLama(k,batas).forEach(x=>tandaHapus(k,x.id));});
   if(typeof hitungUlangTotalAbsen==='function')hitungUlangTotalAbsen();
+  if(!D.config)D.config={};D.config.arsipTerakhir=lbl;delete D.config.arsipTunda;
   window._arsipSiap=null;
   save();
   toast(`🗑 ${n} data lama dibersihkan. Menyimpan ke cloud...`,4000);
@@ -4268,7 +4301,7 @@ function resetData(){
 
 <div id="footer-cr" style="text-align:center;padding:16px;font-size:11px;color:var(--fg3);margin-top:8px;border-top:1px solid var(--border)">
   © 2026 Eki Ripan J.R, S.Pd., Gr. · Pembina PASKIBRA MAN 1 Belitung<br>
-  <span style="font-size:10px;opacity:.7">PASMANSABEL — Aplikasi Manajemen PASKIBRA MAN 1 Belitung</span>
+  <span style="font-size:10px;opacity:.7">PASMANSABEL — Aplikasi Manajemen PASKIBRA MAN 1 Belitung</span><br><span style="font-size:10px;opacity:.6">Versi 13 Nov 2026 · 22.05</span>
 </div>
 </body>
 </html>
