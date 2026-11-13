@@ -522,7 +522,19 @@ async function saveGS(){
     }
   }catch(e){}
   const d={...payload,ttd:null};
-  _pendingPush=fetch(GS_URL,{method:'POST',body:JSON.stringify(d)}).catch(()=>{}).finally(()=>{_pendingPush=null;});
+  const teksKirim=JSON.stringify(d);
+  window._lastGSSize=teksKirim.length;
+  // JANGAN kirim kalau sudah pasti bakal ditolak Google Sheets (batas ~50.000
+  // karakter per sel) — sebelumnya push yang gagal di sisi server diam saja
+  // (fetch().catch(()=>{}) tidak pernah mengecek isi responsnya), jadi data
+  // terlihat "tersimpan" di HP pembuatnya padahal tidak pernah sampai ke cloud.
+  if(teksKirim.length>49500){
+    window._gsOverCapacity=true;
+    toast('🚫 GAGAL sinkron ke cloud: data sudah melewati batas penyimpanan (~50.000 karakter). Buka Pengaturan → Sinkron untuk detail.');
+    return;
+  }
+  window._gsOverCapacity=false;
+  _pendingPush=fetch(GS_URL,{method:'POST',body:teksKirim}).catch(()=>{}).finally(()=>{_pendingPush=null;});
   return _pendingPush;
 }
 async function loadGS(){
@@ -1888,9 +1900,20 @@ function simpanProker(){
   const file=fileInp&&fileInp.files[0];
   const dataBaru={id:uid(),judul:j,jenis:document.getElementById('pk-jenis').value,tgl:document.getElementById('pk-tgl').value,isi:document.getElementById('pk-isi').value.trim(),accPembina:false,accPelatih:false,dibuatOleh:RLBL[R]};
   if(file){
-    const MAXSZ=400*1024;
-    if(file.size>MAXSZ){
-      toast('⚠️ File lampiran maksimal 400KB (karena disimpan di database cloud). Proker tetap disimpan tanpa lampiran.');
+    // Batas realistis: cloud (Google Sheets) hanya muat ~50.000 karakter total
+    // untuk SELURUH data aplikasi, bukan per-proker. Jadi batas lampiran harus
+    // dihitung dari sisa ruang yang benar-benar ada sekarang, bukan angka tetap
+    // — sebelumnya dipatok 400KB padahal sisa ruang bisa jauh lebih kecil, dan
+    // itulah sebab lampiran bikin Proker gagal tersimpan tanpa pemberitahuan.
+    const sisaRuang=48000-JSON.stringify(D).length; // sisakan jarak aman dari batas ~50.000
+    const maxRawBytes=Math.max(0,Math.floor(sisaRuang*0.7)); // base64 menggembungkan ~1.37x
+    if(sisaRuang<2000){
+      toast('⚠️ Data cloud sudah hampir penuh (lihat Pengaturan → Sinkron → Cek Status Sinkron). Lampiran TIDAK bisa disimpan sampai ada ruang tersisa. Proker tetap disimpan tanpa lampiran.');
+      finishSimpanProker(dataBaru);
+      return;
+    }
+    if(file.size>maxRawBytes){
+      toast('⚠️ File lampiran maksimal ±'+Math.floor(maxRawBytes/1024)+'KB saat ini (sisa ruang cloud terbatas). Proker tetap disimpan tanpa lampiran.');
       finishSimpanProker(dataBaru);
       return;
     }
@@ -3606,6 +3629,18 @@ function renderTTD(){
   :`<div class="card"><p style="font-size:13px;color:var(--fg2);margin-bottom:12px">Belum ada TTD tersimpan.</p></div>
   <button class="btn btn-primary btn-full" onclick="buatTTDBaru()">✍ Buat Tanda Tangan</button>`}`;
 }
+const BATAS_CLOUD=50000;
+function renderKapasitasCloud(){
+  const sz=window._lastGSSize||JSON.stringify(D).length;
+  const pct=Math.min(100,Math.round(sz/BATAS_CLOUD*100));
+  const warna=pct>=95?'var(--danger,#ef4444)':pct>=80?'var(--warn,#f59e0b)':'var(--ok,#22c55e)';
+  const pesan=window._gsOverCapacity?'<div class="alert alert-danger" style="margin-bottom:8px">🚫 Sinkron terakhir GAGAL — data melewati batas penyimpanan cloud. Hapus lampiran/data lama yang tidak perlu untuk membuat ruang.</div>':
+    pct>=80?`<div class="alert alert-warn" style="margin-bottom:8px">⚠️ Data cloud sudah ${pct}% penuh — hati-hati menambah lampiran besar, bisa gagal tersimpan tanpa Anda sadari.</div>`:'';
+  return`${pesan}<div style="margin-bottom:10px">
+    <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--fg3);margin-bottom:3px"><span>Kapasitas data cloud</span><span>${sz.toLocaleString('id')} / ${BATAS_CLOUD.toLocaleString('id')} karakter (${pct}%)</span></div>
+    <div style="background:var(--border);height:7px;border-radius:4px;overflow:hidden"><div style="width:${pct}%;height:100%;background:${warna}"></div></div>
+  </div>`;
+}
 function renderSinkron(){
   return`<div class="card">
     <div class="card-title">☁️ Sinkron Google Sheet</div>
@@ -3617,6 +3652,7 @@ function renderSinkron(){
   </div>
   ${GS_URL?`<div class="card" style="margin-top:12px">
     <div class="card-title">Sinkronisasi Data</div>
+    ${renderKapasitasCloud()}
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       <button class="btn btn-primary btn-sm" onclick="syncCloud('pull')">⬇️ Ambil dari Cloud</button>
       <button class="btn btn-blue btn-sm" onclick="syncCloud('push')">⬆️ Simpan ke Cloud</button>
@@ -3656,8 +3692,10 @@ async function cekDiagnostikSinkron(){
         return`<tr><td style="padding:3px 8px 3px 0">${k}</td><td style="padding:3px 0;text-align:right;font-weight:600">${n}</td></tr>`;
       }).join('');
       const prokerList=Array.isArray(d.proker)?d.proker.map(p=>'• '+(p.judul||'(tanpa judul)')).join('<br>'):'';
+      window._lastGSSize=teks.length;
+      const pctCek=Math.round(teks.length/BATAS_CLOUD*100);
       html=`<div class="alert alert-ok" style="margin-top:10px">✅ Berhasil terhubung ke cloud</div>
-      <p style="font-size:11px;color:var(--fg3);margin-top:6px">Waktu respons: ${waktu}ms · Ukuran data: ${teks.length.toLocaleString('id')} karakter</p>
+      <p style="font-size:11px;color:var(--fg3);margin-top:6px">Waktu respons: ${waktu}ms · Ukuran data: ${teks.length.toLocaleString('id')} / ${BATAS_CLOUD.toLocaleString('id')} karakter (${pctCek}%)${pctCek>=80?' ⚠️ Mendekati/melewati batas!':''}</p>
       <table style="font-size:12px;margin-top:8px;width:100%">${rows}</table>
       ${prokerList?`<div style="font-size:12px;margin-top:8px"><b>Isi proker di cloud saat ini:</b><br>${prokerList}</div>`:'<div style="font-size:12px;margin-top:8px;color:var(--fg3)">Tidak ada data proker di cloud sama sekali.</div>'}`;
     }
