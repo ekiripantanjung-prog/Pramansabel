@@ -361,6 +361,7 @@ function defD(){return{
   absensi:[],
   pelanggaran:[],
   proker:[],
+  prokerTahunan:[],
   evaluasi:[],
   lomba:[],
   agenda:[],
@@ -413,7 +414,9 @@ function defD(){return{
   izin:[],
   ttd:null, // base64 TTD Pembina
   pins:{},
-  config:{pelatih_komando:false,tahunAktif:26,tahunSenior:25}
+  config:{pelatih_komando:false,tahunAktif:26,tahunSenior:25},
+  _del:{} // daftar id yang sudah dihapus per jenis data (lihat tandaHapus()), supaya
+          // sinkronisasi cloud tidak membangkitkan lagi item yang sudah dihapus
 };}
 
 let D = defD();
@@ -483,8 +486,33 @@ function migrasiKodeEtik(){
 }
 // Field data yang berupa daftar/array (punya banyak item dengan id masing-masing).
 // Dipakai supaya sinkronisasi cloud menggabungkan, bukan menimpa habis.
-const DATA_ARRAY_KEYS=['anggota','absensi','pelanggaran','proker','evaluasi','lomba','agenda','adat','info','kas','komando','pengumuman','pemetaan','samapta','materi','izin'];
-function mergeField(key,localVal,cloudVal){
+const DATA_ARRAY_KEYS=['anggota','absensi','pelanggaran','proker','prokerTahunan','evaluasi','lomba','agenda','adat','info','kas','komando','pengumuman','pemetaan','samapta','materi','izin'];
+// Hapus satu item dari daftar sekaligus MENANDAINYA sebagai terhapus (tombstone).
+// Kenapa perlu: sinkronisasi cloud menggabungkan data per-id dari cloud+lokal supaya
+// input baru dari HP lain tidak hilang — tapi akibatnya kalau item cuma dibuang dari
+// array lokal lalu sinkron, cloud masih punya item itu dan langsung "menghidupkannya"
+// lagi di gabungan berikutnya (makanya item yang dihapus kelihatan muncul lagi).
+// Dengan mencatat id-nya di D._del, gabungan manapun (lihat mergeField) akan selalu
+// membuang id tersebut, dari cloud maupun lokal, sampai kapanpun.
+function tandaHapus(key,id){
+  D[key]=(D[key]||[]).filter(x=>x.id!==id);
+  if(!D._del)D._del={};
+  if(!D._del[key])D._del[key]=[];
+  if(!D._del[key].includes(id))D._del[key].push(id);
+}
+// Gabungkan dua daftar id-terhapus (lokal & cloud) jadi satu — sekali suatu id pernah
+// ditandai terhapus di manapun, ia tetap terhapus di gabungan manapun selanjutnya.
+function gabungDel(localDel,cloudDel){
+  const out={};
+  const keys=new Set([...Object.keys(localDel||{}),...Object.keys(cloudDel||{})]);
+  keys.forEach(k=>{
+    const a=(localDel&&localDel[k])||[];
+    const b=(cloudDel&&cloudDel[k])||[];
+    out[k]=Array.from(new Set([...a,...b]));
+  });
+  return out;
+}
+function mergeField(key,localVal,cloudVal,delMerged){
   if(DATA_ARRAY_KEYS.includes(key)){
     const cloudArr=Array.isArray(cloudVal)?cloudVal:[];
     const localArr=Array.isArray(localVal)?localVal:[];
@@ -494,6 +522,8 @@ function mergeField(key,localVal,cloudVal){
     // TETAP ada, dan perubahan yang baru kita buat juga tidak hilang.
     cloudArr.forEach(it=>{ if(it&&it.id!=null)map.set(it.id,it); });
     localArr.forEach(it=>{ if(it&&it.id!=null)map.set(it.id,it); });
+    const delIds=(delMerged&&delMerged[key])||[];
+    delIds.forEach(id=>map.delete(id));
     return Array.from(map.values());
   }
   if(key==='pins'||key==='config')return Object.assign({},cloudVal||{},localVal||{});
@@ -513,9 +543,11 @@ async function saveGS(){
     const r=await fetch(GS_URL+'?t='+Date.now());
     const cloud=await r.json();
     if(cloud&&!cloud.error&&cloud.anggota!==undefined){
+      const delMerged=gabungDel(D._del,cloud._del);
       const merged={};
       const keys=new Set([...Object.keys(D),...Object.keys(cloud)]);
-      keys.forEach(k=>{ merged[k]=mergeField(k,D[k],cloud[k]); });
+      keys.forEach(k=>{ if(k!=='_del')merged[k]=mergeField(k,D[k],cloud[k],delMerged); });
+      merged._del=delMerged;
       D=Object.assign(D,merged);
       try{localStorage.setItem(SK,JSON.stringify(D));}catch(e){}
       payload=D;
@@ -553,9 +585,11 @@ async function loadGS(){
       // Proker"), menimpa habis D akan membuat input yang baru itu hilang
       // lagi seolah tidak pernah tersimpan. Dengan digabung per-id, data yang
       // baru dibuat di HP ini maupun dari HP lain sama-sama tetap ada.
+      const delMerged=gabungDel(D._del,cloudFull._del);
       const merged={};
       const keys=new Set([...Object.keys(D),...Object.keys(cloudFull)]);
-      keys.forEach(k=>{ merged[k]=mergeField(k,D[k],cloudFull[k]); });
+      keys.forEach(k=>{ if(k!=='_del')merged[k]=mergeField(k,D[k],cloudFull[k],delMerged); });
+      merged._del=delMerged;
       D=Object.assign(cloudFull,merged);
       D.config=Object.assign(def.config,merged.config||{});
       migrasiAngkatan();
@@ -946,12 +980,12 @@ function lihatSemuaRespon(tipe,id){
 function hapusKomando(id){
   const k=D.komando.find(x=>x.id===id);if(!k)return;
   if(!confirm(`Hapus komando ini?\n\n"${k.pesan.length>80?k.pesan.slice(0,80)+'...':k.pesan}"`))return;
-  D.komando=D.komando.filter(x=>x.id!==id);save();toast('Komando dihapus');renderBeranda();
+  tandaHapus('komando',id);save();toast('Komando dihapus');renderBeranda();
 }
 function hapusPengumuman(id){
   const p=D.pengumuman.find(x=>x.id===id);if(!p)return;
   if(!confirm(`Hapus pengumuman ini?\n\n"${(p.pesan||'').length>80?p.pesan.slice(0,80)+'...':(p.pesan||'(lampiran tanpa teks)')}"`))return;
-  D.pengumuman=D.pengumuman.filter(x=>x.id!==id);save();toast('Pengumuman dihapus');renderBeranda();
+  tandaHapus('pengumuman',id);save();toast('Pengumuman dihapus');renderBeranda();
 }
 function renderKomandoItem(k){
   const bisaEdit=C.komando_kirim(R)||['ketua','tatib'].includes(R);
@@ -1237,7 +1271,7 @@ function hapusAnggotaPermanen(id){
   const a=D.anggota.find(x=>x.id===id);if(!a)return;
   if(!confirm(`Hapus PERMANEN data "${a.nama}"?\n\nIni untuk membetulkan nama ganda/salah input. Data yang sudah dihapus TIDAK BISA dikembalikan (berbeda dengan Non-aktifkan).`))return;
   if(!confirm(`Yakin sekali? Ketik OK di konfirmasi berikutnya untuk menghapus "${a.nama}" selama-lamanya.`))return;
-  D.anggota=D.anggota.filter(x=>x.id!==id);
+  tandaHapus('anggota',id);
   save();
   toast(`🗑️ Data "${a.nama}" telah dihapus permanen`);
   filterDaftarAnggota();
@@ -1824,7 +1858,7 @@ function simpanEditAgenda(aid){
 }
 function hapusAgenda(aid){
   if(!confirm('Hapus kegiatan ini?'))return;
-  D.agenda=D.agenda.filter(x=>x.id!==aid);save();toast('Kegiatan dihapus');renderBeranda();
+  tandaHapus('agenda',aid);save();toast('Kegiatan dihapus');renderBeranda();
 }
 
 // ═══════════════════════════════════════════
@@ -1834,6 +1868,7 @@ function renderKegiatan(){
   const el=document.getElementById('s-kegiatan');
   let tabs=`<div class="tabs">
     <button class="tab on" onclick="tabKegiatan('proker',this)">Proker</button>
+    <button class="tab" onclick="tabKegiatan('tahunan',this)">Tahunan</button>
     <button class="tab" onclick="tabKegiatan('tatib',this)">TATIB</button>
     <button class="tab" onclick="tabKegiatan('lomba',this)">Lomba</button>
     <button class="tab" onclick="tabKegiatan('pemetaan',this)">Pemetaan</button>
@@ -1851,6 +1886,7 @@ function tabKegiatan(t,btn){
 function renderTabKegiatan(t){
   const el=document.getElementById('tab-kegiatan');
   if(t==='proker') el.innerHTML=renderProker();
+  else if(t==='tahunan') el.innerHTML=renderProkerTahunan();
   else if(t==='tatib') el.innerHTML=renderTatib();
   else if(t==='lomba') el.innerHTML=renderLomba();
   else if(t==='pemetaan') el.innerHTML=renderPemetaan();
@@ -1908,8 +1944,138 @@ function ajukanProker(pid){
 function hapusProker(pid){
   const p=D.proker.find(x=>x.id===pid);if(!p)return;
   if(!confirm('Hapus proker "'+p.judul+'"? Tindakan ini tidak bisa dibatalkan.'))return;
-  D.proker=D.proker.filter(x=>x.id!==pid);
+  tandaHapus('proker',pid);
   save();toast('Proker dihapus');renderTabKegiatan('proker');
+}
+
+// ═══════════════════════════════════════════
+// PROKER TAHUNAN — satu dokumen rencana kerja setahun penuh (visi, misi,
+// daftar kegiatan sepanjang tahun), terpisah dari Proker per-kegiatan di atas.
+// ═══════════════════════════════════════════
+function renderProkerTahunan(){
+  let html='';
+  if(C.proker_buat(R)){
+    html+=`<button class="btn btn-primary btn-sm" style="margin-bottom:12px" onclick="modalProkerTahunan()">+ Buat Proker Tahunan</button>`;
+  }
+  if(!D.prokerTahunan.length) html+='<div class="alert alert-warn">Belum ada Program Kerja Tahunan.</div>';
+  D.prokerTahunan.slice().reverse().forEach(pt=>{
+    const stClass=pt.accPembina&&pt.accPelatih?'badge-ok':pt.accPembina||pt.accPelatih?'badge-warn':'badge-grey';
+    const stLabel=pt.accPembina&&pt.accPelatih?'Disetujui':(pt.accPembina||pt.accPelatih)?'Sebagian':'Menunggu';
+    html+=`<div class="item"><div class="item-head"><div><div class="item-title">${esc(pt.judul)}</div><div class="item-sub">Tahun Ajaran ${esc(pt.tahun)} · ${(pt.items||[]).length} kegiatan</div></div><span class="badge ${stClass}">${stLabel}</span></div>
+    ${pt.visi?`<div style="font-size:12px;margin-top:6px"><b>Visi:</b> ${esc(pt.visi)}</div>`:''}
+    ${pt.misi?`<div style="font-size:12px;margin-top:4px"><b>Misi:</b> ${esc(pt.misi)}</div>`:''}
+    <table style="width:100%;font-size:12px;margin-top:8px;border-collapse:collapse">
+      <tr style="text-align:left;border-bottom:1px solid var(--border)"><th style="padding:4px">Kegiatan</th><th style="padding:4px">Bulan</th><th style="padding:4px">PJ</th></tr>
+      ${(pt.items||[]).map(it=>`<tr style="border-bottom:1px solid var(--border)"><td style="padding:4px">${esc(it.nama)}</td><td style="padding:4px">${esc(it.bulan||'-')}</td><td style="padding:4px">${esc(it.pj||'-')}</td></tr>`).join('')}
+    </table>
+    <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
+      ${C.proker_acc(R)&&!pt['acc'+((R==='pembina'?'Pembina':'Pelatih'))]?`<button class="btn btn-ok btn-sm" onclick="accProkerTahunan('${pt.id}','${R}')">✓ Setujui</button>`:''}
+      <button class="btn btn-ghost btn-sm" onclick="exportProkerTahunanPDF('${pt.id}')">📄 PDF</button>
+      <button class="btn btn-ghost btn-sm" onclick="exportProkerTahunanWord('${pt.id}')">📝 Word</button>
+      ${C.proker_buat(R)?`<button class="btn btn-ghost btn-sm" onclick="modalProkerTahunan('${pt.id}')">✏️ Edit</button>`:''}
+      ${C.proker_hapus(R)?`<button class="btn btn-ghost btn-sm" style="color:#ef4444" onclick="hapusProkerTahunan('${pt.id}')">🗑 Hapus</button>`:''}
+    </div></div>`;
+  });
+  return html;
+}
+let _tahunanEditId=null,_tahunanItems=[];
+function modalProkerTahunan(editId){
+  _tahunanEditId=editId||null;
+  const pt=editId?D.prokerTahunan.find(x=>x.id===editId):null;
+  _tahunanItems=pt?JSON.parse(JSON.stringify((pt.items&&pt.items.length)?pt.items:[{nama:'',bulan:'',pj:''}])):[{nama:'',bulan:'',pj:''}];
+  bukaModalTahunan(pt||{});
+}
+function bukaModalTahunan(h){
+  h=h||{};
+  const isEdit=!!_tahunanEditId;
+  openModal(`<div class="modal-title">${isEdit?'Edit':'Buat'} Program Kerja Tahunan <button class="modal-close" onclick="closeModal()">×</button></div>
+  <div class="field"><label>Tahun Ajaran</label><input id="pt-tahun" placeholder="Misal: 2026/2027" value="${esc(h.tahun||'')}"></div>
+  <div class="field"><label>Judul</label><input id="pt-judul" placeholder="Program Kerja Tahunan PASKIBRA" value="${esc(h.judul!==undefined?h.judul:'Program Kerja Tahunan PASKIBRA MAN 1 Belitung')}"></div>
+  <div class="field"><label>Visi</label><textarea id="pt-visi" placeholder="Visi kepengurusan...">${esc(h.visi||'')}</textarea></div>
+  <div class="field"><label>Misi</label><textarea id="pt-misi" placeholder="Misi kepengurusan...">${esc(h.misi||'')}</textarea></div>
+  <div class="field"><label>Daftar Kegiatan Setahun</label>
+  <div id="pt-rows">${_tahunanItems.map((it,i)=>barisTahunanHTML(it,i)).join('')}</div>
+  <button class="btn btn-ghost btn-sm" style="margin-top:6px" onclick="tambahBarisTahunan()">+ Tambah Kegiatan</button>
+  </div>
+  <button class="btn btn-primary btn-full" style="margin-top:10px" onclick="simpanProkerTahunan()">💾 Simpan Program Kerja Tahunan</button>`);
+}
+function barisTahunanHTML(it,i){
+  const bulanList=['','Jul','Agu','Sep','Okt','Nov','Des','Jan','Feb','Mar','Apr','Mei','Jun'];
+  return`<div style="display:flex;gap:6px;margin-bottom:6px" data-row="${i}">
+    <input class="pt-nama" placeholder="Nama kegiatan" value="${esc(it.nama||'')}" style="flex:2;min-width:0">
+    <select class="pt-bulan" style="flex:1">${bulanList.map(b=>`<option${it.bulan===b?' selected':''}>${b}</option>`).join('')}</select>
+    <input class="pt-pj" placeholder="PJ" value="${esc(it.pj||'')}" style="flex:1;min-width:0">
+    <button class="btn btn-ghost btn-sm" onclick="hapusBarisTahunan(${i})" style="flex:0 0 auto">✕</button>
+  </div>`;
+}
+function ambilBarisTahunanDariForm(){
+  return[...document.querySelectorAll('#pt-rows [data-row]')].map(r=>({nama:r.querySelector('.pt-nama').value.trim(),bulan:r.querySelector('.pt-bulan').value,pj:r.querySelector('.pt-pj').value.trim()}));
+}
+function ambilHeaderTahunanDariForm(){
+  return{tahun:document.getElementById('pt-tahun')?.value,judul:document.getElementById('pt-judul')?.value,visi:document.getElementById('pt-visi')?.value,misi:document.getElementById('pt-misi')?.value};
+}
+function tambahBarisTahunan(){
+  _tahunanItems=ambilBarisTahunanDariForm();
+  _tahunanItems.push({nama:'',bulan:'',pj:''});
+  bukaModalTahunan(ambilHeaderTahunanDariForm());
+}
+function hapusBarisTahunan(i){
+  _tahunanItems=ambilBarisTahunanDariForm();
+  _tahunanItems.splice(i,1);
+  if(!_tahunanItems.length)_tahunanItems=[{nama:'',bulan:'',pj:''}];
+  bukaModalTahunan(ambilHeaderTahunanDariForm());
+}
+function simpanProkerTahunan(){
+  const tahun=document.getElementById('pt-tahun').value.trim();
+  const judul=document.getElementById('pt-judul').value.trim();
+  if(!tahun)return toast('Tahun ajaran harus diisi');
+  if(!judul)return toast('Judul harus diisi');
+  const items=ambilBarisTahunanDariForm().filter(it=>it.nama);
+  const existing=_tahunanEditId?D.prokerTahunan.find(x=>x.id===_tahunanEditId):null;
+  const data=existing?{...existing}:{id:uid(),accPembina:false,accPelatih:false,dibuatOleh:RLBL[R]};
+  data.tahun=tahun;data.judul=judul;data.visi=document.getElementById('pt-visi').value.trim();data.misi=document.getElementById('pt-misi').value.trim();data.items=items;
+  const idx=D.prokerTahunan.findIndex(x=>x.id===data.id);
+  if(idx>=0)D.prokerTahunan[idx]=data;else D.prokerTahunan.push(data);
+  _tahunanEditId=null;_tahunanItems=[];
+  save();closeModal();toast('Program Kerja Tahunan disimpan');renderTabKegiatan('tahunan');
+}
+function hapusProkerTahunan(id){
+  const pt=D.prokerTahunan.find(x=>x.id===id);if(!pt)return;
+  if(!confirm('Hapus Program Kerja Tahunan "'+pt.judul+'"? Tindakan ini tidak bisa dibatalkan.'))return;
+  tandaHapus('prokerTahunan',id);
+  save();toast('Program Kerja Tahunan dihapus');renderTabKegiatan('tahunan');
+}
+function accProkerTahunan(id,role){
+  const pt=D.prokerTahunan.find(x=>x.id===id);if(!pt)return;
+  if(role==='pembina')pt.accPembina=true;else pt.accPelatih=true;
+  save();toast('Program Kerja Tahunan disetujui');renderTabKegiatan('tahunan');
+}
+function _bodyTahunanHTML(pt){
+  return`<h2 style="margin-bottom:4px">${esc(pt.judul)}</h2>
+  <p style="margin-bottom:12px;color:#555">Tahun Ajaran ${esc(pt.tahun)} · Dibuat oleh ${esc(pt.dibuatOleh||'-')}</p>
+  ${pt.visi?`<p><b>Visi:</b> ${esc(pt.visi)}</p>`:''}
+  ${pt.misi?`<p><b>Misi:</b> ${esc(pt.misi)}</p>`:''}
+  <table style="width:100%;border-collapse:collapse;margin-top:12px" border="1" cellpadding="6">
+    <tr style="background:#eee"><th>No</th><th>Nama Kegiatan</th><th>Bulan</th><th>Penanggung Jawab</th></tr>
+    ${(pt.items||[]).map((it,i)=>`<tr><td>${i+1}</td><td>${esc(it.nama)}</td><td>${esc(it.bulan||'-')}</td><td>${esc(it.pj||'-')}</td></tr>`).join('')}
+  </table>`;
+}
+function exportProkerTahunanPDF(id){
+  const pt=D.prokerTahunan.find(x=>x.id===id);if(!pt)return;
+  if(typeof html2pdf==='undefined')return toast('⚠️ Modul PDF belum siap (butuh koneksi internet saat pertama kali membuka aplikasi). Coba muat ulang aplikasi.');
+  const div=document.createElement('div');div.style.cssText='padding:20px;color:#111';div.innerHTML=_bodyTahunanHTML(pt);
+  toast('⏳ Membuat PDF...');
+  html2pdf().from(div).set({margin:10,filename:`Proker_Tahunan_${pt.tahun}.pdf`,html2canvas:{scale:2},jsPDF:{unit:'mm',format:'a4',orientation:'portrait'}}).save();
+}
+function exportProkerTahunanWord(id){
+  const pt=D.prokerTahunan.find(x=>x.id===id);if(!pt)return;
+  const html=`<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+  <head><meta charset='utf-8'><title>Proker Tahunan</title></head><body>${_bodyTahunanHTML(pt)}</body></html>`;
+  const blob=new Blob(['﻿'+html],{type:'application/msword'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');a.href=url;a.download=`Proker_Tahunan_${pt.tahun}.doc`;a.click();
+  URL.revokeObjectURL(url);
+  toast('📝 File Word diunduh');
 }
 
 let _prokerEditId=null;
@@ -2391,7 +2557,7 @@ function downloadPelanggaranCSV(){
 function hapusPel(id){
   const p=D.pelanggaran.find(x=>x.id===id);if(!p)return;
   if(!confirm(`Hapus permanen catatan pelanggaran ${p.nama} (${p.jenis})? Tindakan ini tidak bisa dibatalkan.`))return;
-  D.pelanggaran=D.pelanggaran.filter(x=>x.id!==id);
+  tandaHapus('pelanggaran',id);
   save();toast('Catatan pelanggaran dihapus');renderTabKegiatan('tatib');
 }
 function simpanPel(){
@@ -2486,7 +2652,7 @@ function simpanEditLomba(lid){
 }
 function hapusLomba(lid){
   if(!confirm('Hapus data lomba ini beserta daftar pesertanya?'))return;
-  D.lomba=D.lomba.filter(x=>x.id!==lid);save();toast('Lomba dihapus');renderTabKegiatan('lomba');
+  tandaHapus('lomba',lid);save();toast('Lomba dihapus');renderTabKegiatan('lomba');
 }
 function umumkanLomba(lid){
   const l=D.lomba.find(x=>x.id===lid);if(!l)return;
@@ -2723,7 +2889,7 @@ function hapusSamaptaTerakhir(nama){
   const rec=D.samapta.filter(s=>s.nama===nama).sort((a,b)=>b.tgl-a.tgl);
   if(!rec.length)return;
   if(!confirm(`Hapus catatan tes terakhir (${tgl(rec[0].tgl)}) milik ${nama}?`))return;
-  D.samapta=D.samapta.filter(s=>s.id!==rec[0].id);
+  tandaHapus('samapta',rec[0].id);
   save();toast('Catatan dihapus');renderTabKegiatan('samapta');
 }
 function downloadSamaptaCSV(){
@@ -3212,7 +3378,7 @@ function lihatBuktiKas(id){
 function hapusKas(id){
   const k=D.kas.find(x=>x.id===id);if(!k)return;
   if(!confirm(`Hapus transaksi "${k.ket}" (${fmtRp(k.nominal)})? Tindakan ini tidak bisa dibatalkan.`))return;
-  D.kas=D.kas.filter(x=>x.id!==id);
+  tandaHapus('kas',id);
   save();toast('Transaksi dihapus');renderTabLaporan('keuangan');
 }
 function downloadKeuanganCSV(){
@@ -3268,7 +3434,7 @@ function renderEvaluasi(){
 function hapusEvaluasi(id){
   const e=D.evaluasi.find(x=>x.id===id);if(!e)return;
   if(!confirm(`Hapus notulen "${e.judul}"? Tindakan ini tidak bisa dibatalkan.`))return;
-  D.evaluasi=D.evaluasi.filter(x=>x.id!==id);
+  tandaHapus('evaluasi',id);
   save();toast('Notulen dihapus');renderTabLaporan('evaluasi');
 }
 function downloadNotulenCSV(){
@@ -3782,7 +3948,7 @@ async function cekDiagnostikSinkron(){
   const el=document.getElementById('diag-sinkron-hasil');
   if(!el)return;
   el.innerHTML='<p style="font-size:12px;margin-top:10px">⏳ Mengecek...</p>';
-  const DATA_KEYS_DIAG=['anggota','absensi','pelanggaran','proker','evaluasi','lomba','agenda','adat','info','kas','komando','pengumuman','pemetaan','samapta','materi','izin'];
+  const DATA_KEYS_DIAG=['anggota','absensi','pelanggaran','proker','prokerTahunan','evaluasi','lomba','agenda','adat','info','kas','komando','pengumuman','pemetaan','samapta','materi','izin'];
   let html='';
   try{
     const t0=Date.now();
