@@ -2001,9 +2001,8 @@ function renderTabKegiatan(t){
 // PROKER
 function renderProker(){
   let html='';
-  if(C.proker_acc(R)){
-    const kunci=R==='pembina'?'accPembina':'accPelatih';
-    const nTunggu=(D.prokerTahunan||[]).filter(x=>!x[kunci]).length;
+  if(R==='pembina'){
+    const nTunggu=(D.prokerTahunan||[]).filter(x=>!x.accPembina).length;
     if(nTunggu)html+=`<div class="alert alert-warn" style="margin-bottom:12px;cursor:pointer" onclick="tabKegiatan('tahunan',document.querySelectorAll('#s-kegiatan .tab')[1])">📅 Ada <b>${nTunggu} Proker Tahunan</b> menunggu persetujuan. <u>Buka tab Tahunan →</u></div>`;
   }
   if(C.proker_buat(R)){
@@ -2068,8 +2067,9 @@ function renderProkerTahunan(){
   }
   if(!D.prokerTahunan.length) html+='<div class="alert alert-warn">Belum ada Program Kerja Tahunan.</div>';
   D.prokerTahunan.slice().reverse().forEach(pt=>{
-    const stClass=pt.accPembina&&pt.accPelatih?'badge-ok':pt.accPembina||pt.accPelatih?'badge-warn':'badge-grey';
-    const stLabel=pt.accPembina&&pt.accPelatih?'Disetujui':(pt.accPembina||pt.accPelatih)?'Sebagian':'Menunggu';
+    // Proker Tahunan cukup disetujui Pembina
+    const stClass=pt.accPembina?'badge-ok':'badge-grey';
+    const stLabel=pt.accPembina?'Disetujui':'Menunggu Pembina';
     html+=`<div class="item"><div class="item-head"><div><div class="item-title">${esc(pt.judul)}</div><div class="item-sub">Tahun Ajaran ${esc(pt.tahun)} · ${(pt.items||[]).length} kegiatan</div></div><span class="badge ${stClass}">${stLabel}</span></div>
     ${pt.visi?`<div style="font-size:12px;margin-top:6px"><b>Visi:</b> ${esc(pt.visi)}</div>`:''}
     ${pt.misi?`<div style="font-size:12px;margin-top:4px"><b>Misi:</b> ${esc(pt.misi)}</div>`:''}
@@ -2078,7 +2078,7 @@ function renderProkerTahunan(){
       ${(pt.items||[]).map(it=>`<tr style="border-bottom:1px solid var(--border)"><td style="padding:4px">${esc(it.nama)}</td><td style="padding:4px">${esc(it.bulan||'-')}</td><td style="padding:4px">${esc(it.pj||'-')}</td></tr>`).join('')}
     </table>
     <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
-      ${C.proker_acc(R)&&!pt['acc'+((R==='pembina'?'Pembina':'Pelatih'))]?`<button class="btn btn-ok btn-sm" onclick="accProkerTahunan('${pt.id}','${R}')">✓ Setujui</button>`:''}
+      ${R==='pembina'&&!pt.accPembina?`<button class="btn btn-ok btn-sm" onclick="accProkerTahunan('${pt.id}','pembina')">✓ Setujui</button>`:''}
       <button class="btn btn-ghost btn-sm" onclick="exportProkerTahunanPDF('${pt.id}')">📄 PDF</button>
       <button class="btn btn-ghost btn-sm" onclick="exportProkerTahunanWord('${pt.id}')">📝 Word</button>
       ${C.proker_buat(R)?`<button class="btn btn-ghost btn-sm" onclick="modalProkerTahunan('${pt.id}')">✏️ Edit</button>`:''}
@@ -2142,11 +2142,12 @@ function simpanProkerTahunan(){
   const items=ambilBarisTahunanDariForm().filter(it=>it.nama);
   const existing=_tahunanEditId?D.prokerTahunan.find(x=>x.id===_tahunanEditId):null;
   const data=existing?{...existing}:{id:uid(),accPembina:false,accPelatih:false,dibuatOleh:RLBL[R]};
+  if(existing&&existing.accPembina){data.accPembina=false;data.accPelatih=false;}
   data.tahun=tahun;data.judul=judul;data.visi=document.getElementById('pt-visi').value.trim();data.misi=document.getElementById('pt-misi').value.trim();data.items=items;
   const idx=D.prokerTahunan.findIndex(x=>x.id===data.id);
   if(idx>=0)D.prokerTahunan[idx]=data;else D.prokerTahunan.push(data);
   _tahunanEditId=null;_tahunanItems=[];
-  save();closeModal();toast('Program Kerja Tahunan disimpan');renderTabKegiatan('tahunan');
+  save();closeModal();toast(existing&&existing.accPembina?'Perubahan disimpan — menunggu persetujuan ulang Pembina':'Program Kerja Tahunan disimpan, menunggu persetujuan Pembina');renderTabKegiatan('tahunan');
 }
 function hapusProkerTahunan(id){
   const pt=D.prokerTahunan.find(x=>x.id===id);if(!pt)return;
@@ -2156,7 +2157,8 @@ function hapusProkerTahunan(id){
 }
 function accProkerTahunan(id,role){
   const pt=D.prokerTahunan.find(x=>x.id===id);if(!pt)return;
-  if(role==='pembina')pt.accPembina=true;else pt.accPelatih=true;
+  if(role!=='pembina')return toast('Proker Tahunan hanya disetujui oleh Pembina');
+  pt.accPembina=true;pt.accPelatih=true; // accPelatih ikut ditandai agar laporan lama menghitungnya disetujui
   save();toast('Program Kerja Tahunan disetujui');renderTabKegiatan('tahunan');
 }
 function _bodyTahunanHTML(pt){
@@ -4301,7 +4303,7 @@ function resetData(){
 
 <div id="footer-cr" style="text-align:center;padding:16px;font-size:11px;color:var(--fg3);margin-top:8px;border-top:1px solid var(--border)">
   © 2026 Eki Ripan J.R, S.Pd., Gr. · Pembina PASKIBRA MAN 1 Belitung<br>
-  <span style="font-size:10px;opacity:.7">PASMANSABEL — Aplikasi Manajemen PASKIBRA MAN 1 Belitung</span><br><span style="font-size:10px;opacity:.6">Versi 13 Nov 2026 · 22.05</span>
+  <span style="font-size:10px;opacity:.7">PASMANSABEL — Aplikasi Manajemen PASKIBRA MAN 1 Belitung</span><br><span style="font-size:10px;opacity:.6">Versi 13 Nov 2026 · 22.10</span>
 </div>
 </body>
 </html>
