@@ -1863,6 +1863,7 @@ function renderProker(){
     <div style="font-size:13px;margin-top:6px">${esc(p.isi||'')}</div>
     ${p.lampiran?`<div style="margin-top:8px"><a href="${p.lampiran}" download="${esc(p.lampiranNama||'lampiran')}" class="btn btn-ghost btn-sm" style="text-decoration:none;display:inline-block">📎 Unduh Lampiran: ${esc(p.lampiranNama||'file')}</a></div>`:''}
     <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
+      ${!p._proposal?`<button class="btn btn-blue btn-sm" onclick="modalRekomendasiProker('${p.id}')">🧭 Rekomendasi Kegiatan</button>`:''}
       ${C.proker_acc(R)&&!p['acc'+((R==='pembina'?'Pembina':'Pelatih'))]?`<button class="btn btn-ok btn-sm" onclick="accProker('${p.id}','${R}')">✓ Setujui</button>`:''}
       ${p.accPembina&&p.accPelatih?`<button class="wa-btn" style="font-size:12px;padding:7px 12px;width:auto" onclick="shareWA('Proker: ${esc(p.judul)}\\n${esc(p.isi||'')}')">Share ke WA</button>`:''}
       ${C.ttd(R)&&p.accPembina&&p.accPelatih?`<button class="btn btn-blue btn-sm" onclick="ttdProker('${p.id}')">✍ TTD</button>`:''}
@@ -1972,6 +1973,130 @@ function embedTTD(pid){
   const p=D.proker.find(x=>x.id===pid);if(!p)return;
   p.ttd=D.ttd;p.ttdOleh=RLBL[R];p.ttdTgl=Date.now();
   save();toast('Dokumen berhasil ditandatangani');renderTabKegiatan('proker');
+}
+
+// ═══════════════════════════════════════════
+// REKOMENDASI KEGIATAN PER PERTEMUAN (dibaca & diuraikan dari isi Proker)
+// ═══════════════════════════════════════════
+// Kamus topik: kata kunci yang dicari di judul+isi proker, dan aktivitas
+// konkret yang cocok untuk topik itu. Dipakai untuk "menguraikan" isi proker
+// jadi arahan kegiatan per pertemuan, bukan sekadar menyalin teksnya.
+const TOPIK_KEGIATAN={
+  pbb:{label:'PBB & Formasi',kw:['pbb','baris','formasi','langkah','balik kanan','hadap','parade','pemetaan'],akt:[
+    'Latihan baris-berbaris dasar: sikap sempurna, hadap kanan/kiri, balik kanan',
+    'Latihan langkah tegap dan langkah biasa sesuai tempo (96 langkah/menit)',
+    'Pemantapan formasi barisan sesuai pemetaan yang sudah ditentukan']},
+  fisik:{label:'Fisik & Samapta',kw:['fisik','samapta','lari','push','stamina','kardio','kebugaran','pemanasan'],akt:[
+    'Pemanasan dinamis 10–15 menit sebelum latihan inti',
+    'Latihan samapta: lari, push-up, sit-up sesuai target angkatan',
+    'Pendinginan dan peregangan statis di akhir sesi']},
+  mental:{label:'Mental & Disiplin',kw:['mental','disiplin','kepemimpinan','karakter','motivasi','adab'],akt:[
+    'Pembinaan mental dan motivasi oleh Pembina/Pelatih',
+    'Simulasi di bawah tekanan (gladi dengan evaluasi langsung)',
+    'Diskusi singkat soal kepemimpinan, adab, dan tanggung jawab anggota']},
+  upacara:{label:'Teknik Upacara',kw:['upacara','pengibaran','bendera','voorijder','baki','pembawa'],akt:[
+    'Latihan teknik pengibaran/penurunan bendera',
+    'Latihan posisi dan peran masing-masing petugas upacara',
+    'Gladi kotor tata upacara secara lengkap dari awal sampai akhir']},
+  lomba:{label:'Persiapan Lomba/Seleksi',kw:['lomba','seleksi','lkbb','kompetisi','juara'],akt:[
+    'Latihan sesuai kriteria penilaian lomba (variasi formasi, kekompakan, ketepatan aba-aba)',
+    'Simulasi lomba dengan waktu dan penilaian seperti aslinya',
+    'Evaluasi dari rekaman video latihan untuk perbaikan detail']},
+  evaluasi:{label:'Evaluasi & Penilaian',kw:['evaluasi','penilaian','tes','ujian','rekap'],akt:[
+    'Tes/evaluasi kemampuan individu dan kelompok',
+    'Pencatatan hasil evaluasi sebagai bahan pembinaan lanjutan']},
+  admin:{label:'Administrasi & Koordinasi',kw:['administrasi','rapat','proposal','surat','koordinasi'],akt:[
+    'Rapat koordinasi panitia/pengurus terkait kegiatan',
+    'Penyusunan administrasi dan surat-menyurat yang diperlukan']}
+};
+// Fase per jenis proker — urutan fokus dari pertemuan pertama ke terakhir.
+const FASE_JENIS={
+  'Latihan Rutin':['pbb','fisik','mental'],
+  'Kegiatan Khusus':['admin','pbb','mental','evaluasi'],
+  'Lomba/Seleksi':['evaluasi','pbb','lomba','mental'],
+  'Upacara':['upacara','upacara','mental','upacara'],
+  'Lainnya':['pbb','fisik','mental'],
+  'Proposal':['admin','pbb','mental']
+};
+function deteksiTopikProker(p){
+  const teks=((p.judul||'')+' '+(p.isi||'')+' '+(p.jenis||'')).toLowerCase();
+  return Object.keys(TOPIK_KEGIATAN).filter(k=>TOPIK_KEGIATAN[k].kw.some(kw=>teks.includes(kw)));
+}
+// Daftar tanggal pertemuan (Rabu/Kamis/Sabtu, sesuai array SESI) antara hari
+// ini sampai tanggal target proker. Dibatasi maksimal 8 pertemuan biar tidak
+// kepanjangan kalau tanggal target masih jauh.
+function daftarPertemuanProker(tglTarget){
+  const hariSesi=[3,4,6]; // index SESI: 0=Rabu,1=Kamis,2=Sabtu -> getDay():3,4,6
+  const today=new Date();today.setHours(0,0,0,0);
+  let target=tglTarget?new Date(tglTarget):null;
+  if(target)target.setHours(0,0,0,0);
+  const lewat=target&&target<today;
+  if(!target||lewat)target=new Date(today.getTime()+28*86400000); // fallback: rencanakan 4 minggu ke depan
+  const list=[];
+  let cur=new Date(today);
+  let guard=0;
+  while(cur<=target&&guard<120){
+    const idx=hariSesi.indexOf(cur.getDay());
+    if(idx>=0)list.push({tgl:new Date(cur),sesiIdx:idx,sesiNama:SESI[idx]});
+    cur.setDate(cur.getDate()+1);guard++;
+  }
+  return {list:list.slice(0,8),lewatAtauKosong:lewat||!tglTarget};
+}
+function buatRekomendasiProker(p){
+  const {list,lewatAtauKosong}=daftarPertemuanProker(p.tgl);
+  const fase=FASE_JENIS[p.jenis]||FASE_JENIS['Lainnya'];
+  const topikEkstra=deteksiTopikProker(p).filter(t=>!fase.includes(t));
+  if(!list.length)return{rows:[],lewatAtauKosong};
+  const rows=list.map((pt,i)=>{
+    const faseIdx=Math.min(fase.length-1,Math.floor(i*fase.length/list.length));
+    const topikKey=fase[faseIdx];
+    const topik=TOPIK_KEGIATAN[topikKey];
+    const aktivitas=topik.akt.slice(0,2).slice();
+    // Selipkan 1 aktivitas dari topik tambahan yang terdeteksi di deskripsi,
+    // bergilir per pertemuan, supaya isi proker benar-benar tercermin.
+    if(topikEkstra.length){
+      const ek=TOPIK_KEGIATAN[topikEkstra[i%topikEkstra.length]];
+      aktivitas.push(ek.akt[0]);
+    }
+    return{tgl:pt.tgl,sesiNama:pt.sesiNama,fokus:topik.label,aktivitas};
+  });
+  return{rows,lewatAtauKosong};
+}
+function modalRekomendasiProker(pid){
+  const p=D.proker.find(x=>x.id===pid);if(!p)return;
+  const {rows,lewatAtauKosong}=buatRekomendasiProker(p);
+  let body='';
+  if(!rows.length){
+    body='<div class="alert alert-warn">Belum bisa membuat rekomendasi — isi dulu tanggal rencana pada proker ini.</div>';
+  } else {
+    if(lewatAtauKosong)body+='<div class="alert alert-warn" style="margin-bottom:10px">Tanggal rencana proker ini sudah lewat atau belum pasti, jadi ini rekomendasi umum untuk 4 minggu ke depan sebagai acuan.</div>';
+    body+='<p style="font-size:12px;color:var(--fg2);margin-bottom:10px">Diuraikan otomatis dari jenis & isi proker "'+esc(p.judul)+'":</p>';
+    rows.forEach((row,i)=>{
+      body+=`<div class="item" style="margin-bottom:8px">
+        <div class="item-title" style="font-size:13px">Pertemuan ${i+1} · ${tgl(row.tgl)} · ${esc(row.sesiNama)}</div>
+        <div style="font-size:12px;color:var(--fg2);margin:4px 0 6px"><b>Fokus:</b> ${esc(row.fokus)}</div>
+        <ul style="margin:0 0 8px 18px;padding:0;font-size:13px">${row.aktivitas.map(a=>`<li>${esc(a)}</li>`).join('')}</ul>
+        ${C.agenda_buat(R)?`<button class="btn btn-ghost btn-sm" onclick="tambahAgendaDariRekom('${p.id}',${i})">+ Jadikan Agenda</button>`:''}
+      </div>`;
+    });
+  }
+  openModal(`<div class="modal-title">🧭 Rekomendasi Kegiatan <button class="modal-close" onclick="closeModal()">×</button></div>${body}
+  ${rows.length&&C.agenda_buat(R)?`<button class="btn btn-primary btn-full" onclick="tambahSemuaAgendaDariRekom('${p.id}')">+ Jadikan Semua Agenda</button>`:''}`);
+}
+function tambahAgendaDariRekom(pid,i){
+  const p=D.proker.find(x=>x.id===pid);if(!p)return;
+  const {rows}=buatRekomendasiProker(p);
+  const row=rows[i];if(!row)return;
+  D.agenda.push({id:uid(),judul:p.judul+' — Pertemuan '+(i+1),tgl:row.tgl.toISOString().split('T')[0],waktu:'',tempat:row.sesiNama,keterangan:'Fokus: '+row.fokus+'\n'+row.aktivitas.map(a=>'• '+a).join('\n'),dibuatOleh:RLBL[R],dariProker:pid});
+  save();toast('Ditambahkan ke Agenda');
+}
+function tambahSemuaAgendaDariRekom(pid){
+  const p=D.proker.find(x=>x.id===pid);if(!p)return;
+  const {rows}=buatRekomendasiProker(p);
+  rows.forEach((row,i)=>{
+    D.agenda.push({id:uid(),judul:p.judul+' — Pertemuan '+(i+1),tgl:row.tgl.toISOString().split('T')[0],waktu:'',tempat:row.sesiNama,keterangan:'Fokus: '+row.fokus+'\n'+row.aktivitas.map(a=>'• '+a).join('\n'),dibuatOleh:RLBL[R],dariProker:pid});
+  });
+  save();closeModal();toast(rows.length+' pertemuan ditambahkan ke Agenda');renderBeranda();
 }
 
 // TATIB
