@@ -659,6 +659,7 @@ const C={
   balonpas_tambah:r=>C.anggota_edit(r)||r==='pps_aktif'||r==='pps_senior',
   balonpas_import_doc:r=>['sekretaris','ketua','pembina'].includes(r),
   proker_lampiran:r=>r==='ketua',
+  proker_hapus:r=>['pembina','ketua'].includes(r),
   anggota_hapus:r=>['pembina','ketua','pelatih','sekretaris'].includes(r),
   naikkanCapas:r=>r==='pembina'||r==='pps_aktif'||r==='pelatih',
   edit_info:r=>r==='pembina',
@@ -1879,9 +1880,16 @@ function renderProker(){
       ${C.proker_acc(R)&&!p['acc'+((R==='pembina'?'Pembina':'Pelatih'))]?`<button class="btn btn-ok btn-sm" onclick="accProker('${p.id}','${R}')">✓ Setujui</button>`:''}
       ${p.accPembina&&p.accPelatih?`<button class="wa-btn" style="font-size:12px;padding:7px 12px;width:auto" onclick="shareWA('Proker: ${esc(p.judul)}\\n${esc(p.isi||'')}')">Share ke WA</button>`:''}
       ${C.ttd(R)&&p.accPembina&&p.accPelatih?`<button class="btn btn-blue btn-sm" onclick="ttdProker('${p.id}')">✍ TTD</button>`:''}
+      ${C.proker_hapus(R)?`<button class="btn btn-ghost btn-sm" style="color:#ef4444" onclick="hapusProker('${p.id}')">🗑 Hapus</button>`:''}
     </div></div>`;
   });
   return html;
+}
+function hapusProker(pid){
+  const p=D.proker.find(x=>x.id===pid);if(!p)return;
+  if(!confirm('Hapus proker "'+p.judul+'"? Tindakan ini tidak bisa dibatalkan.'))return;
+  D.proker=D.proker.filter(x=>x.id!==pid);
+  save();toast('Proker dihapus');renderTabKegiatan('proker');
 }
 
 function modalProker(){
