@@ -422,7 +422,23 @@ let R = null; // role saat ini
 const GS_DEFAULT='https://script.google.com/macros/s/AKfycbzdZ3IVx3jmo7HR3W1b2BFTjUGJs-z7JIJFJhdOV6FVuJkajqGEvtauONMrJuEX9bevxw/exec';
 let GS_URL='';try{GS_URL=localStorage.getItem('pramansabel_gsurl')||GS_DEFAULT;}catch(e){GS_URL=GS_DEFAULT;}
 let _lastLocalSave=0,_pendingPush=null,_gsPushTimer=null,_gsDirty=false;
-function save(){_lastLocalSave=Date.now();try{localStorage.setItem(SK,JSON.stringify(D));}catch(e){} scheduleGSPush();}
+// ── Catatan hapus ──
+// Sinkron cloud menggabungkan data per-id. Tanpa catatan ini, item yang dihapus
+// di HP ini akan MUNCUL LAGI karena masih ada di Google Sheet / HP lain
+// (inilah sebab "hapus proker tidak kehapus"). Setiap id yang hilang sejak
+// simpan terakhir dicatat di D.terhapus, lalu disaring saat penggabungan.
+let _idSnap={};
+function snapIds(){_idSnap={};DATA_ARRAY_KEYS.forEach(k=>{if(Array.isArray(D[k]))_idSnap[k]=new Set(D[k].filter(x=>x&&x.id!=null).map(x=>x.id));});}
+function catatHapus(){
+  if(!D.terhapus||typeof D.terhapus!=='object'||Array.isArray(D.terhapus))D.terhapus={};
+  const now=Date.now();
+  DATA_ARRAY_KEYS.forEach(k=>{const lama=_idSnap[k];if(!lama||!Array.isArray(D[k]))return;
+    const kini=new Set(D[k].filter(x=>x&&x.id!=null).map(x=>x.id));
+    lama.forEach(id=>{if(!kini.has(id))D.terhapus[id]=now;});});
+  for(const id in D.terhapus){if(now-D.terhapus[id]>90*864e5)delete D.terhapus[id];} // simpan 90 hari saja
+  snapIds();
+}
+function save(){catatHapus();_lastLocalSave=Date.now();try{localStorage.setItem(SK,JSON.stringify(D));}catch(e){} scheduleGSPush();}
 function scheduleGSPush(){
   if(!GS_URL)return;
   _gsDirty=true;
@@ -484,7 +500,8 @@ function migrasiKodeEtik(){
 // Field data yang berupa daftar/array (punya banyak item dengan id masing-masing).
 // Dipakai supaya sinkronisasi cloud menggabungkan, bukan menimpa habis.
 const DATA_ARRAY_KEYS=['anggota','absensi','pelanggaran','proker','evaluasi','lomba','agenda','adat','info','kas','komando','pengumuman','pemetaan','samapta','materi','izin'];
-function mergeField(key,localVal,cloudVal){
+function mergeField(key,localVal,cloudVal,tb){
+  if(key==='terhapus')return Object.assign({},cloudVal||{},localVal||{});
   if(DATA_ARRAY_KEYS.includes(key)){
     const cloudArr=Array.isArray(cloudVal)?cloudVal:[];
     const localArr=Array.isArray(localVal)?localVal:[];
@@ -494,7 +511,9 @@ function mergeField(key,localVal,cloudVal){
     // TETAP ada, dan perubahan yang baru kita buat juga tidak hilang.
     cloudArr.forEach(it=>{ if(it&&it.id!=null)map.set(it.id,it); });
     localArr.forEach(it=>{ if(it&&it.id!=null)map.set(it.id,it); });
-    return Array.from(map.values());
+    let hasil=Array.from(map.values());
+    if(tb)hasil=hasil.filter(it=>!tb[it.id]);
+    return hasil;
   }
   if(key==='pins'||key==='config')return Object.assign({},cloudVal||{},localVal||{});
   if(key==='ttd')return(localVal!=null&&localVal!=='')?localVal:cloudVal;
@@ -515,8 +534,10 @@ async function saveGS(){
     if(cloud&&!cloud.error&&cloud.anggota!==undefined){
       const merged={};
       const keys=new Set([...Object.keys(D),...Object.keys(cloud)]);
-      keys.forEach(k=>{ merged[k]=mergeField(k,D[k],cloud[k]); });
+      const tb=Object.assign({},cloud.terhapus||{},D.terhapus||{});
+      keys.forEach(k=>{ merged[k]=mergeField(k,D[k],cloud[k],tb); });
       D=Object.assign(D,merged);
+      snapIds();
       try{localStorage.setItem(SK,JSON.stringify(D));}catch(e){}
       payload=D;
     }
@@ -555,11 +576,13 @@ async function loadGS(){
       // baru dibuat di HP ini maupun dari HP lain sama-sama tetap ada.
       const merged={};
       const keys=new Set([...Object.keys(D),...Object.keys(cloudFull)]);
-      keys.forEach(k=>{ merged[k]=mergeField(k,D[k],cloudFull[k]); });
+      const tb=Object.assign({},cloudFull.terhapus||{},D.terhapus||{});
+      keys.forEach(k=>{ merged[k]=mergeField(k,D[k],cloudFull[k],tb); });
       D=Object.assign(cloudFull,merged);
       D.config=Object.assign(def.config,merged.config||{});
       migrasiAngkatan();
       if(!D.ttd&&ttdLama)D.ttd=ttdLama;
+      snapIds();
       try{localStorage.setItem(SK,JSON.stringify(D));}catch(e){}
       window._lastSyncTime=Date.now();
       return true;
@@ -576,7 +599,7 @@ function tarikManual(){
 }
 async function syncCloud(dir){if(!GS_URL){toast('⚠️ URL Google Sheet belum diisi di Pengaturan → Sinkron');return;}if(dir==='push'){toast('☁️ Menyimpan ke cloud...');clearTimeout(_gsPushTimer);_gsDirty=false;try{await saveGS();toast('✅ Data tersimpan ke Google Sheet');}catch(e){toast('❌ Gagal simpan ke cloud');}}else{toast('☁️ Mengambil data dari cloud...');const ok=await loadGS();if(ok){toast('✅ Data berhasil disinkron dari cloud');goScreen('beranda');}else toast('❌ Gagal ambil data dari cloud');}}
 function saveGSURL(url){GS_URL=url.trim();try{localStorage.setItem('pramansabel_gsurl',GS_URL);}catch(e){}toast(GS_URL?'✅ URL tersimpan':'URL dikosongkan');tabPengaturan('sinkron',document.querySelector('#s-pengaturan .tab.on'));}
-load();
+load();snapIds();
 // Auto-sync: ambil data dari cloud saat buka app
 if(GS_URL){loadGS().then(ok=>{if(ok&&R)goScreen('beranda');});}
 // Auto-sync setiap 30 detik jika ada role aktif
@@ -1862,11 +1885,12 @@ function renderTabKegiatan(t){
 function renderProker(){
   let html='';
   if(C.proker_buat(R)){
-    html+=`<button class="btn btn-primary btn-sm" style="margin-bottom:12px" onclick="modalProker()">+ Buat Proker</button>
+    html+=`<button class="btn btn-primary btn-sm" style="margin-bottom:12px;margin-right:8px" onclick="modalProkerTahunan()">📅 Proker Tahunan</button><button class="btn btn-primary btn-sm" style="margin-bottom:12px" onclick="modalProker()">+ Buat Proker</button>
     <button class="btn btn-blue btn-sm" style="margin-bottom:12px;margin-left:8px" onclick="modalProposal()">📄 Buat Proposal</button>`;
   }
   if(!D.proker.length) html+='<div class="alert alert-warn">Belum ada program kerja.</div>';
   D.proker.slice().reverse().forEach(p=>{
+    if(p.tipe==='tahunan'){html+=kartuProkerTahunan(p);return;}
     const accP=p.accPembina?'✅':'⏳';
     const accL=p.accPelatih?'✅':'⏳';
     const stClass=p.accPembina&&p.accPelatih?'badge-ok':p.accPembina||p.accPelatih?'badge-warn':'badge-grey';
@@ -1885,11 +1909,223 @@ function renderProker(){
   });
   return html;
 }
+// ═══════════════════════════════════════════
+// PROKER TAHUNAN (MASA BAKTI) — dibuat Ketua, disetujui Pembina
+// Disimpan ringkas (array, tanpa nama field per minggu) supaya hemat
+// ruang cloud Google Sheet yang terbatas ~50.000 karakter.
+// ═══════════════════════════════════════════
+const PT_BULAN=['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+const PT_BIDANG=[
+  {n:'Umum',mode:'m',ket:'Rancangan kegiatan latihan setiap minggu',c:'Fisik + PBB Dasar'},
+  {n:'PBB',mode:'m',ket:'Pengaturan dan koordinasi jalannya latihan / kegiatan PBB',c:'Sikap sempurna, hormat, istirahat di tempat'},
+  {n:'Samapta',mode:'m',ket:'Latihan kesamaptaan / ketahanan fisik secara bertahap',c:'Pemanasan, Jumping Jack 35, Push Up 30, Sit Up 25, Lari'},
+  {n:'Materi',mode:'m',ket:'Penyampaian materi Paskibra secara bertahap',c:'Materi Wawasan Kebangsaan & Lagu'},
+  {n:'Disiplin & Tata Tertib',mode:'m',ket:'Pembinaan kedisiplinan, sikap, dan tata tertib anggota',c:'Pengawasan kerapian seluruh anggota'},
+  {n:'Kesehatan',mode:'b',ket:'Program rutin kesehatan',c:'Pengecekan dan kesiapan P3K'},
+  {n:'Humas & Dokumentasi',mode:'b',ket:'Program rutin humas dan dokumentasi',c:'Mengarsipkan foto, video, dan dokumentasi kegiatan'},
+  {n:'Perlengkapan',mode:'b',ket:'Program rutin perlengkapan',c:'Menyediakan dan menjaga inventaris perlengkapan'}
+];
+let PT=null; // draf yang sedang diisi di modal
+const PT_DRAF='pramansabel_draf_proker_tahunan';
+
+function ptBidang(n){return PT_BIDANG.find(b=>b.n===n)||PT_BIDANG[0];}
+function ptBulanList(p){const a=[];for(let i=0;i<12;i++){const m=(p.mulai[0]+i)%12,y=p.mulai[1]+Math.floor((p.mulai[0]+i)/12);a.push({label:PT_BULAN[m]+' '+y,pendek:PT_BULAN[m].slice(0,3)+' '+String(y).slice(2)});}return a;}
+function ptPeriode(p){const b=ptBulanList(p);return b[0].label+' – '+b[11].label;}
+function ptTerisi(p){return (p.mg||[]).filter(w=>w&&w.filter(x=>String(x||'').trim()).length===4).length;}
+function ptSimpanDraf(){try{localStorage.setItem(PT_DRAF,JSON.stringify(PT));}catch(e){}}
+function ptHapusDraf(){try{localStorage.removeItem(PT_DRAF);}catch(e){}}
+function ptKosong(){const d=new Date();return {id:null,bidang:'',ketuaBidang:'',anggotaBidang:'',mulai:[7,d.getFullYear()],mg:Array.from({length:12},()=>['','','','']),berkala:[['','','']],step:1,bln:0};}
+
+function modalProkerTahunan(editId){
+  if(editId){
+    const p=D.proker.find(x=>x.id===editId);if(!p)return;
+    PT={...ptKosong(),...JSON.parse(JSON.stringify(p)),step:2,bln:0};
+    if(!PT.berkala||!PT.berkala.length)PT.berkala=[['','','']];
+  }else{
+    let draf=null;try{draf=JSON.parse(localStorage.getItem(PT_DRAF));}catch(e){}
+    PT=(draf&&!draf.id&&draf.bidang)?draf:ptKosong();
+  }
+  ptRender();
+}
+
+function ptRender(){
+  if(!PT)return;
+  const head=`<div class="modal-title">${PT.id?'Ubah':'Buat'} Proker Tahunan <button class="modal-close" onclick="closeModal()">×</button></div>
+  <div style="display:flex;gap:6px;margin-bottom:14px">${[1,2,3].map(i=>`<div style="flex:1;height:5px;border-radius:9px;background:${i<=PT.step?'#d93a2f':'var(--bg3,#333)'}"></div>`).join('')}</div>`;
+  if(PT.step===1)return openModal(head+ptLangkah1());
+  if(PT.step===2)return openModal(head+(ptBidang(PT.bidang).mode==='b'?ptLangkah2B():ptLangkah2M()));
+  openModal(head+ptLangkah3());
+}
+
+function ptLangkah1(){
+  const th=new Date().getFullYear();
+  return `<p style="font-size:13px;color:var(--fg2);margin-bottom:10px">Proker untuk <b>1 tahun masa bakti</b>. Isian tersimpan otomatis di HP ini sampai dikirim.</p>
+  <div class="field"><label>Persekbid</label><select id="pt-bidang" onchange="PT.bidang=this.value;ptSimpanDraf()"><option value="">— pilih Persekbid —</option>${PT_BIDANG.map(b=>`<option${b.n===PT.bidang?' selected':''}>${esc(b.n)}</option>`).join('')}</select></div>
+  <div class="field"><label>Nama Ketua Persekbid</label><input id="pt-ketua" value="${esc(PT.ketuaBidang)}" placeholder="Nama lengkap" oninput="PT.ketuaBidang=this.value;ptSimpanDraf()"></div>
+  <div class="field"><label>Wakil / Anggota Persekbid (boleh kosong)</label><input value="${esc(PT.anggotaBidang)}" placeholder="Pisahkan dengan koma" oninput="PT.anggotaBidang=this.value;ptSimpanDraf()"></div>
+  <div class="field"><label>Masa bakti mulai</label><div style="display:flex;gap:8px">
+    <select onchange="PT.mulai[0]=+this.value;ptSimpanDraf();document.getElementById('pt-per').textContent='Periode: '+ptPeriode(PT)">${PT_BULAN.map((b,i)=>`<option value="${i}"${i===PT.mulai[0]?' selected':''}>${b}</option>`).join('')}</select>
+    <select onchange="PT.mulai[1]=+this.value;ptSimpanDraf();document.getElementById('pt-per').textContent='Periode: '+ptPeriode(PT)">${[th-1,th,th+1].map(y=>`<option${y===PT.mulai[1]?' selected':''}>${y}</option>`).join('')}</select>
+  </div><p id="pt-per" style="font-size:12px;color:var(--fg2);margin-top:6px">Periode: ${ptPeriode(PT)}</p></div>
+  <button class="btn btn-primary btn-full" onclick="ptKe2()">Lanjut isi proker →</button>`;
+}
+function ptKe2(){
+  if(!PT.bidang)return toast('Pilih Persekbid dulu');
+  if(!PT.ketuaBidang.trim())return toast('Isi nama Ketua Persekbid');
+  PT.step=2;ptSimpanDraf();ptRender();
+}
+
+function ptLangkah2M(){
+  const bl=ptBulanList(PT),i=PT.bln,w=PT.mg[i],b=ptBidang(PT.bidang);
+  const lalu=i>0?PT.mg[i-1]:null;
+  return `<div style="background:#1f1a0c;border:1px solid #4d3f17;color:#ffcf73;border-radius:10px;padding:9px 11px;font-size:12.5px;margin-bottom:10px">💡 Tulis singkat, satu baris per minggu. Pola boleh diulang tiap bulan — tekan <b>Salin dari bulan lalu</b> lalu ubah sedikit.</div>
+  <div style="font-size:13px;color:var(--fg2);margin-bottom:6px">Persekbid <b>${esc(PT.bidang)}</b> · terisi <b id="pt-n">${ptTerisi(PT)}</b>/12 bulan</div>
+  <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:8px;margin-bottom:6px">${bl.map((x,k)=>{const ok=PT.mg[k].filter(v=>v.trim()).length===4;
+    return `<button class="btn btn-sm ${k===i?'btn-primary':'btn-ghost'}" style="flex:0 0 auto;${ok&&k!==i?'color:#5fe08f':''}" onclick="PT.bln=${k};ptSimpanDraf();ptRender()">${ok?'✓ ':''}${x.pendek}</button>`;}).join('')}</div>
+  <div style="font-weight:700;font-size:16px;margin:4px 0 8px">${bl[i].label}</div>
+  ${lalu&&lalu.some(v=>v.trim())?`<button class="btn btn-ghost btn-sm" style="margin-bottom:8px" onclick="PT.mg[${i}]=PT.mg[${i-1}].slice();ptSimpanDraf();ptRender();toast('Disalin. Ubah minimal 1 kegiatan ya')">📄 Salin dari bulan lalu</button>`:''}
+  ${[0,1,2,3].map(k=>`<div class="field"><label>Minggu ${k+1} <span style="font-weight:400;color:var(--fg2)">· ${['tgl 1–7','tgl 8–14','tgl 15–21','tgl 22–akhir'][k]}</span></label>
+    <textarea rows="2" placeholder="Contoh: ${esc(b.c)}" oninput="PT.mg[${i}][${k}]=this.value;ptSimpanDraf();document.getElementById('pt-n').textContent=ptTerisi(PT)">${esc(w[k])}</textarea></div>`).join('')}
+  <div style="display:flex;gap:8px">
+    <button class="btn btn-ghost" style="flex:1" onclick="${i===0?'PT.step=1':'PT.bln--'};ptSimpanDraf();ptRender()">← ${i===0?'Data':bl[i-1].pendek}</button>
+    ${i<11?`<button class="btn btn-primary" style="flex:1" onclick="PT.bln++;ptSimpanDraf();ptRender()">${bl[i+1].pendek} →</button>`:`<button class="btn btn-ok" style="flex:1" onclick="PT.step=3;ptSimpanDraf();ptRender()">Periksa ✓</button>`}
+  </div>
+  ${i<11?`<button class="btn btn-ghost btn-full" style="margin-top:8px" onclick="PT.step=3;ptSimpanDraf();ptRender()">Periksa & kirim (${ptTerisi(PT)}/12 bulan)</button>`:''}`;
+}
+
+function ptLangkah2B(){
+  const b=ptBidang(PT.bidang);
+  return `<div style="background:#1f1a0c;border:1px solid #4d3f17;color:#ffcf73;border-radius:10px;padding:9px 11px;font-size:12.5px;margin-bottom:10px">💡 ${esc(PT.bidang)} memakai <b>program rutin</b> (bukan per minggu). Tulis apa yang dilakukan dan kapan, misalnya "Setiap latihan".</div>
+  ${PT.berkala.map((r,k)=>`<div style="border:1px solid var(--bg3,#333);border-radius:12px;padding:10px;margin-bottom:10px">
+    <div style="display:flex;justify-content:space-between"><b>Program ${k+1}</b>${PT.berkala.length>1?`<button class="btn btn-ghost btn-sm" style="color:#ef4444" onclick="PT.berkala.splice(${k},1);ptSimpanDraf();ptRender()">Hapus</button>`:''}</div>
+    <div class="field"><label>Program / kegiatan</label><textarea rows="2" placeholder="Contoh: ${esc(b.c)}" oninput="PT.berkala[${k}][0]=this.value;ptSimpanDraf()">${esc(r[0])}</textarea></div>
+    <div class="field"><label>Waktu pelaksanaan</label><input placeholder="Contoh: Setiap latihan" value="${esc(r[1])}" oninput="PT.berkala[${k}][1]=this.value;ptSimpanDraf()"></div>
+    <div class="field"><label>Keterangan (boleh kosong)</label><input value="${esc(r[2])}" oninput="PT.berkala[${k}][2]=this.value;ptSimpanDraf()"></div>
+  </div>`).join('')}
+  <button class="btn btn-ghost btn-sm" style="margin-bottom:12px" onclick="PT.berkala.push(['','','']);ptSimpanDraf();ptRender()">+ Tambah program</button>
+  <div style="display:flex;gap:8px"><button class="btn btn-ghost" style="flex:1" onclick="PT.step=1;ptRender()">← Data</button>
+  <button class="btn btn-ok" style="flex:1" onclick="if(!PT.berkala.some(r=>r[0].trim()))return toast('Isi minimal 1 program');PT.step=3;ptSimpanDraf();ptRender()">Periksa ✓</button></div>`;
+}
+
+function ptTabel(p){
+  const st='border:1px solid #888;padding:5px 6px;vertical-align:top;text-align:left;font-size:11px';
+  const th=st+';background:#183374;color:#fff';
+  if(ptBidang(p.bidang).mode==='b'){
+    return `<table style="border-collapse:collapse;width:100%;background:#fff;color:#111"><tr><th style="${th}">No</th><th style="${th}">Program / Kegiatan</th><th style="${th}">Waktu</th><th style="${th}">Keterangan</th></tr>${
+      (p.berkala||[]).filter(r=>String(r[0]||'').trim()).map((r,i)=>`<tr><td style="${st}">${i+1}</td><td style="${st}">${esc(r[0])}</td><td style="${st}">${esc(r[1]||'-')}</td><td style="${st}">${esc(r[2]||'-')}</td></tr>`).join('')}</table>`;
+  }
+  const bl=ptBulanList(p);
+  return `<table style="border-collapse:collapse;width:100%;min-width:520px;background:#fff;color:#111"><tr><th style="${th}">Bulan</th><th style="${th}">Minggu 1</th><th style="${th}">Minggu 2</th><th style="${th}">Minggu 3</th><th style="${th}">Minggu 4</th></tr>${
+    bl.map((b,i)=>`<tr><td style="${st};font-weight:700;white-space:nowrap">${b.label}</td>${(p.mg[i]||['','','','']).map(v=>`<td style="${st}">${String(v||'').trim()?esc(v).replace(/\n/g,'<br>'):'<span style="color:#999">–</span>'}</td>`).join('')}</tr>`).join('')}</table>`;
+}
+function ptDokumen(p){
+  const b=ptBidang(p.bidang),ok=p.accPembina;
+  return `<div style="background:#fff;color:#111;border-radius:10px;padding:12px;overflow-x:auto;font-family:Arial,sans-serif">
+    <div style="text-align:center;font-weight:700;font-size:14px">PROGRAM KERJA PERSEKBID ${esc(p.bidang.toUpperCase())}</div>
+    <div style="text-align:center;font-size:11px;color:#444;margin:3px 0 10px">${esc(b.ket)}<br>PASKIBRA MAN 1 Belitung · Masa Bakti ${ptPeriode(p)}</div>
+    ${ptTabel(p)}
+    <div style="display:flex;justify-content:space-between;margin-top:16px;font-size:11px;text-align:center">
+      <div style="width:45%">Mengetahui,<br>Pembina PASKIBRA<br>${ok&&D.ttd?`<img src="${D.ttd}" style="height:50px">`:ok?'<br><b style="color:#1a7f43">✔ DISETUJUI</b><br><br>':'<br><br><br>'}<br>(..............................)</div>
+      <div style="width:45%">Ketua Persekbid ${esc(p.bidang)}<br><br><br><br><br>( ${esc(p.ketuaBidang)} )</div>
+    </div></div>`;
+}
+
+function ptLangkah3(){
+  const kurang=ptBidang(PT.bidang).mode==='m'&&ptTerisi(PT)<12;
+  return `<p style="font-size:13px;margin-bottom:10px">${kurang?`⚠️ Baru <b>${ptTerisi(PT)} dari 12 bulan</b> terisi lengkap. Bulan kosong ditandai "–".`:'✅ Periksa sekali lagi sebelum dikirim.'}</p>
+  ${ptDokumen(PT)}
+  ${PT.id?'<p style="font-size:12px;color:var(--fg2);margin-top:8px">Setelah diubah, proker perlu disetujui ulang oleh Pembina.</p>':''}
+  <button id="pt-kirim" class="btn btn-primary btn-full" style="margin-top:12px" onclick="ptKirim()">📨 ${PT.id?'Simpan perubahan':'Kirim ke Pembina'}</button>
+  <div style="display:flex;gap:8px;margin-top:8px"><button class="btn btn-ghost" style="flex:1" onclick="PT.step=2;ptRender()">✏️ Ubah lagi</button>
+  <button class="btn btn-ghost" style="flex:1;color:#ef4444" onclick="if(confirm('${PT.id?'Batalkan perubahan?':'Hapus draf ini?'}')){if(!PT.id)ptHapusDraf();PT=null;closeModal();}">✕ Batal</button></div>`;
+}
+
+function ptKirim(){
+  const btn=document.getElementById('pt-kirim');
+  if(!btn||btn.disabled)return;           // cegah tombol tertekan dua kali
+  const mode=ptBidang(PT.bidang).mode;
+  const data={id:PT.id||uid(),tipe:'tahunan',bidang:PT.bidang,ketuaBidang:PT.ketuaBidang.trim(),anggotaBidang:(PT.anggotaBidang||'').trim(),
+    mulai:PT.mulai.slice(),mg:mode==='m'?PT.mg:[],berkala:mode==='b'?PT.berkala.filter(r=>String(r[0]||'').trim()):[],
+    judul:'Proker Tahunan Persekbid '+PT.bidang,jenis:'Proker Tahunan',tgl:new Date(PT.mulai[1],PT.mulai[0],1).getTime(),
+    isi:'Proker 1 tahun masa bakti '+ptPeriode(PT)+' · Ketua: '+PT.ketuaBidang.trim(),
+    accPembina:false,accPelatih:false,catatanPembina:'',dikembalikan:false,dibuatOleh:RLBL[R],diubah:Date.now()};
+  // Satu Persekbid hanya boleh punya satu proker untuk masa bakti yang sama
+  const dobel=D.proker.find(x=>x.tipe==='tahunan'&&x.id!==data.id&&x.bidang===data.bidang&&x.mulai&&x.mulai[0]===data.mulai[0]&&x.mulai[1]===data.mulai[1]);
+  if(dobel)return toast('⚠️ Proker '+data.bidang+' untuk masa bakti ini sudah ada. Ubah yang lama, jangan buat baru.',4000);
+  // Cek sisa ruang cloud sebelum menyimpan
+  const lama=PT.id?D.proker.find(x=>x.id===PT.id):null;
+  const tambah=JSON.stringify(data).length-(lama?JSON.stringify(lama).length:0);
+  if(JSON.stringify({...D,ttd:null}).length+tambah>49000)
+    return toast('🚫 Ruang cloud tidak cukup untuk proker ini. Hapus lampiran/data lama dulu (Pengaturan → Sinkron).',5000);
+  btn.disabled=true;btn.textContent='Menyimpan…';
+  if(lama)Object.assign(lama,data);else D.proker.push(data);
+  ptHapusDraf();PT=null;
+  save();closeModal();toast(lama?'Perubahan disimpan, menunggu persetujuan Pembina':'Proker terkirim ke Pembina ✅');
+  renderTabKegiatan('proker');
+}
+
+function kartuProkerTahunan(p){
+  const st=p.accPembina?['badge-ok','Disetujui']:p.dikembalikan?['badge-warn','Perlu diperbaiki']:['badge-grey','Menunggu Pembina'];
+  const isi=ptBidang(p.bidang).mode==='b'?(p.berkala||[]).length+' program rutin':ptTerisi(p)+'/12 bulan terisi';
+  const bolehUbah=R==='ketua';
+  return `<div class="item"><div class="item-head"><div><div class="item-title">📅 Proker Tahunan · ${esc(p.bidang)}</div>
+    <div class="item-sub">${ptPeriode(p)} · Ketua: ${esc(p.ketuaBidang)}</div></div><span class="badge ${st[0]}">${st[1]}</span></div>
+    <div style="font-size:12px;margin-top:6px;color:var(--fg2)">${isi} · Pembina ${p.accPembina?'✅':'⏳'}</div>
+    ${p.dikembalikan&&p.catatanPembina?`<div style="margin-top:8px;background:rgba(239,68,68,.12);border-radius:8px;padding:8px 10px;font-size:13px">💬 Catatan Pembina: ${esc(p.catatanPembina)}</div>`:''}
+    <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn btn-blue btn-sm" onclick="lihatProkerTahunan('${p.id}')">👁 Lihat</button>
+      ${R==='pembina'&&!p.accPembina?`<button class="btn btn-ok btn-sm" onclick="accProkerTahunan('${p.id}')">✓ Setujui</button>`:''}
+      ${R==='pembina'&&!p.accPembina&&!p.dikembalikan?`<button class="btn btn-ghost btn-sm" onclick="kembalikanProkerTahunan('${p.id}')">↩ Kembalikan</button>`:''}
+      ${bolehUbah?`<button class="btn btn-ghost btn-sm" onclick="modalProkerTahunan('${p.id}')">✏️ Ubah</button>`:''}
+      ${C.proker_hapus(R)?`<button class="btn btn-ghost btn-sm" style="color:#ef4444" onclick="hapusProker('${p.id}')">🗑 Hapus</button>`:''}
+    </div></div>`;
+}
+function lihatProkerTahunan(pid){
+  const p=D.proker.find(x=>x.id===pid);if(!p)return;
+  openModal(`<div class="modal-title">Proker ${esc(p.bidang)} <button class="modal-close" onclick="closeModal()">×</button></div>
+    ${ptDokumen(p)}
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
+      <button class="btn btn-blue btn-sm" onclick="pdfProkerTahunan('${p.id}')">⬇️ Unduh PDF</button>
+      <button class="wa-btn" style="font-size:12px;padding:7px 12px;width:auto" onclick="shareWA(teksWAProkerTahunan('${p.id}'))">Share ke WA</button>
+      ${R==='pembina'&&!p.accPembina?`<button class="btn btn-ok btn-sm" onclick="accProkerTahunan('${p.id}')">✓ Setujui</button>`:''}
+      ${R==='ketua'?`<button class="btn btn-ghost btn-sm" onclick="modalProkerTahunan('${p.id}')">✏️ Ubah</button>`:''}
+    </div>`);
+}
+function accProkerTahunan(pid){
+  const p=D.proker.find(x=>x.id===pid);if(!p)return;
+  if(!confirm('Setujui proker '+p.bidang+' ('+ptPeriode(p)+')?'))return;
+  // Proker tahunan cukup disetujui Pembina. accPelatih ikut ditandai supaya
+  // laporan & rekap lama (yang mengecek accPembina && accPelatih) menghitungnya disetujui.
+  p.accPembina=true;p.accPelatih=true;p.dikembalikan=false;p.catatanPembina='';
+  save();closeModal();toast('Proker disetujui ✅');renderTabKegiatan('proker');
+}
+function kembalikanProkerTahunan(pid){
+  const p=D.proker.find(x=>x.id===pid);if(!p)return;
+  const c=prompt('Apa yang perlu diperbaiki Ketua?\n(contoh: Bulan Januari–Maret belum diisi)');
+  if(c===null)return; if(!c.trim())return toast('Tulis catatan perbaikannya dulu');
+  p.dikembalikan=true;p.catatanPembina=c.trim();p.accPembina=false;p.accPelatih=false;
+  save();toast('Dikembalikan ke Ketua');renderTabKegiatan('proker');
+}
+function teksWAProkerTahunan(pid){
+  const p=D.proker.find(x=>x.id===pid);if(!p)return '';
+  let t=`*PROGRAM KERJA PERSEKBID ${p.bidang.toUpperCase()}*\nPASKIBRA MAN 1 Belitung\nMasa Bakti: ${ptPeriode(p)}\nKetua: ${p.ketuaBidang}${p.accPembina?'\nStatus: ✅ Disetujui Pembina':''}\n`;
+  if(ptBidang(p.bidang).mode==='b')(p.berkala||[]).forEach((r,i)=>{t+=`\n${i+1}. ${r[0]}\n   Waktu: ${r[1]||'-'}${r[2]?'\n   Ket: '+r[2]:''}\n`;});
+  else ptBulanList(p).forEach((b,i)=>{t+=`\n*${b.label}*\n`+(p.mg[i]||[]).map((v,k)=>`M${k+1}: ${String(v||'').trim().replace(/\n/g,', ')||'-'}`).join('\n')+'\n';});
+  return t.trim();
+}
+function pdfProkerTahunan(pid){
+  const p=D.proker.find(x=>x.id===pid);if(!p)return;
+  if(typeof html2pdf==='undefined')return toast('⚠️ Modul PDF belum siap. Coba muat ulang aplikasi.');
+  const div=document.createElement('div');div.style.cssText='padding:10px;color:#111';div.innerHTML=ptDokumen(p);
+  toast('⏳ Membuat PDF...');
+  html2pdf().from(div).set({margin:8,filename:'Proker_'+p.bidang.replace(/[^A-Za-z0-9]+/g,'_')+'_'+p.mulai[1]+'.pdf',html2canvas:{scale:2},jsPDF:{unit:'mm',format:'a4',orientation:'landscape'}}).save();
+}
+
 function hapusProker(pid){
   const p=D.proker.find(x=>x.id===pid);if(!p)return;
   if(!confirm('Hapus proker "'+p.judul+'"? Tindakan ini tidak bisa dibatalkan.'))return;
   D.proker=D.proker.filter(x=>x.id!==pid);
-  save();toast('Proker dihapus');renderTabKegiatan('proker');
+  save();closeModal();toast('🗑 Proker dihapus');renderTabKegiatan('proker');
 }
 
 function modalProker(){
@@ -1973,8 +2209,13 @@ function isiProkerDariDokumen(teks,namaFile){
   toast('✅ Isi dokumen "'+namaFile+'" berhasil dibaca — cek & rapikan di kolom Isi/Deskripsi');
 }
 function simpanProker(){
+  if(window._pkMenyimpan)return;            // cegah tombol tertekan dua kali
   const j=document.getElementById('pk-judul').value.trim();
   if(!j)return toast('Judul harus diisi');
+  const tg=document.getElementById('pk-tgl').value;
+  const norm=x=>String(x||'').toLowerCase().replace(/\s+/g,' ').trim();
+  if(D.proker.some(x=>norm(x.judul)===norm(j)&&x.tgl===tg)&&!confirm('Proker "'+j+'" di tanggal yang sama sudah ada. Tetap simpan?'))return;
+  window._pkMenyimpan=true;setTimeout(()=>{window._pkMenyimpan=false;},3000);
   const fileInp=document.getElementById('pk-file');
   const file=fileInp&&fileInp.files[0];
   const dataBaru={id:uid(),judul:j,jenis:document.getElementById('pk-jenis').value,tgl:document.getElementById('pk-tgl').value,isi:document.getElementById('pk-isi').value.trim(),accPembina:false,accPelatih:false,dibuatOleh:RLBL[R]};
