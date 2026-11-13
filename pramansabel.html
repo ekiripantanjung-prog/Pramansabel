@@ -560,14 +560,24 @@ async function saveGS(){
   // karakter per sel) — sebelumnya push yang gagal di sisi server diam saja
   // (fetch().catch(()=>{}) tidak pernah mengecek isi responsnya), jadi data
   // terlihat "tersimpan" di HP pembuatnya padahal tidak pernah sampai ke cloud.
-  if(teksKirim.length>49500){
+  if(teksKirim.length>BATAS_CLOUD-500){
     window._gsOverCapacity=true;
     toast('🚫 GAGAL sinkron ke cloud: data sudah melewati batas penyimpanan (~50.000 karakter). Buka Pengaturan → Sinkron untuk detail.');
     return;
   }
   window._gsOverCapacity=false;
-  _pendingPush=fetch(GS_URL,{method:'POST',body:teksKirim}).catch(()=>{}).finally(()=>{_pendingPush=null;});
+  _pendingPush=fetch(GS_URL,{method:'POST',body:teksKirim}).then(r=>r.text()).then(t=>{
+    // Apps Script versi baru membalas {ok:true} atau {error:"..."} — tampilkan kalau gagal
+    try{const j=JSON.parse(t);if(j&&j.error){window._gsOverCapacity=true;toast('❌ Gagal simpan ke cloud: '+j.error,5000);}}catch(e){}
+  }).catch(()=>{}).finally(()=>{_pendingPush=null;});
   return _pendingPush;
+}
+// Cek apakah Apps Script sudah versi baru yang menyimpan data terpecah ke banyak sel
+// (tidak terbatas 50.000 karakter). Versi lama tidak mengenal ?info=1.
+async function cekKapasitasGS(){
+  if(!GS_URL)return;
+  try{const r=await fetch(GS_URL+'?info=1&t='+Date.now());const j=await r.json();
+    if(j&&j.chunked){BATAS_CLOUD=j.maks||2000000;}}catch(e){}
 }
 async function loadGS(){
   if(!GS_URL)return false;
@@ -612,7 +622,7 @@ async function syncCloud(dir){if(!GS_URL){toast('⚠️ URL Google Sheet belum d
 function saveGSURL(url){GS_URL=url.trim();try{localStorage.setItem('pramansabel_gsurl',GS_URL);}catch(e){}toast(GS_URL?'✅ URL tersimpan':'URL dikosongkan');tabPengaturan('sinkron',document.querySelector('#s-pengaturan .tab.on'));}
 load();
 // Auto-sync: ambil data dari cloud saat buka app
-if(GS_URL){loadGS().then(ok=>{if(ok&&R)goScreen('beranda');});}
+if(GS_URL){cekKapasitasGS().finally(()=>loadGS().then(ok=>{if(ok&&R)goScreen('beranda');}));}
 // Auto-sync setiap 30 detik jika ada role aktif
 let _lastKomId='',_lastPngId='';
 setInterval(async()=>{
@@ -643,9 +653,10 @@ setInterval(async()=>{
     // Tab Kegiatan (Proker/Tahunan) juga disegarkan supaya kiriman dari HP lain
     // langsung terlihat tanpa harus pindah menu — kecuali sedang mengisi form.
     const modalBuka=document.getElementById('overlay')?.classList.contains('show');
+    if(activeScreen==='anggota'&&!sedangMengetik&&!modalBuka&&document.getElementById('tab-sesi')&&!C.absensi_edit(R))renderSesi(window._absSesi||0);
     if(activeScreen==='kegiatan'&&!sedangMengetik&&!modalBuka&&window._tabKegAktif&&document.getElementById('tab-kegiatan'))renderTabKegiatan(window._tabKegAktif);
   });
-},5000);
+},15000);
 function showNotif(judul,pesan){
   const el=document.createElement('div');
   el.style.cssText='position:fixed;top:70px;left:50%;transform:translateX(-50%);background:var(--accent);color:#fff;padding:12px 16px;border-radius:10px;z-index:9999;max-width:90vw;box-shadow:0 4px 20px rgba(0,0,0,0.3);animation:slideDown .3s ease';
@@ -1587,75 +1598,119 @@ function simpanKeluarBalonpas(id){
   document.querySelectorAll('#s-anggota .tab')[0].classList.add('on');
 }
 
+// ═══════════════════════════════════════════
+// ABSENSI
+// Satu sesi (tanggal + sesi) disimpan sebagai SATU catatan berisi status semua
+// anggota: {id,tgl,sesi,st:{anggotaId:'h'|'i'|'s'|'a'}}. Jauh lebih hemat ruang
+// daripada satu catatan per anggota, dan SEMUA anggota tercatat — termasuk yang
+// hadir. (Dulu yang tidak diubah dari "Hadir" tidak pernah tersimpan, sehingga
+// CSV berisi "-" dan rekap kosong.) Catatan lama per-anggota tetap terbaca.
+// ═══════════════════════════════════════════
+const AB_KODE={h:'hadir',i:'izin',s:'sakit',a:'alfa'};
+const AB_KE={hadir:'h',izin:'i',sakit:'s',alfa:'a'};
+const AB_PERAN=['pps_aktif','pps_senior','balonpas'];
+function absTglStr(d){return (d||new Date()).toLocaleDateString('id-ID');}
+function absTglAktif(){return window._absTgl||absTglStr();}
+function absSesiId(si,tglStr){const d=parseTglAny(tglStr)||new Date();return 'ab'+d.getFullYear()+String(d.getMonth()+1).padStart(2,'0')+String(d.getDate()).padStart(2,'0')+'_'+si;}
+function absSesiRec(si,tglStr){const id=absSesiId(si,tglStr);return (D.absensi||[]).find(r=>r&&r.id===id&&r.st);}
+function absStatus(aid,si,tglStr){
+  const s=absSesiRec(si,tglStr);if(s&&s.st[aid])return AB_KODE[s.st[aid]]||s.st[aid];
+  const lama=(D.absensi||[]).find(x=>x&&!x.st&&x.anggotaId===aid&&x.sesi===si&&x.tgl===tglStr);
+  return lama?lama.status:null;
+}
+// Semua absensi sebagai daftar datar {anggotaId,sesi,tgl,status} — format baru & lama digabung,
+// catatan sesi (baru) menang bila ada dobel.
+function absenFlat(){
+  const map=new Map();
+  (D.absensi||[]).forEach(r=>{if(r&&!r.st&&r.anggotaId)map.set(r.anggotaId+'|'+r.sesi+'|'+r.tgl,{anggotaId:r.anggotaId,sesi:r.sesi,tgl:r.tgl,status:r.status});});
+  (D.absensi||[]).forEach(r=>{if(r&&r.st)for(const aid in r.st)map.set(aid+'|'+r.sesi+'|'+r.tgl,{anggotaId:aid,sesi:r.sesi,tgl:r.tgl,status:AB_KODE[r.st[aid]]||r.st[aid]});});
+  return Array.from(map.values());
+}
+function absAnggotaSesi(){return D.anggota.filter(a=>AB_PERAN.includes(a.role)&&a.status==='aktif');}
+function hitungUlangTotalAbsen(){
+  const flat=absenFlat();const alfa={},izin={};
+  flat.forEach(r=>{if(r.status==='alfa')alfa[r.anggotaId]=(alfa[r.anggotaId]||0)+1;if(r.status==='izin')izin[r.anggotaId]=(izin[r.anggotaId]||0)+1;});
+  D.anggota.forEach(a=>{a.totalAlfa=alfa[a.id]||0;a.totalIzin=izin[a.id]||0;});
+}
+
 function renderAbsensi(){
   const canAccess=C.absensi_edit(R)||C.isAnggota(R)||C.komando_kirim(R)||C.isPengurus(R);
   if(!canAccess){
     return'<div class="alert alert-warn">Hanya Sekretaris yang dapat mengisi absensi.</div>';
   }
-  const sesiTabs=SESI.map((s,i)=>`<button class="tab${i===0?' on':''}" onclick="tabSesi(${i},this)">${s}</button>`).join('');
-  const dlBtn=(C.absensi_edit(R)||C.isPengurus(R))?`<button class="btn btn-blue btn-sm" style="float:right;margin-bottom:8px" onclick="downloadAbsensiCSV()">📥 Download CSV</button>`:'';
-  return`${dlBtn}<div class="tabs">${sesiTabs}</div><div id="tab-sesi"></div>`;
+  const d=parseTglAny(absTglAktif())||new Date();
+  const iso=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  const sesiTabs=SESI.map((s,i)=>`<button class="tab${i===(window._absSesi||0)?' on':''}" onclick="tabSesi(${i},this)">${s}</button>`).join('');
+  const dlBtn=(C.absensi_edit(R)||C.isPengurus(R))?`<button class="btn btn-blue btn-sm" onclick="downloadAbsensiCSV()">📥 Download CSV</button>`:'';
+  setTimeout(()=>renderSesi(window._absSesi||0),0);
+  return`<div style="display:flex;gap:8px;align-items:flex-end;margin-bottom:10px;flex-wrap:wrap">
+      <div class="field" style="margin:0;flex:1;min-width:150px"><label>📅 Tanggal absensi</label>
+      <input type="date" id="abs-tgl" value="${iso}" max="${new Date().toISOString().slice(0,10)}" onchange="gantiTglAbsensi(this.value)"></div>${dlBtn}</div>
+    <div class="tabs" id="abs-tabs">${sesiTabs}</div><div id="tab-sesi"></div>`;
+}
+function gantiTglAbsensi(v){
+  if(!v)return;const [y,m,dd]=v.split('-').map(Number);
+  window._absTgl=absTglStr(new Date(y,m-1,dd));
+  renderSesi(window._absSesi||0);
 }
 function downloadAbsensiCSV(){
-  const today=new Date().toLocaleDateString('id-ID');
+  const tg=absTglAktif();
   let csv='Nama,Kelas,Peran,';
   csv+=SESI.join(',')+'\n';
   D.anggota.filter(a=>a.status==='aktif').forEach(a=>{
     const row=[a.nama,a.kelas||'-',RLBL[a.role]||a.role];
-    SESI.forEach((_,si)=>{
-      const rec=D.absensi.find(x=>x.anggotaId===a.id&&x.sesi===si&&x.tgl===today);
-      row.push(rec?.status||'-');
-    });
+    SESI.forEach((_,si)=>row.push(absStatus(a.id,si,tg)||'-'));
     csv+=row.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')+'\n';
   });
   const blob=new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8'});
   const url=URL.createObjectURL(blob);
   const a=document.createElement('a');
-  a.href=url;a.download=`absensi_${today.replace(/\//g,'-')}.csv`;a.click();
+  a.href=url;a.download=`absensi_${tg.replace(/\//g,'-')}.csv`;a.click();
   URL.revokeObjectURL(url);
   toast('📥 CSV absensi diunduh');
 }
 
-// Panggil setelah renderAbsensi
-setTimeout(()=>{
-  const el=document.getElementById('tab-sesi');
-  if(el) renderSesi(0);
-},50);
-
 function tabSesi(i,btn){
-  document.querySelectorAll('#tab-anggota .tabs .tab').forEach(b=>b.classList.remove('on'));
+  document.querySelectorAll('#abs-tabs .tab').forEach(b=>b.classList.remove('on'));
   btn?.classList.add('on');
+  window._absSesi=i;
   renderSesi(i);
 }
 
 function renderSesi(si){
   const el=document.getElementById('tab-sesi');if(!el)return;
+  window._absSesi=si;
   const sesiNama=SESI[si];
-  const today=new Date().toLocaleDateString('id-ID');
+  const tg=absTglAktif();
   const isEditor=C.absensi_edit(R);
+  const daftar=absAnggotaSesi();
+  const rec=absSesiRec(si,tg);
+  const tercatat=daftar.filter(a=>absStatus(a.id,si,tg)).length;
+  const hitung={hadir:0,izin:0,sakit:0,alfa:0};daftar.forEach(a=>{const v=absStatus(a.id,si,tg);if(v&&hitung[v]!==undefined)hitung[v]++;});
 
-  let html=`<div class="sec">${sesiNama} — ${today}</div>`;
+  let html=`<div class="sec">${sesiNama} — ${tg}</div>`;
+  html+=tercatat
+    ?`<div class="alert alert-ok" style="font-size:12px">✅ Tercatat ${tercatat}/${daftar.length} anggota · Hadir ${hitung.hadir} · Izin ${hitung.izin} · Sakit ${hitung.sakit} · Alfa ${hitung.alfa}</div>`
+    :`<div class="alert alert-warn" style="font-size:12px">${isEditor?'⚠️ Belum disimpan. Ubah yang tidak hadir, lalu tekan <b>💾 Simpan Absensi</b>.':'Belum ada absensi untuk sesi & tanggal ini.'}</div>`;
   if(isEditor){
-    html+=`<div class="card">`;
-    D.anggota.filter(a=>['pps_aktif','pps_senior','balonpas'].includes(a.role)&&a.status==='aktif').forEach(a=>{
-      const rec=D.absensi.find(x=>x.anggotaId===a.id&&x.sesi===si&&x.tgl===today)||null;
-      const v=rec?.status||'hadir';
+    html+=`<div class="card" id="abs-list">`;
+    daftar.forEach(a=>{
+      const v=absStatus(a.id,si,tg)||'hadir';
       html+=`<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
         <div><div style="font-weight:600;font-size:13px">${esc(a.nama)}</div><div style="font-size:11px;color:var(--fg2)">${esc(a.kelas||'-')}</div></div>
-        <select onchange="setAbsensi('${a.id}',${si},'${today}',this.value)" style="padding:4px 8px;border-radius:6px;border:1.5px solid var(--border);background:var(--bg);color:var(--fg);font-size:12px">
+        <select data-aid="${a.id}" onchange="simpanAbsensiSesi(${si},true)" style="padding:4px 8px;border-radius:6px;border:1.5px solid var(--border);background:var(--bg);color:var(--fg);font-size:12px">
           <option value="hadir"${v==='hadir'?' selected':''}>Hadir</option>
           <option value="alfa"${v==='alfa'?' selected':''}>Alfa</option>
           <option value="izin"${v==='izin'?' selected':''}>Izin</option>
           <option value="sakit"${v==='sakit'?' selected':''}>Sakit</option>
         </select></div>`;
     });
-    html+=`</div>`;
+    html+=`</div><button class="btn btn-primary btn-full" style="margin-top:10px" onclick="simpanAbsensiSesi(${si})">💾 Simpan Absensi ${sesiNama}</button>
+    <p style="font-size:11px;color:var(--fg2);margin-top:6px">Semua anggota ikut tersimpan, termasuk yang Hadir. Absensi tanggal lain bisa dibuka/diperbaiki lewat pilihan tanggal di atas.</p>`;
   } else if(C.isAnggota(R)||C.isPengurus(R)){
-    // Anggota/balonpas/pengurus (Pembina, Pelatih, Ketua, dll) lihat rekap absensi semua (read-only)
     html+=`<div class="card"><div class="card-title" style="font-size:13px">📋 Data Absensi ${sesiNama}</div>`;
-    D.anggota.filter(a=>['pps_aktif','pps_senior','balonpas'].includes(a.role)&&a.status==='aktif').forEach(a=>{
-      const rec=D.absensi.find(x=>x.anggotaId===a.id&&x.sesi===si&&x.tgl===today);
-      const v=rec?.status||'-';
+    daftar.forEach(a=>{
+      const v=absStatus(a.id,si,tg)||'-';
       const badge=v==='hadir'?'badge-ok':v==='alfa'?'badge-danger':v==='izin'?'badge-info':v==='sakit'?'badge-warn':'';
       html+=`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border)">
         <div style="font-size:13px">${esc(a.nama)}</div>
@@ -1668,17 +1723,29 @@ function renderSesi(si){
   el.innerHTML=html;
 }
 
+// Simpan SELURUH sesi sekaligus (semua anggota sesuai pilihan di layar).
+function simpanAbsensiSesi(si,diam){
+  if(!C.absensi_edit(R))return;
+  const tg=absTglAktif();
+  const st={};
+  document.querySelectorAll('#abs-list select[data-aid]').forEach(sel=>{st[sel.dataset.aid]=AB_KE[sel.value]||'h';});
+  if(!Object.keys(st).length)return toast('Tidak ada anggota untuk diabsen');
+  const id=absSesiId(si,tg);
+  const data={id,tgl:tg,sesi:si,st,oleh:RLBL[R],w:Date.now()};
+  const idx=D.absensi.findIndex(r=>r&&r.id===id);
+  if(idx>=0)D.absensi[idx]=data;else D.absensi.push(data);
+  hitungUlangTotalAbsen();
+  save();
+  if(!diam)toast('✅ Absensi '+SESI[si]+' '+tg+' tersimpan ('+Object.keys(st).length+' anggota)');
+  else toast('Absensi disimpan');
+  renderSesi(si);
+}
+// Kompatibilitas: dipanggil dari tempat lain dengan format lama
 function setAbsensi(aid,si,tgl,status){
-  let rec=D.absensi.find(x=>x.anggotaId===aid&&x.sesi===si&&x.tgl===tgl);
-  if(rec) rec.status=status;
-  else D.absensi.push({id:uid(),anggotaId:aid,sesi:si,tgl,status});
-  // hitung alfa
-  const a=D.anggota.find(x=>x.id===aid);
-  if(a){
-    a.totalAlfa=D.absensi.filter(x=>x.anggotaId===aid&&x.status==='alfa').length;
-    a.totalIzin=D.absensi.filter(x=>x.anggotaId===aid&&x.status==='izin').length;
-  }
-  save();toast('Absensi disimpan');
+  const id=absSesiId(si,tgl);let r=D.absensi.find(x=>x&&x.id===id&&x.st);
+  if(!r){r={id,tgl,sesi:si,st:{},oleh:RLBL[R],w:Date.now()};absAnggotaSesi().forEach(a=>{r.st[a.id]=AB_KE[absStatus(a.id,si,tgl)||'hadir'];});D.absensi.push(r);}
+  r.st[aid]=AB_KE[status]||'h';r.w=Date.now();
+  hitungUlangTotalAbsen();save();toast('Absensi disimpan');
 }
 
 function getAnggotaMelebihi(){
@@ -2189,7 +2256,7 @@ function simpanProker(sbgDraft){
     // dihitung dari sisa ruang yang benar-benar ada sekarang, bukan angka tetap
     // — sebelumnya dipatok 400KB padahal sisa ruang bisa jauh lebih kecil, dan
     // itulah sebab lampiran bikin Proker gagal tersimpan tanpa pemberitahuan.
-    const sisaRuang=48000-JSON.stringify(D).length; // sisakan jarak aman dari batas ~50.000
+    const sisaRuang=(BATAS_CLOUD-2000)-JSON.stringify(D).length; // sisakan jarak aman dari batas ~50.000
     const maxRawBytes=Math.max(0,Math.floor(sisaRuang*0.7)); // base64 menggembungkan ~1.37x
     if(sisaRuang<2000){
       toast('⚠️ Data cloud sudah hampir penuh (lihat Pengaturan → Sinkron → Cek Status Sinkron). Lampiran TIDAK bisa disimpan sampai ada ruang tersisa. Proker tetap disimpan tanpa lampiran.');
@@ -2983,9 +3050,9 @@ function renderRekapPembina(){
   const pps=anggotaAktif.filter(a=>['pps_aktif','pps_senior'].includes(a.role));
   const balonpas=anggotaAktif.filter(a=>a.role==='balonpas'||a.role==='capas');
   // Absensi bulan ini
-  const absBln=D.absensi.filter(a=>{const d=new Date(a.tgl);return d.getMonth()===bln&&d.getFullYear()===thn;});
-  const totalSesi=absBln.length;
-  const rataHadir=totalSesi?Math.round(absBln.reduce((s,a)=>{const h=Object.values(a.data||{}).filter(v=>v==='H').length;const t=Object.values(a.data||{}).length;return s+(t?h/t:0);},0)/totalSesi*100):0;
+  const absBln=absenFlat().filter(a=>{const d=parseTglAny(a.tgl);return d&&d.getMonth()===bln&&d.getFullYear()===thn;});
+  const totalSesi=new Set(absBln.map(a=>a.tgl+'|'+a.sesi)).size;
+  const rataHadir=absBln.length?Math.round(absBln.filter(a=>a.status==='hadir').length/absBln.length*100):0;
   // Pelanggaran bulan ini
   const pelBln=D.pelanggaran.filter(p=>{const d=new Date(p.tgl);return d.getMonth()===bln&&d.getFullYear()===thn;});
   const pelResmi=pelBln.filter(p=>p.status!=='aduan');
@@ -3166,7 +3233,7 @@ function hitungRentangPeriode(jenis,ref){
 }
 function rekapAbsensi(start,end){
   const counts={};
-  D.absensi.forEach(r=>{
+  absenFlat().forEach(r=>{
     const d=parseTglAny(r.tgl);if(!d||d<start||d>end)return;
     if(!counts[r.anggotaId])counts[r.anggotaId]={hadir:0,izin:0,sakit:0,alfa:0};
     if(counts[r.anggotaId][r.status]!==undefined)counts[r.anggotaId][r.status]++;
@@ -3917,7 +3984,7 @@ function renderTTD(){
   :`<div class="card"><p style="font-size:13px;color:var(--fg2);margin-bottom:12px">Belum ada TTD tersimpan.</p></div>
   <button class="btn btn-primary btn-full" onclick="buatTTDBaru()">✍ Buat Tanda Tangan</button>`}`;
 }
-const BATAS_CLOUD=50000;
+let BATAS_CLOUD=50000; // diperbesar otomatis bila Apps Script versi baru (dipecah) terdeteksi
 function renderKapasitasCloud(){
   const sz=window._lastGSSize||JSON.stringify(D).length;
   const pct=Math.min(100,Math.round(sz/BATAS_CLOUD*100));
