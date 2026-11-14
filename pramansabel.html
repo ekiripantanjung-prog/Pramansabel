@@ -1718,6 +1718,20 @@ function simpanKeluarBalonpas(id){
   document.querySelectorAll('#s-anggota .tab')[0].classList.add('on');
 }
 
+function todayLocalInputDate(){const d=new Date();d.setMinutes(d.getMinutes()-d.getTimezoneOffset());return d.toISOString().slice(0,10);}
+// Kunci tanggal kanonik (YYYY-MM-DD) — TIDAK bergantung pada locale/engine
+// browser HP masing-masing. Dipakai untuk field `tgl` absensi SEJAK sekarang.
+// Sebelumnya `tgl` disimpan dengan toLocaleDateString('id-ID') (misal "5/11/2026"),
+// yang formatnya bisa berbeda tipis antar HP/browser (ada yang kasih "05/11/2026",
+// ada yang "5/11/2026") — kalau HP Sekretaris & HP Pembina menghasilkan format
+// berbeda untuk tanggal yang SAMA, absensi yang baru diisi jadi "tidak kelihatan"
+// di HP lain walau datanya sudah tersinkron, karena pencariannya tidak match
+// persis secara string. Untuk data lama yang masih pakai format lama, dicek
+// juga sebagai fallback di bawah supaya tidak hilang.
+function tglKanon(y,m,d){return`${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;}
+function tglLegacyID(y,m,d){return new Date(y,m-1,d).toLocaleDateString('id-ID');}
+let _absensiTglPilih=todayLocalInputDate();
+let _sesiAktifIdx=0;
 function renderAbsensi(){
   const canAccess=C.absensi_edit(R)||C.isAnggota(R)||C.komando_kirim(R)||C.isPengurus(R);
   if(!canAccess){
@@ -1725,16 +1739,24 @@ function renderAbsensi(){
   }
   const sesiTabs=SESI.map((s,i)=>`<button class="tab${i===0?' on':''}" onclick="tabSesi(${i},this)">${s}</button>`).join('');
   const dlBtn=(C.absensi_edit(R)||C.isPengurus(R))?`<button class="btn btn-blue btn-sm" style="float:right;margin-bottom:8px" onclick="downloadAbsensiCSV()">📥 Download CSV</button>`:'';
-  return`${dlBtn}<div class="tabs">${sesiTabs}</div><div id="tab-sesi"></div>`;
+  const dateInput=`<div class="field" style="margin-bottom:10px"><label>📅 Pilih Tanggal</label><input type="date" id="abs-tgl-pilih" value="${_absensiTglPilih}" onchange="pilihTglAbsensi(this.value)"></div>`;
+  return`${dlBtn}${dateInput}<div class="tabs">${sesiTabs}</div><div id="tab-sesi"></div>`;
+}
+function pilihTglAbsensi(v){
+  if(!v)return;
+  _absensiTglPilih=v;
+  renderSesi(_sesiAktifIdx);
 }
 function downloadAbsensiCSV(){
-  const today=new Date().toLocaleDateString('id-ID');
+  const [yy,mm,dd]=_absensiTglPilih.split('-').map(Number);
+  const tglTampil=tglKanon(yy,mm,dd);
+  const tglLegacy=tglLegacyID(yy,mm,dd);
   let csv='Nama,Kelas,Peran,';
   csv+=SESI.join(',')+'\n';
   D.anggota.filter(a=>a.status==='aktif').forEach(a=>{
     const row=[a.nama,a.kelas||'-',RLBL[a.role]||a.role];
     SESI.forEach((_,si)=>{
-      const rec=D.absensi.find(x=>x.anggotaId===a.id&&x.sesi===si&&x.tgl===today);
+      const rec=D.absensi.find(x=>x.anggotaId===a.id&&x.sesi===si&&(x.tgl===tglTampil||x.tgl===tglLegacy));
       row.push(rec?.status||'-');
     });
     csv+=row.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')+'\n';
@@ -1742,9 +1764,9 @@ function downloadAbsensiCSV(){
   const blob=new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8'});
   const url=URL.createObjectURL(blob);
   const a=document.createElement('a');
-  a.href=url;a.download=`absensi_${today.replace(/\//g,'-')}.csv`;a.click();
+  a.href=url;a.download=`absensi_${_absensiTglPilih}.csv`;a.click();
   URL.revokeObjectURL(url);
-  toast('📥 CSV absensi diunduh');
+  toast('📥 CSV absensi diunduh untuk tanggal '+tglTampil);
 }
 
 // Panggil setelah renderAbsensi
@@ -1756,24 +1778,35 @@ setTimeout(()=>{
 function tabSesi(i,btn){
   document.querySelectorAll('#tab-anggota .tabs .tab').forEach(b=>b.classList.remove('on'));
   btn?.classList.add('on');
+  _sesiAktifIdx=i;
   renderSesi(i);
 }
 
 function renderSesi(si){
   const el=document.getElementById('tab-sesi');if(!el)return;
   const sesiNama=SESI[si];
-  const today=new Date().toLocaleDateString('id-ID');
+  // _absensiTglPilih berformat yyyy-mm-dd (dari <input type="date">).
+  // tglKey = kunci kanonik (dipakai untuk MENYIMPAN record baru, selalu
+  // sama persis di semua HP). tglLegacy = format lama (toLocaleDateString
+  // 'id-ID'), dicek juga sebagai fallback supaya absensi yang sudah
+  // tersimpan sebelum perbaikan ini tidak hilang dari tampilan.
+  const [yy,mm,dd]=_absensiTglPilih.split('-').map(Number);
+  const tglKey=tglKanon(yy,mm,dd);
+  const tglLegacy=tglLegacyID(yy,mm,dd);
+  const tglTampil=new Date(yy,mm-1,dd).toLocaleDateString('id-ID',{day:'2-digit',month:'long',year:'numeric'});
+  const isHariIni=_absensiTglPilih===todayLocalInputDate();
   const isEditor=C.absensi_edit(R);
+  const cariRec=(aid)=>D.absensi.find(x=>x.anggotaId===aid&&x.sesi===si&&(x.tgl===tglKey||x.tgl===tglLegacy));
 
-  let html=`<div class="sec">${sesiNama} — ${today}</div>`;
+  let html=`<div class="sec">${sesiNama} — ${tglTampil}${isHariIni?'':' <span style="font-size:11px;color:var(--warn);font-weight:400">(bukan hari ini)</span>'}</div>`;
   if(isEditor){
     html+=`<div class="card">`;
     D.anggota.filter(a=>['pps_aktif','pps_senior','balonpas'].includes(a.role)&&a.status==='aktif').forEach(a=>{
-      const rec=D.absensi.find(x=>x.anggotaId===a.id&&x.sesi===si&&x.tgl===today)||null;
+      const rec=cariRec(a.id);
       const v=rec?.status||'hadir';
       html+=`<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
         <div><div style="font-weight:600;font-size:13px">${esc(a.nama)}</div><div style="font-size:11px;color:var(--fg2)">${esc(a.kelas||'-')}</div></div>
-        <select onchange="setAbsensi('${a.id}',${si},'${today}',this.value)" style="padding:4px 8px;border-radius:6px;border:1.5px solid var(--border);background:var(--bg);color:var(--fg);font-size:12px">
+        <select onchange="setAbsensi('${a.id}',${si},'${tglKey}',this.value)" style="padding:4px 8px;border-radius:6px;border:1.5px solid var(--border);background:var(--bg);color:var(--fg);font-size:12px">
           <option value="hadir"${v==='hadir'?' selected':''}>Hadir</option>
           <option value="alfa"${v==='alfa'?' selected':''}>Alfa</option>
           <option value="izin"${v==='izin'?' selected':''}>Izin</option>
@@ -1785,7 +1818,7 @@ function renderSesi(si){
     // Anggota/balonpas/pengurus (Pembina, Pelatih, Ketua, dll) lihat rekap absensi semua (read-only)
     html+=`<div class="card"><div class="card-title" style="font-size:13px">📋 Data Absensi ${sesiNama}</div>`;
     D.anggota.filter(a=>['pps_aktif','pps_senior','balonpas'].includes(a.role)&&a.status==='aktif').forEach(a=>{
-      const rec=D.absensi.find(x=>x.anggotaId===a.id&&x.sesi===si&&x.tgl===today);
+      const rec=cariRec(a.id);
       const v=rec?.status||'-';
       const badge=v==='hadir'?'badge-ok':v==='alfa'?'badge-danger':v==='izin'?'badge-info':v==='sakit'?'badge-warn':'';
       html+=`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border)">
