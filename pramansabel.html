@@ -4367,16 +4367,73 @@ function getBulanTahun(){
   const d=new Date();
   return d.toLocaleDateString('id-ID',{month:'long',year:'numeric'});
 }
+// \u2500\u2500 Laporan bulanan: data difilter sesuai bulan yang dipilih, bukan total sejak awal \u2500\u2500
+// Dulu Keuangan/Pelanggaran/Proker/Lomba di laporan selalu menjumlahkan SEMUA data
+// sepanjang waktu walau judulnya sudah tertulis "Bulan November 2026" \u2014 jadi angkanya
+// tidak benar-benar mewakili bulan itu. Sekarang semua difilter lewat dataLaporanBulan().
+let _laporanBulan=(()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');})();
+function pilihBulanLaporan(v){
+  if(!v)return;
+  _laporanBulan=v;
+  const el=document.getElementById('tab-laporan');
+  if(el)el.innerHTML=renderLaporanKinerja();
+}
+// Ubah berbagai format tanggal yang tersimpan di data (timestamp angka, "YYYY-MM-DD"
+// dari input date, atau format lokal id-ID "DD/MM/YYYY") jadi objek Date yang valid.
+function tanggalKeDate(t){
+  if(t==null||t==='')return null;
+  if(typeof t==='number')return new Date(t);
+  const s=String(t);
+  if(/^\d{4}-\d{2}-\d{2}/.test(s)){const d=new Date(s);return isNaN(d.getTime())?null:d;}
+  const m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if(m)return new Date(+m[3],+m[2]-1,+m[1]);
+  const d=new Date(s);
+  return isNaN(d.getTime())?null:d;
+}
+function dalamBulan(t,ym){
+  const d=tanggalKeDate(t);
+  if(!d)return false;
+  return(d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'))===ym;
+}
+function labelBulanYM(ym){
+  const[y,m]=(ym||'').split('-').map(Number);
+  if(!y||!m)return getBulanTahun();
+  return new Date(y,m-1,1).toLocaleDateString('id-ID',{month:'long',year:'numeric'});
+}
+// Kumpulkan semua data yang dibutuhkan laporan, sudah difilter untuk satu bulan \u2014 dipakai
+// bersama oleh versi teks (renderLaporanKinerja), Word/PDF (buildLaporanBodyHTML), dan
+// ringkasan WA (getLapTeks) supaya angkanya selalu konsisten di mana pun ditampilkan.
+function dataLaporanBulan(ym){
+  const kasBulan=D.kas.filter(k=>dalamBulan(k.tgl,ym));
+  const masuk=kasBulan.filter(k=>k.jenis==='masuk').reduce((s,k)=>s+k.nominal,0);
+  const keluar=kasBulan.filter(k=>k.jenis==='keluar').reduce((s,k)=>s+k.nominal,0);
+  const pelanggaranBulan=D.pelanggaran.filter(p=>dalamBulan(p.tgl,ym));
+  const prokerBulan=D.proker.filter(p=>dalamBulan(p.tgl,ym));
+  const lombaBulan=D.lomba.filter(l=>dalamBulan(l.tgl,ym));
+  // Alfa dihitung ULANG khusus untuk bulan ini dari catatan absensi \u2014 bukan pakai
+  // a.totalAlfa yang akumulasi sejak awal (itu tetap dipakai apa adanya untuk fitur
+  // Pembinaan Khusus, yang memang sengaja melihat riwayat keseluruhan).
+  const alfaPerAnggota={};
+  D.absensi.forEach(x=>{
+    if(x.status==='alfa'&&dalamBulan(x.tgl,ym))alfaPerAnggota[x.anggotaId]=(alfaPerAnggota[x.anggotaId]||0)+1;
+  });
+  const melebihiBulan=D.anggota.filter(a=>(alfaPerAnggota[a.id]||0)>=3).map(a=>({...a,alfaBulanIni:alfaPerAnggota[a.id]||0}));
+  return{kasBulan,masuk,keluar,pelanggaranBulan,prokerBulan,lombaBulan,alfaPerAnggota,melebihiBulan};
+}
 function renderLaporanKinerja(){
   // Semua bisa lihat laporan, hanya pembina yang bisa download Word
   const bisaDownload=C.laporan(R)||['pelatih','ketua'].includes(R);
+  const ym=_laporanBulan;
   const totalAktif=D.anggota.filter(a=>a.status==='aktif').length;
-  const masuk=D.kas.filter(k=>k.jenis==='masuk').reduce((s,k)=>s+k.nominal,0);
-  const keluar=D.kas.filter(k=>k.jenis==='keluar').reduce((s,k)=>s+k.nominal,0);
-  const melebihi=getAnggotaMelebihi();
-  const bulan=getBulanTahun();
+  const dl=dataLaporanBulan(ym);
+  const masuk=dl.masuk,keluar=dl.keluar;
+  const masukTotal=D.kas.filter(k=>k.jenis==='masuk').reduce((s,k)=>s+k.nominal,0);
+  const keluarTotal=D.kas.filter(k=>k.jenis==='keluar').reduce((s,k)=>s+k.nominal,0);
+  const melebihi=dl.melebihiBulan;
+  const bulan=labelBulanYM(ym);
+  const pilihBulanHTML=`<div class="field" style="max-width:220px;margin-bottom:12px"><label>Pilih Bulan Laporan</label><input type="month" id="lap-bulan" value="${ym}" onchange="pilihBulanLaporan(this.value)"></div>`;
   const noAnggota=D.anggota.filter(a=>a.status==='aktif').map((a,i)=>`   ${String(i+1).padStart(2,' ')}. ${a.nama} \u2014 ${a.kelas||'-'} (${RLBL[a.role]||a.role})`).join('\n')||'   (belum ada data)';
-  const prokerList=D.proker.slice(0,10).map((p,i)=>`   ${i+1}. ${p.judul} (${tgl(p.tgl)}) \u2014 ${p.accPembina&&p.accPelatih?'Terlaksana':'Direncanakan'}`).join('\n')||'   (belum ada data)';
+  const prokerList=dl.prokerBulan.slice(0,10).map((p,i)=>`   ${i+1}. ${p.judul} (${tgl(p.tgl)}) \u2014 ${p.accPembina&&p.accPelatih?'Terlaksana':'Direncanakan'}`).join('\n')||'   (belum ada kegiatan bulan ini)';
   const smLatestForLap=samaptaLatestMap();
   const pemetaanList=D.pemetaan.map(p=>({p,...skorGabungan(p,smLatestForLap)})).sort((a,b)=>b.s-a.s)
     .map((r,i)=>`   ${i+1}. ${r.p.nama} \u2014 Skor: ${r.s}/5.0 (${levelPPI(r.s)[0]})${r.smScore!=null?` [+Samapta: ${r.smScore}/5]`:' [belum ada tes Samapta]'}`).join('\n')||'   (belum ada data)';
@@ -4439,29 +4496,30 @@ A. Rekapitulasi Anggota - Bulan ${bulan}
 B. Daftar Nama Anggota Aktif
 ${noAnggota}
 
-C. Absensi & Kedisiplinan
-   Anggota melewati batas alfa (>=3x) : ${melebihi.length} orang
-${melebihi.length?melebihi.map(a=>`   - ${a.nama}: ${a.totalAlfa||0}x alfa`).join('\n'):'   Semua anggota masih dalam batas toleransi.'}
+C. Absensi & Kedisiplinan (Bulan ${bulan})
+   Anggota melewati batas alfa (>=3x bulan ini) : ${melebihi.length} orang
+${melebihi.length?melebihi.map(a=>`   - ${a.nama}: ${a.alfaBulanIni}x alfa bulan ini`).join('\n'):'   Semua anggota masih dalam batas toleransi bulan ini.'}
 
-D. Catatan Pelanggaran
-   Total catatan : ${D.pelanggaran.length}
-${D.pelanggaran.slice(0,8).map((p,i)=>`   ${i+1}. ${p.nama} - ${p.jenis} (${tgl(p.tgl)})`).join('\n')||'   Tidak ada catatan pelanggaran.'}
+D. Catatan Pelanggaran (Bulan ${bulan})
+   Total catatan bulan ini : ${dl.pelanggaranBulan.length}
+${dl.pelanggaranBulan.slice(0,8).map((p,i)=>`   ${i+1}. ${p.nama} - ${p.jenis} (${tgl(p.tgl)})`).join('\n')||'   Tidak ada catatan pelanggaran bulan ini.'}
 
-E. Program Kerja & Kegiatan
+E. Program Kerja & Kegiatan (Bulan ${bulan})
 ${prokerList}
 
-F. Keuangan
-   Total pemasukan    : ${fmtRp(masuk)}
-   Total pengeluaran  : ${fmtRp(keluar)}
-   Saldo kas          : ${fmtRp(masuk-keluar)}
-${D.kas.slice(0,8).map((k,i)=>`   ${i+1}. ${k.ket} - ${k.jenis==='masuk'?'+':'-'}${fmtRp(k.nominal)} (${tgl(k.tgl)})`).join('\n')||'   Belum ada transaksi.'}
+F. Keuangan (Bulan ${bulan})
+   Pemasukan bulan ini   : ${fmtRp(masuk)}
+   Pengeluaran bulan ini : ${fmtRp(keluar)}
+   Selisih bulan ini     : ${fmtRp(masuk-keluar)}
+   Saldo Kas Keseluruhan (s.d. hari ini) : ${fmtRp(masukTotal-keluarTotal)}
+${dl.kasBulan.slice(0,8).map((k,i)=>`   ${i+1}. ${k.ket} - ${k.jenis==='masuk'?'+':'-'}${fmtRp(k.nominal)} (${tgl(k.tgl)})`).join('\n')||'   Belum ada transaksi bulan ini.'}
 
 G. Pemetaan Kemampuan Balonpas
 ${pemetaanList}
 
-H. Lomba & Kegiatan Eksternal
-   Total lomba terdaftar : ${D.lomba.length}
-${D.lomba.map((l,i)=>`   ${i+1}. ${l.nama} (${tgl(l.tgl)}) - Peserta: ${(l.peserta||[]).length} orang`).join('\n')||'   Belum ada data lomba.'}
+H. Lomba & Kegiatan Eksternal (Bulan ${bulan})
+   Total lomba bulan ini : ${dl.lombaBulan.length}
+${dl.lombaBulan.map((l,i)=>`   ${i+1}. ${l.nama} (${tgl(l.tgl)}) - Peserta: ${(l.peserta||[]).length} orang`).join('\n')||'   Belum ada lomba bulan ini.'}
 
 ================================================================
 
@@ -4496,6 +4554,7 @@ B. Saran
 *Data: ${tgl()} - ${new Date().toLocaleTimeString('id-ID')}*`;
 
   return`<div class="sec">\ud83d\udcc4 Laporan Kegiatan \u2014 ${bulan}</div>
+  ${pilihBulanHTML}
   <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
     ${bisaDownload?`<button class="btn btn-primary btn-sm" onclick="downloadLaporanWord()">\ud83d\udce5 Download Word (.doc)</button><button class="btn btn-warn btn-sm" onclick="downloadLaporanPDF()">\ud83d\udcc4 Download PDF</button><button class="wa-btn" style="margin:0" onclick="shareLaporanPDF()">\ud83d\udce4 Kirim PDF ke WA</button>`:''}
     <button class="btn btn-blue btn-sm" onclick="salinLaporan()">\ud83d\udccb Salin Teks</button>
@@ -4516,15 +4575,18 @@ function buildLaporanStyleCSS(){
   .lap-cetak .ttd-tbl{width:100%;margin-top:40pt}.lap-cetak .ttd-tbl td{width:33%;vertical-align:top;text-align:center}`;
 }
 function buildLaporanBodyHTML(){
-  const masuk=D.kas.filter(k=>k.jenis==='masuk').reduce((s,k)=>s+k.nominal,0);
-  const keluar=D.kas.filter(k=>k.jenis==='keluar').reduce((s,k)=>s+k.nominal,0);
+  const ym=_laporanBulan;
+  const dl=dataLaporanBulan(ym);
+  const masuk=dl.masuk,keluar=dl.keluar;
+  const masukTotal=D.kas.filter(k=>k.jenis==='masuk').reduce((s,k)=>s+k.nominal,0);
+  const keluarTotal=D.kas.filter(k=>k.jenis==='keluar').reduce((s,k)=>s+k.nominal,0);
   const totalAktif=D.anggota.filter(a=>a.status==='aktif').length;
-  const bulan=getBulanTahun();
+  const bulan=labelBulanYM(ym);
   const tahun=new Date().getFullYear();
-  const melebihi=getAnggotaMelebihi();
+  const melebihi=dl.melebihiBulan;
   const noAnggota=D.anggota.filter(a=>a.status==='aktif').map((a,i)=>`<tr><td style="border:1px solid #000;padding:4px 8px;text-align:center">${i+1}</td><td style="border:1px solid #000;padding:4px 8px">${a.nama}</td><td style="border:1px solid #000;padding:4px 8px">${a.kelas||'-'}</td><td style="border:1px solid #000;padding:4px 8px">${RLBL[a.role]||a.role}</td><td style="border:1px solid #000;padding:4px 8px;text-align:center">${a.status||'aktif'}</td></tr>`).join('');
-  const prokerRows=D.proker.map((p,i)=>`<tr><td style="border:1px solid #000;padding:4px 8px;text-align:center">${i+1}</td><td style="border:1px solid #000;padding:4px 8px">${p.judul}</td><td style="border:1px solid #000;padding:4px 8px">${tgl(p.tgl)}</td><td style="border:1px solid #000;padding:4px 8px;text-align:center">${p.accPembina&&p.accPelatih?'Terlaksana':'Direncanakan'}</td></tr>`).join('');
-  const kasRows=D.kas.map((k,i)=>`<tr><td style="border:1px solid #000;padding:4px 8px;text-align:center">${i+1}</td><td style="border:1px solid #000;padding:4px 8px">${tgl(k.tgl)}</td><td style="border:1px solid #000;padding:4px 8px">${k.ket}</td><td style="border:1px solid #000;padding:4px 8px;text-align:center">${k.jenis==='masuk'?'Masuk':'Keluar'}</td><td style="border:1px solid #000;padding:4px 8px;text-align:right">${fmtRp(k.nominal)}</td></tr>`).join('');
+  const prokerRows=dl.prokerBulan.map((p,i)=>`<tr><td style="border:1px solid #000;padding:4px 8px;text-align:center">${i+1}</td><td style="border:1px solid #000;padding:4px 8px">${p.judul}</td><td style="border:1px solid #000;padding:4px 8px">${tgl(p.tgl)}</td><td style="border:1px solid #000;padding:4px 8px;text-align:center">${p.accPembina&&p.accPelatih?'Terlaksana':'Direncanakan'}</td></tr>`).join('');
+  const kasRows=dl.kasBulan.map((k,i)=>`<tr><td style="border:1px solid #000;padding:4px 8px;text-align:center">${i+1}</td><td style="border:1px solid #000;padding:4px 8px">${tgl(k.tgl)}</td><td style="border:1px solid #000;padding:4px 8px">${k.ket}</td><td style="border:1px solid #000;padding:4px 8px;text-align:center">${k.jenis==='masuk'?'Masuk':'Keluar'}</td><td style="border:1px solid #000;padding:4px 8px;text-align:right">${fmtRp(k.nominal)}</td></tr>`).join('');
   return`<div class="kop">
     <h1>LAPORAN KEGIATAN EKSTRAKULIKULER<br>PASUKAN PENGIBAR BENDERA<br>MAN 1 BELITUNG</h1>
     <p><strong>Bulan ${bulan}</strong></p>
@@ -4566,13 +4628,14 @@ function buildLaporanBodyHTML(){
   <tr><td class="center">3</td><td>Seragam PDL PASKIBRA</td><td class="center">${totalAktif} stel</td><td>Baik</td></tr>
   <tr><td class="center">4</td><td>Sepatu PDL</td><td class="center">${totalAktif} pasang</td><td>Baik</td></tr>
   <tr><td class="center">5</td><td>Perlengkapan PBB</td><td class="center">1 set</td><td>Baik</td></tr></table>
-  <h3>G. Materi dan Uraian Kegiatan</h3>
-  <table><tr><th>No</th><th>Judul Kegiatan</th><th>Tanggal</th><th>Status</th></tr>${prokerRows||'<tr><td colspan="4" class="center">Belum ada data</td></tr>'}</table>
-  <h3>H. Anggaran Yang Dikeluarkan</h3>
-  <table><tr><th>No</th><th>Tanggal</th><th>Keterangan</th><th>Jenis</th><th>Jumlah</th></tr>${kasRows||'<tr><td colspan="5" class="center">Belum ada transaksi</td></tr>'}
-  <tr><td colspan="4" style="border:1px solid #000;padding:4px 8px;font-weight:bold">Total Pemasukan</td><td style="border:1px solid #000;padding:4px 8px;text-align:right;font-weight:bold">${fmtRp(masuk)}</td></tr>
-  <tr><td colspan="4" style="border:1px solid #000;padding:4px 8px;font-weight:bold">Total Pengeluaran</td><td style="border:1px solid #000;padding:4px 8px;text-align:right;font-weight:bold">${fmtRp(keluar)}</td></tr>
-  <tr><td colspan="4" style="border:1px solid #000;padding:4px 8px;font-weight:bold">Saldo Kas</td><td style="border:1px solid #000;padding:4px 8px;text-align:right;font-weight:bold">${fmtRp(masuk-keluar)}</td></tr></table>
+  <h3>G. Materi dan Uraian Kegiatan (Bulan ${bulan})</h3>
+  <table><tr><th>No</th><th>Judul Kegiatan</th><th>Tanggal</th><th>Status</th></tr>${prokerRows||'<tr><td colspan="4" class="center">Belum ada kegiatan bulan ini</td></tr>'}</table>
+  <h3>H. Anggaran Yang Dikeluarkan (Bulan ${bulan})</h3>
+  <table><tr><th>No</th><th>Tanggal</th><th>Keterangan</th><th>Jenis</th><th>Jumlah</th></tr>${kasRows||'<tr><td colspan="5" class="center">Belum ada transaksi bulan ini</td></tr>'}
+  <tr><td colspan="4" style="border:1px solid #000;padding:4px 8px;font-weight:bold">Pemasukan Bulan Ini</td><td style="border:1px solid #000;padding:4px 8px;text-align:right;font-weight:bold">${fmtRp(masuk)}</td></tr>
+  <tr><td colspan="4" style="border:1px solid #000;padding:4px 8px;font-weight:bold">Pengeluaran Bulan Ini</td><td style="border:1px solid #000;padding:4px 8px;text-align:right;font-weight:bold">${fmtRp(keluar)}</td></tr>
+  <tr><td colspan="4" style="border:1px solid #000;padding:4px 8px;font-weight:bold">Selisih Bulan Ini</td><td style="border:1px solid #000;padding:4px 8px;text-align:right;font-weight:bold">${fmtRp(masuk-keluar)}</td></tr>
+  <tr><td colspan="4" style="border:1px solid #000;padding:4px 8px;font-weight:bold">Saldo Kas Keseluruhan (s.d. hari ini)</td><td style="border:1px solid #000;padding:4px 8px;text-align:right;font-weight:bold">${fmtRp(masukTotal-keluarTotal)}</td></tr></table>
   <h2>III. PENUTUP</h2>
   <h3>A. Kesimpulan</h3>
   <p>Kegiatan ekstrakulikuler Paskibra MAN 1 Belitung pada Bulan ${bulan} telah berjalan sesuai program yang direncanakan. Jumlah anggota aktif sebanyak ${totalAktif} orang dengan tingkat kehadiran terpantau melalui sistem PASMANSABEL.${melebihi.length?` Terdapat ${melebihi.length} anggota yang melewati batas alfa dan perlu mendapat perhatian lebih.`:''}</p>
@@ -4587,8 +4650,9 @@ function buildLaporanBodyHTML(){
   <br><p style="text-align:center;font-size:9pt;color:#888">*Laporan digenerate otomatis oleh PASMANSABEL — ${tgl()} ${new Date().toLocaleTimeString('id-ID')}*</p>`;
 }
 function downloadLaporanWord(){
-  const bulanNum=new Date().toLocaleDateString('id-ID',{month:'long'});
-  const tahun=new Date().getFullYear();
+  const[tahunYm,bulanNumIdx]=_laporanBulan.split('-').map(Number);
+  const bulanNum=new Date(tahunYm,bulanNumIdx-1,1).toLocaleDateString('id-ID',{month:'long'});
+  const tahun=tahunYm;
   const body=buildLaporanBodyHTML();
   const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><style>${buildLaporanStyleCSS()}</style></head><body><div class="lap-cetak">${body}</div></body></html>`;
   const blob=new Blob(['﻿'+html],{type:'application/msword;charset=utf-8'});
@@ -4602,8 +4666,9 @@ function downloadLaporanWord(){
 }
 function downloadLaporanPDF(){
   if(typeof html2pdf==='undefined'){toast('❌ Fitur PDF belum siap, cek koneksi internet lalu coba lagi');return;}
-  const bulanNum=new Date().toLocaleDateString('id-ID',{month:'long'});
-  const tahun=new Date().getFullYear();
+  const[tahunYm2,bulanNumIdx2]=_laporanBulan.split('-').map(Number);
+  const bulanNum=new Date(tahunYm2,bulanNumIdx2-1,1).toLocaleDateString('id-ID',{month:'long'});
+  const tahun=tahunYm2;
   const body=buildLaporanBodyHTML();
   const outer=document.createElement('div');
   outer.style.cssText='position:absolute;top:0;left:0;width:0;height:0;overflow:hidden';
@@ -4664,8 +4729,9 @@ function shareNotulenPDF(){
 }
 function shareLaporanPDF(){
   if(typeof html2pdf==='undefined'){toast('❌ Fitur PDF belum siap, cek koneksi internet lalu coba lagi');return;}
-  const bulanNum=new Date().toLocaleDateString('id-ID',{month:'long'});
-  const tahun=new Date().getFullYear();
+  const[tahunYm3,bulanNumIdx3]=_laporanBulan.split('-').map(Number);
+  const bulanNum=new Date(tahunYm3,bulanNumIdx3-1,1).toLocaleDateString('id-ID',{month:'long'});
+  const tahun=tahunYm3;
   const body=buildLaporanBodyHTML();
   const outer=document.createElement('div');
   outer.style.cssText='position:absolute;top:0;left:0;width:0;height:0;overflow:hidden';
@@ -4693,9 +4759,9 @@ function shareLaporanPDF(){
   }).catch(()=>{document.body.removeChild(outer);toast('❌ Gagal membuat PDF');});
 }
 function getLapTeks(){
-  const masuk=D.kas.filter(k=>k.jenis==='masuk').reduce((s,k)=>s+k.nominal,0);
-  const keluar=D.kas.filter(k=>k.jenis==='keluar').reduce((s,k)=>s+k.nominal,0);
-  return`LAPORAN PASKIBRA MAN 1 BELITUNG \u2014 ${getBulanTahun()}\nAnggota aktif: ${D.anggota.filter(a=>a.status==='aktif').length} | Saldo Kas: ${fmtRp(masuk-keluar)} | Proker acc: ${D.proker.filter(p=>p.accPembina&&p.accPelatih).length}`;
+  const ym=_laporanBulan;
+  const dl=dataLaporanBulan(ym);
+  return`LAPORAN PASKIBRA MAN 1 BELITUNG \u2014 ${labelBulanYM(ym)}\nAnggota aktif: ${D.anggota.filter(a=>a.status==='aktif').length} | Pemasukan: ${fmtRp(dl.masuk)} | Pengeluaran: ${fmtRp(dl.keluar)} | Proker acc bulan ini: ${dl.prokerBulan.filter(p=>p.accPembina&&p.accPelatih).length}`;
 }
 function salinLaporan(){copyWA(document.querySelector('#tab-laporan pre')?.textContent||'')}
 
