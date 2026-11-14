@@ -1734,6 +1734,20 @@ function todayLocalInputDate(){const d=new Date();d.setMinutes(d.getMinutes()-d.
 function tglKanon(y,m,d){return`${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;}
 function tglLegacyID(y,m,d){return new Date(y,m-1,d).toLocaleDateString('id-ID');}
 let _absensiTglPilih=todayLocalInputDate();
+// Filter tampilan Daftar Pengajuan Izin — biar daftar tetap rapi tanpa menghapus data
+// (izin yang masih pending tetap selalu tampil apa pun filternya; data penuh tetap bisa direkap/CSV).
+let _izinFilter='minggu';
+function rentangTanggalIzin(filter){
+  const now=new Date();
+  if(filter==='minggu'){ const d=new Date(now); d.setDate(d.getDate()-7); return d; }
+  if(filter==='bulan'){ const d=new Date(now); d.setDate(d.getDate()-30); return d; }
+  return null; // 'semua'
+}
+function pilihFilterIzin(v){
+  _izinFilter=v;
+  const el=document.getElementById('tab-anggota');
+  if(el) el.innerHTML=renderIzin();
+}
 let _sesiAktifIdx=0;
 function renderAbsensi(){
   const canAccess=C.absensi_edit(R)||C.isAnggota(R)||C.komando_kirim(R)||C.isPengurus(R);
@@ -2052,9 +2066,24 @@ function renderIzin(){
   const isPembinaOrPelatih=['pembina','pelatih'].includes(R);
   const isPembina=R==='pembina';
   if(isPengurusInti||isPembinaOrPelatih){
-    html+=`<div class="sec">📋 Daftar Pengajuan Izin</div>`;
-    const daftar=D.izin.slice().reverse();
+    html+=`<div class="sec">📋 Daftar Pengajuan Izin</div>
+    <div class="card" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
+      <div class="field" style="flex:1;min-width:140px;margin:0"><label>Tampilkan</label>
+        <select id="izin-filter" onchange="pilihFilterIzin(this.value)">
+          <option value="minggu"${_izinFilter==='minggu'?' selected':''}>7 Hari Terakhir</option>
+          <option value="bulan"${_izinFilter==='bulan'?' selected':''}>30 Hari Terakhir</option>
+          <option value="semua"${_izinFilter==='semua'?' selected':''}>Semua (Riwayat Lengkap)</option>
+        </select>
+      </div>
+      <button class="btn btn-ghost btn-sm" onclick="downloadIzinCSV()" style="align-self:flex-end">⬇️ Unduh Rekap CSV</button>
+    </div>`;
+    const batas=rentangTanggalIzin(_izinFilter);
+    const semuaIzin=D.izin.slice().reverse();
+    const sedangProses=iz=>['pending','pending_pi','pending_pembina'].includes(iz.status);
+    const daftar=semuaIzin.filter(iz=>sedangProses(iz)||!batas||new Date(iz.tgl)>=batas);
+    const jumlahDisembunyikan=semuaIzin.length-daftar.length;
     if(!daftar.length) html+='<div style="color:var(--fg3);font-size:13px;padding:12px 0">Belum ada pengajuan izin.</div>';
+    if(jumlahDisembunyikan>0) html+=`<div style="color:var(--fg3);font-size:12px;padding:4px 0 10px">ℹ️ ${jumlahDisembunyikan} riwayat izin lama disembunyikan dari tampilan ini (tetap tersimpan — pilih "Semua" atau unduh CSV untuk melihat/merekap semuanya).</div>`;
     daftar.forEach(iz=>{
       const stLabel={'acc':'✅ DISETUJUI','tolak':'❌ DITOLAK','pending':'⏳ MENUNGGU','pending_pi':'📋 MENUNGGU PI','pending_pembina':'📤 MENUNGGU PEMBINA'}[iz.status]||iz.status.toUpperCase();
       const st=iz.status==='acc'?'badge-ok':iz.status==='tolak'?'badge-danger':'badge-warn';
@@ -2131,6 +2160,23 @@ function ajukanIzin(){
 function accIzin(id,status){
   const iz=D.izin.find(x=>x.id===id);if(!iz)return;
   iz.status=status;save();toast(status==='acc'?'Izin disetujui':'Izin ditolak');renderAnggota();
+}
+// Rekap lengkap seluruh riwayat izin (tidak terpengaruh filter tampilan) — biar data
+// tetap bisa direkap meski daftar di layar disaring agar rapi.
+function downloadIzinCSV(){
+  if(!D.izin.length)return toast('Belum ada data izin untuk direkap');
+  const stLabel={'acc':'Disetujui','tolak':'Ditolak','pending':'Menunggu','pending_pi':'Menunggu PI','pending_pembina':'Menunggu Pembina'};
+  let csv='Nama,Peran,Tanggal Izin,Sesi,Alasan,Status,Diajukan Pada\n';
+  D.izin.slice().reverse().forEach(iz=>{
+    const row=[iz.nama,RLBL[iz.role]||iz.role,tgl(iz.tgl),SESI[iz.sesi]||iz.sesi,iz.alasan,stLabel[iz.status]||iz.status,jamTgl(iz.tglAjuan)];
+    csv+=row.map(c=>`"${String(c==null?'':c).replace(/"/g,'""')}"`).join(',')+'\n';
+  });
+  const blob=new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;a.download=`rekap_izin_${todayLocalInputDate()}.csv`;a.click();
+  URL.revokeObjectURL(url);
+  toast('📥 Rekap izin diunduh ('+D.izin.length+' data)');
 }
 
 // ═══════════════════════════════════════════
