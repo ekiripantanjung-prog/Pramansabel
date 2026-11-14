@@ -427,6 +427,8 @@ function defD(){return{
   samapta:[],
   materi:[],
   izin:[],
+  paketSoal:[],
+  hasilSimulasi:[],
   ttd:null, // base64 TTD Pembina
   pins:{},
   config:{pelatih_komando:false,tahunAktif:26,tahunSenior:25},
@@ -588,7 +590,7 @@ function migrasiKodeEtik(){
 }
 // Field data yang berupa daftar/array (punya banyak item dengan id masing-masing).
 // Dipakai supaya sinkronisasi cloud menggabungkan, bukan menimpa habis.
-const DATA_ARRAY_KEYS=['anggota','absensi','pelanggaran','proker','prokerTahunan','evaluasi','lomba','agenda','adat','info','kas','komando','pengumuman','pemetaan','samapta','materi','izin'];
+const DATA_ARRAY_KEYS=['anggota','absensi','pelanggaran','proker','prokerTahunan','evaluasi','lomba','agenda','adat','info','kas','komando','pengumuman','pemetaan','samapta','materi','izin','paketSoal','hasilSimulasi'];
 // Hapus satu item dari daftar sekaligus MENANDAINYA sebagai terhapus (tombstone).
 // Kenapa perlu: sinkronisasi cloud menggabungkan data per-id dari cloud+lokal supaya
 // input baru dari HP lain tidak hilang — tapi akibatnya kalau item cuma dibuang dari
@@ -801,6 +803,11 @@ const C={
   edit_info:r=>r==='pembina',
   ttd:r=>r==='pembina',
   lantik:r=>r==='pembina',
+  // Simulasi TIU & TWK (tryout PPI Kabupaten/Provinsi/Nasional): paket soal
+  // dibuat/diedit oleh Pembina, Pelatih, PPS Aktif, dan Purna (sesuai permintaan
+  // Pembina); semua anggota (Balonpas s.d Purna) boleh mengerjakannya.
+  simulasi_kelola:r=>['pembina','pelatih','pps_aktif','purna'].includes(r),
+  simulasi_kerjakan:r=>['balonpas','capas','pps_aktif','pps_senior','purna'].includes(r),
 };
 
 // ═══════════════════════════════════════════
@@ -1993,6 +2000,7 @@ function renderKegiatan(){
     <button class="tab" onclick="tabKegiatan('lomba',this)">Lomba</button>
     <button class="tab" onclick="tabKegiatan('pemetaan',this)">Pemetaan</button>
     <button class="tab" onclick="tabKegiatan('samapta',this)">Samapta</button>
+    <button class="tab" onclick="tabKegiatan('simulasi',this)">Simulasi</button>
     <button class="tab" onclick="tabKegiatan('share',this)">Share</button>
   </div><div id="tab-kegiatan"></div>`;
   el.innerHTML=tabs;
@@ -2011,6 +2019,7 @@ function renderTabKegiatan(t){
   else if(t==='lomba') el.innerHTML=renderLomba();
   else if(t==='pemetaan') el.innerHTML=renderPemetaan();
   else if(t==='samapta') el.innerHTML=renderSamapta();
+  else if(t==='simulasi') el.innerHTML=renderSimulasi();
   else if(t==='share') el.innerHTML=renderShare();
 }
 
@@ -3080,6 +3089,220 @@ function tambahInfo(){
   if(!judul)return toast('Judul harus diisi');
   D.info.push({id:uid(),kat:document.getElementById('inf-kat').value.trim()||'Umum',judul,isi:document.getElementById('inf-isi').value.trim()});
   save();toast('Materi ditambahkan');renderTabKegiatan('share');
+}
+
+// ═══════════════════════════════════════════
+// SIMULASI TIU & TWK — tryout PPI Kabupaten/Provinsi/Nasional. Paket soal
+// dikelola oleh Pembina/Pelatih/PPS Aktif/Purna; semua anggota boleh
+// mengerjakan. Skor sederhana: tiap soal benar +1, salah/kosong 0, hasil
+// akhir diskalakan ke 0-100 dari total soal.
+// ═══════════════════════════════════════════
+function renderSimulasi(){
+  let html='<div class="sec">📝 Simulasi Tes TIU & TWK</div>';
+  if(C.simulasi_kelola(R)){
+    html+=`<button class="btn btn-primary btn-sm" style="margin-bottom:12px" onclick="modalPaketSoal()">+ Buat Paket Soal</button>`;
+  }
+  if(!D.paketSoal.length) html+='<div class="alert alert-warn">Belum ada paket soal simulasi.</div>';
+  D.paketSoal.slice().reverse().forEach(p=>{
+    const jmlTiu=(p.tiu||[]).length,jmlTwk=(p.twk||[]).length;
+    html+=`<div class="item">
+      <div class="item-title">${esc(p.nama)}</div>
+      <div style="font-size:12px;color:var(--fg2)">${esc(p.kategori||'-')} · ${jmlTiu} soal TIU + ${jmlTwk} soal TWK · Dibuat oleh ${esc(p.dibuatOleh||'-')}</div>
+      <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">
+        ${C.simulasi_kerjakan(R)?`<button class="btn btn-ok btn-sm" onclick="mulaiSimulasi('${p.id}')">▶️ Kerjakan</button>`:''}
+        ${C.simulasi_kelola(R)?`<button class="btn btn-ghost btn-sm" onclick="modalPaketSoal('${p.id}')">✏️ Edit</button>`:''}
+        ${C.simulasi_kelola(R)?`<button class="btn btn-ghost btn-sm" style="color:#ef4444" onclick="hapusPaketSoal('${p.id}')">🗑 Hapus</button>`:''}
+      </div>
+    </div>`;
+  });
+  if(['pembina','pelatih'].includes(R) && D.hasilSimulasi.length){
+    html+=`<div class="sec" style="margin-top:14px">📊 Riwayat Hasil Anggota</div>`;
+    D.hasilSimulasi.slice().reverse().slice(0,50).forEach(h=>{
+      const paket=D.paketSoal.find(p=>p.id===h.paketId);
+      html+=`<div class="item">
+        <div class="item-title">${esc(h.nama)} <span style="font-weight:400;color:var(--fg2);font-size:12px">(${esc(RLBL[h.role]||h.role)})</span></div>
+        <div style="font-size:12px;color:var(--fg2)">${esc(paket?paket.nama:'Paket dihapus')} · ${jamTgl(h.waktu)}</div>
+        <div style="margin-top:4px;font-size:13px">TIU: ${h.tiuBenar}/${h.totalTiu} · TWK: ${h.twkBenar}/${h.totalTwk} · <b>Skor: ${h.skorTotal}/100</b></div>
+      </div>`;
+    });
+  }
+  return html;
+}
+
+// ── Kelola paket soal (buat/edit/hapus) ──
+let _paketEditId=null,_paketSoal={tiu:[],twk:[]};
+function soalKosong(){return{teks:'',opsi:['','','',''],jawaban:0}}
+function modalPaketSoal(editId){
+  _paketEditId=editId||null;
+  const p=editId?D.paketSoal.find(x=>x.id===editId):null;
+  _paketSoal={
+    tiu:(p&&p.tiu&&p.tiu.length)?JSON.parse(JSON.stringify(p.tiu)):Array.from({length:20},soalKosong),
+    twk:(p&&p.twk&&p.twk.length)?JSON.parse(JSON.stringify(p.twk)):Array.from({length:20},soalKosong)
+  };
+  bukaModalPaket(p||{});
+}
+function bukaModalPaket(h){
+  h=h||{};
+  const isEdit=!!_paketEditId;
+  openModal(`<div class="modal-title">${isEdit?'Edit':'Buat'} Paket Soal Simulasi <button class="modal-close" onclick="closeModal()">×</button></div>
+  <div class="field"><label>Nama Paket</label><input id="ps-nama" placeholder="Misal: Simulasi PPI Kabupaten 2026 Paket 1" value="${esc(h.nama||'')}"></div>
+  <div class="field"><label>Tingkat</label><select id="ps-kategori">
+    ${['Kabupaten','Provinsi','Nasional'].map(k=>`<option${h.kategori===k?' selected':''}>${k}</option>`).join('')}
+  </select></div>
+  <div class="sec" style="margin-top:14px">🧠 Soal TIU (${_paketSoal.tiu.length})</div>
+  <div id="ps-rows-tiu">${_paketSoal.tiu.map((s,i)=>soalPaketRowHTML('tiu',s,i)).join('')}</div>
+  <button class="btn btn-ghost btn-sm" style="margin-top:6px" onclick="tambahSoalPaket('tiu')">+ Tambah Soal TIU</button>
+  <div class="sec" style="margin-top:14px">🇮🇩 Soal TWK (${_paketSoal.twk.length})</div>
+  <div id="ps-rows-twk">${_paketSoal.twk.map((s,i)=>soalPaketRowHTML('twk',s,i)).join('')}</div>
+  <button class="btn btn-ghost btn-sm" style="margin-top:6px" onclick="tambahSoalPaket('twk')">+ Tambah Soal TWK</button>
+  <button class="btn btn-primary btn-full" style="margin-top:14px" onclick="simpanPaketSoal()">💾 Simpan Paket Soal</button>`);
+}
+function soalPaketRowHTML(bagian,s,i){
+  const huruf=['A','B','C','D'];
+  return`<div style="border:1px solid var(--bd);padding:10px;border-radius:10px;margin-bottom:8px" data-row="${i}">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+      <b style="font-size:13px">${bagian.toUpperCase()} #${i+1}</b>
+      <button class="btn btn-ghost btn-sm" onclick="hapusSoalPaket('${bagian}',${i})">✕</button>
+    </div>
+    <textarea class="ps-teks" placeholder="Tulis soal ${bagian.toUpperCase()} di sini...">${esc(s.teks||'')}</textarea>
+    ${huruf.map((hh,oi)=>`<div style="display:flex;align-items:center;gap:6px;margin-top:4px">
+      <input type="radio" name="ps-jwb-${bagian}-${i}" class="ps-radio" value="${oi}"${(s.jawaban||0)===oi?' checked':''}>
+      <input class="ps-opsi" data-opsi="${oi}" placeholder="Opsi ${hh}" value="${esc((s.opsi&&s.opsi[oi])||'')}" style="flex:1">
+    </div>`).join('')}
+    <div style="font-size:11px;color:var(--fg3);margin-top:4px">Tandai bulatan di samping opsi yang jadi kunci jawaban benar.</div>
+  </div>`;
+}
+function ambilSoalPaketDariForm(bagian){
+  return[...document.querySelectorAll(`#ps-rows-${bagian} [data-row]`)].map(r=>({
+    teks:r.querySelector('.ps-teks').value.trim(),
+    opsi:[...r.querySelectorAll('.ps-opsi')].map(o=>o.value.trim()),
+    jawaban:Number(r.querySelector('.ps-radio:checked')?.value??0)
+  }));
+}
+function ambilHeaderPaketDariForm(){
+  return{nama:document.getElementById('ps-nama')?.value,kategori:document.getElementById('ps-kategori')?.value};
+}
+function tambahSoalPaket(bagian){
+  _paketSoal.tiu=ambilSoalPaketDariForm('tiu');
+  _paketSoal.twk=ambilSoalPaketDariForm('twk');
+  _paketSoal[bagian].push(soalKosong());
+  bukaModalPaket(ambilHeaderPaketDariForm());
+}
+function hapusSoalPaket(bagian,i){
+  _paketSoal.tiu=ambilSoalPaketDariForm('tiu');
+  _paketSoal.twk=ambilSoalPaketDariForm('twk');
+  _paketSoal[bagian].splice(i,1);
+  bukaModalPaket(ambilHeaderPaketDariForm());
+}
+function simpanPaketSoal(){
+  const nama=document.getElementById('ps-nama').value.trim();
+  if(!nama)return toast('Nama paket harus diisi');
+  const tiu=ambilSoalPaketDariForm('tiu').filter(s=>s.teks);
+  const twk=ambilSoalPaketDariForm('twk').filter(s=>s.teks);
+  if(!tiu.length&&!twk.length)return toast('Isi minimal 1 soal TIU/TWK sebelum disimpan');
+  const kategori=document.getElementById('ps-kategori').value;
+  const existing=_paketEditId?D.paketSoal.find(x=>x.id===_paketEditId):null;
+  const data=existing?{...existing}:{id:uid(),dibuatOleh:RLBL[R]};
+  data.nama=nama;data.kategori=kategori;data.tiu=tiu;data.twk=twk;
+  const idx=D.paketSoal.findIndex(x=>x.id===data.id);
+  if(idx>=0)D.paketSoal[idx]=data;else D.paketSoal.push(data);
+  _paketEditId=null;_paketSoal={tiu:[],twk:[]};
+  save();closeModal();toast('Paket soal disimpan');renderTabKegiatan('simulasi');
+}
+function hapusPaketSoal(id){
+  const p=D.paketSoal.find(x=>x.id===id);if(!p)return;
+  if(!confirm('Hapus paket soal "'+p.nama+'"? Tindakan ini tidak bisa dibatalkan.'))return;
+  tandaHapus('paketSoal',id);
+  save();toast('Paket soal dihapus');renderTabKegiatan('simulasi');
+}
+
+// ── Mengerjakan simulasi ──
+let _simPaketId=null,_simJawabanTiu=[],_simJawabanTwk=[],_simNama='';
+function mulaiSimulasi(paketId){
+  const p=D.paketSoal.find(x=>x.id===paketId);if(!p)return;
+  if(!(p.tiu&&p.tiu.length)&&!(p.twk&&p.twk.length))return toast('Paket ini belum ada soalnya');
+  openModal(`<div class="modal-title">Mulai Simulasi <button class="modal-close" onclick="closeModal()">×</button></div>
+  <p style="font-size:13px;color:var(--fg2);margin-bottom:10px">${esc(p.nama)} — ${(p.tiu||[]).length} soal TIU, ${(p.twk||[]).length} soal TWK. Kerjakan semua soal lalu tap "Selesai Mengerjakan" di bagian paling bawah.</p>
+  <div class="field"><label>Nama Anda</label><input id="sim-nama" placeholder="Nama lengkap"></div>
+  <button class="btn btn-primary btn-full" onclick="bukaSoalSimulasi('${paketId}')">▶️ Mulai Mengerjakan</button>`);
+}
+function bukaSoalSimulasi(paketId){
+  const nama=document.getElementById('sim-nama').value.trim();
+  if(!nama)return toast('Nama harus diisi');
+  const p=D.paketSoal.find(x=>x.id===paketId);if(!p)return;
+  _simPaketId=paketId;_simNama=nama;
+  _simJawabanTiu=new Array((p.tiu||[]).length).fill(null);
+  _simJawabanTwk=new Array((p.twk||[]).length).fill(null);
+  closeModal();
+  document.getElementById('tab-kegiatan').innerHTML=renderSoalSimulasi(p);
+  window.scrollTo(0,0);
+}
+function renderSoalSimulasi(p){
+  const huruf=['A','B','C','D'];
+  let html=`<div class="sec">📝 ${esc(p.nama)}</div>
+  <div class="alert alert-warn">Jawab semua soal, lalu tap "Selesai Mengerjakan" di bagian paling bawah.</div>`;
+  if((p.tiu||[]).length){
+    html+=`<div class="sec" style="margin-top:12px">🧠 TIU</div>`;
+    p.tiu.forEach((s,i)=>{
+      html+=`<div class="item"><b>${i+1}. ${esc(s.teks)}</b>
+      ${(s.opsi||[]).map((o,oi)=>o?`<div style="margin-top:4px"><label style="display:flex;gap:6px;align-items:center;font-size:14px"><input type="radio" name="sim-tiu-${i}" onchange="_simJawabanTiu[${i}]=${oi}"> ${huruf[oi]}. ${esc(o)}</label></div>`:'').join('')}
+      </div>`;
+    });
+  }
+  if((p.twk||[]).length){
+    html+=`<div class="sec" style="margin-top:12px">🇮🇩 TWK</div>`;
+    p.twk.forEach((s,i)=>{
+      html+=`<div class="item"><b>${i+1}. ${esc(s.teks)}</b>
+      ${(s.opsi||[]).map((o,oi)=>o?`<div style="margin-top:4px"><label style="display:flex;gap:6px;align-items:center;font-size:14px"><input type="radio" name="sim-twk-${i}" onchange="_simJawabanTwk[${i}]=${oi}"> ${huruf[oi]}. ${esc(o)}</label></div>`:'').join('')}
+      </div>`;
+    });
+  }
+  html+=`<button class="btn btn-primary btn-full" style="margin-top:14px" onclick="selesaiSimulasi()">✅ Selesai Mengerjakan</button>
+  <button class="btn btn-ghost btn-full" style="margin-top:8px" onclick="renderTabKegiatan('simulasi')">✕ Batalkan</button>`;
+  return html;
+}
+function selesaiSimulasi(){
+  const p=D.paketSoal.find(x=>x.id===_simPaketId);if(!p)return;
+  const belum=_simJawabanTiu.filter(j=>j===null).length+_simJawabanTwk.filter(j=>j===null).length;
+  if(belum>0 && !confirm(`Masih ada ${belum} soal belum dijawab. Tetap selesaikan?`))return;
+  const tiuBenar=(p.tiu||[]).filter((s,i)=>_simJawabanTiu[i]===s.jawaban).length;
+  const twkBenar=(p.twk||[]).filter((s,i)=>_simJawabanTwk[i]===s.jawaban).length;
+  const totalSoal=(p.tiu||[]).length+(p.twk||[]).length;
+  const totalBenar=tiuBenar+twkBenar;
+  const skorTotal=totalSoal?Math.round((totalBenar/totalSoal)*100):0;
+  const hasil={id:uid(),paketId:p.id,nama:_simNama,role:R,tiuBenar,twkBenar,totalTiu:(p.tiu||[]).length,totalTwk:(p.twk||[]).length,skorTotal,waktu:Date.now(),jawabanTiu:[..._simJawabanTiu],jawabanTwk:[..._simJawabanTwk]};
+  D.hasilSimulasi.push(hasil);
+  save();
+  document.getElementById('tab-kegiatan').innerHTML=renderHasilSimulasi(p,hasil);
+  window.scrollTo(0,0);
+}
+function renderHasilSimulasi(p,hasil){
+  const huruf=['A','B','C','D'];
+  let html=`<div class="sec">✅ Hasil Simulasi — ${esc(hasil.nama)}</div>
+  <div class="item">
+    <div style="display:flex;gap:18px;flex-wrap:wrap;margin-bottom:4px">
+      <div><div style="font-size:12px;color:var(--fg2)">TIU</div><div style="font-size:20px;font-weight:700">${hasil.tiuBenar}/${hasil.totalTiu}</div></div>
+      <div><div style="font-size:12px;color:var(--fg2)">TWK</div><div style="font-size:20px;font-weight:700">${hasil.twkBenar}/${hasil.totalTwk}</div></div>
+      <div><div style="font-size:12px;color:var(--fg2)">Skor Total</div><div style="font-size:20px;font-weight:700;color:var(--accent)">${hasil.skorTotal}/100</div></div>
+    </div>
+  </div>
+  <div class="sec" style="margin-top:12px">🔑 Kunci Jawaban & Koreksi</div>`;
+  const bagian=[['TIU',p.tiu||[],hasil.jawabanTiu],['TWK',p.twk||[],hasil.jawabanTwk]];
+  bagian.forEach(([label,soalList,jawabanUser])=>{
+    if(!soalList.length)return;
+    html+=`<div style="font-size:12px;font-weight:700;color:var(--accent);margin:10px 0 6px">${label}</div>`;
+    soalList.forEach((s,i)=>{
+      const jwbUser=jawabanUser[i];
+      const benar=jwbUser===s.jawaban;
+      html+=`<div class="item" style="border-left:4px solid ${benar?'#22c55e':'#ef4444'}">
+        <b>${i+1}. ${esc(s.teks)}</b>
+        ${(s.opsi||[]).map((o,oi)=>o?`<div style="font-size:13px;margin-top:3px;${oi===s.jawaban?'color:#22c55e;font-weight:700':(oi===jwbUser?'color:#ef4444':'')}">${huruf[oi]}. ${esc(o)}${oi===s.jawaban?' ✓ (Kunci)':''}${oi===jwbUser&&oi!==s.jawaban?' ✗ (Jawaban Anda)':''}</div>`:'').join('')}
+        ${(jwbUser===null||jwbUser===undefined)?'<div style="font-size:12px;color:var(--fg3);margin-top:3px">Tidak dijawab</div>':''}
+      </div>`;
+    });
+  });
+  html+=`<button class="btn btn-primary btn-full" style="margin-top:14px" onclick="renderTabKegiatan('simulasi')">← Kembali ke Daftar Simulasi</button>`;
+  return html;
 }
 
 // ═══════════════════════════════════════════
