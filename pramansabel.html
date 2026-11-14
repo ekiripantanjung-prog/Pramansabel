@@ -3468,7 +3468,12 @@ function mulaiSimulasi(paketId){
   if(!(p.tiu&&p.tiu.length)&&!(p.twk&&p.twk.length))return toast('Paket ini belum ada soalnya');
   openModal(`<div class="modal-title">Mulai Simulasi <button class="modal-close" onclick="closeModal()">×</button></div>
   <p style="font-size:13px;color:var(--fg2);margin-bottom:10px">${esc(p.nama)} — ${(p.tiu||[]).length} soal TIU, ${(p.twk||[]).length} soal TWK. ⏱️ Waktu pengerjaan: <b>${p.durasiMenit||40} menit</b>, berjalan mundur sejak Anda tap "Mulai Mengerjakan". Kerjakan semua soal lalu tap "Selesai Mengerjakan", atau jawaban akan otomatis dikumpulkan saat waktu habis.</p>
-  <div class="field"><label>Nama Anda</label><input id="sim-nama" placeholder="Nama lengkap"></div>
+  <div class="field"><label>Nama Anda</label>
+    <select id="sim-nama">
+      <option value="">-- Pilih Nama --</option>
+      ${D.anggota.filter(a=>a.status==='aktif').map(a=>`<option value="${esc(a.nama)}">${esc(a.nama)} (${esc(RLBL[a.role]||a.role)})</option>`).join('')}
+    </select>
+  </div>
   <button class="btn btn-primary btn-full" onclick="bukaSoalSimulasi('${paketId}')">▶️ Mulai Mengerjakan</button>`);
 }
 let _simTimerId=null,_simSisaDetik=0;
