@@ -441,6 +441,10 @@ let R = null; // role saat ini
 
 const GS_DEFAULT='https://script.google.com/macros/s/AKfycbzdZ3IVx3jmo7HR3W1b2BFTjUGJs-z7JIJFJhdOV6FVuJkajqGEvtauONMrJuEX9bevxw/exec';
 let GS_URL='';try{GS_URL=localStorage.getItem('pramansabel_gsurl')||GS_DEFAULT;}catch(e){GS_URL=GS_DEFAULT;}
+// Batas kapasitas data cloud. Backend lama (1 sel Google Sheets) mentok di
+// ~50.000 karakter; backend baru (lihat AppsScript_Backend_Baru.gs) memecah
+// data ke banyak sel jadi jauh lebih longgar. Angka ini jaring pengaman saja.
+const BATAS_CLOUD_KIRIM=2000000;
 
 // ═══════════════════════════════════════════
 // NOTIFIKASI PUSH (OneSignal) — supaya Komando/Pengumuman masuk ke notifikasi
@@ -660,13 +664,17 @@ async function saveGS(){
   const d={...payload,ttd:null};
   const teksKirim=JSON.stringify(d);
   window._lastGSSize=teksKirim.length;
-  // JANGAN kirim kalau sudah pasti bakal ditolak Google Sheets (batas ~50.000
-  // karakter per sel) — sebelumnya push yang gagal di sisi server diam saja
-  // (fetch().catch(()=>{}) tidak pernah mengecek isi responsnya), jadi data
-  // terlihat "tersimpan" di HP pembuatnya padahal tidak pernah sampai ke cloud.
-  if(teksKirim.length>49500){
+  // JANGAN kirim kalau sudah pasti bakal ditolak (batas realistis backend) —
+  // sebelumnya push yang gagal di sisi server diam saja (fetch().catch(()=>{})
+  // tidak pernah mengecek isi responsnya), jadi data terlihat "tersimpan" di
+  // HP pembuatnya padahal tidak pernah sampai ke cloud. Sejak backend diubah
+  // untuk menyimpan data terpecah ke banyak sel (lihat AppsScript_Backend_Baru.gs),
+  // batas 50.000 karakter per sel Google Sheets sudah tidak lagi jadi batas
+  // TOTAL data aplikasi — angka di bawah ini cuma jaring pengaman supaya data
+  // yang tumbuh di luar kewajaran tidak bikin sinkron lambat/timeout.
+  if(teksKirim.length>BATAS_CLOUD_KIRIM){
     window._gsOverCapacity=true;
-    toast('🚫 GAGAL sinkron ke cloud: data sudah melewati batas penyimpanan (~50.000 karakter). Buka Pengaturan → Sinkron untuk detail.');
+    toast('🚫 GAGAL sinkron ke cloud: data sudah melewati batas penyimpanan ('+BATAS_CLOUD_KIRIM.toLocaleString('id')+' karakter). Buka Pengaturan → Sinkron untuk detail.');
     return;
   }
   window._gsOverCapacity=false;
@@ -2303,12 +2311,12 @@ function simpanProker(sbgDraft){
   const dataBaru=existing?{...existing}:{id:uid(),accPembina:false,accPelatih:false,dibuatOleh:RLBL[R]};
   dataBaru.judul=j;dataBaru.jenis=document.getElementById('pk-jenis').value;dataBaru.tgl=document.getElementById('pk-tgl').value;dataBaru.isi=document.getElementById('pk-isi').value.trim();dataBaru.draft=!!sbgDraft;
   if(file){
-    // Batas realistis: cloud (Google Sheets) hanya muat ~50.000 karakter total
-    // untuk SELURUH data aplikasi, bukan per-proker. Jadi batas lampiran harus
-    // dihitung dari sisa ruang yang benar-benar ada sekarang, bukan angka tetap
-    // — sebelumnya dipatok 400KB padahal sisa ruang bisa jauh lebih kecil, dan
-    // itulah sebab lampiran bikin Proker gagal tersimpan tanpa pemberitahuan.
-    const sisaRuang=48000-JSON.stringify(D).length; // sisakan jarak aman dari batas ~50.000
+    // Batas realistis: cloud (lihat BATAS_CLOUD_KIRIM) menampung SELURUH data
+    // aplikasi, bukan per-proker. Jadi batas lampiran harus dihitung dari sisa
+    // ruang yang benar-benar ada sekarang, bukan angka tetap — sebelumnya
+    // dipatok 400KB padahal sisa ruang bisa jauh lebih kecil, dan itulah sebab
+    // lampiran bikin Proker gagal tersimpan tanpa pemberitahuan.
+    const sisaRuang=(BATAS_CLOUD_KIRIM-50000)-JSON.stringify(D).length; // sisakan jarak aman
     const maxRawBytes=Math.max(0,Math.floor(sisaRuang*0.7)); // base64 menggembungkan ~1.37x
     if(sisaRuang<2000){
       toast('⚠️ Data cloud sudah hampir penuh (lihat Pengaturan → Sinkron → Cek Status Sinkron). Lampiran TIDAK bisa disimpan sampai ada ruang tersisa. Proker tetap disimpan tanpa lampiran.');
@@ -4276,7 +4284,7 @@ function renderTTD(){
   :`<div class="card"><p style="font-size:13px;color:var(--fg2);margin-bottom:12px">Belum ada TTD tersimpan.</p></div>
   <button class="btn btn-primary btn-full" onclick="buatTTDBaru()">✍ Buat Tanda Tangan</button>`}`;
 }
-const BATAS_CLOUD=50000;
+const BATAS_CLOUD=BATAS_CLOUD_KIRIM;
 function renderKapasitasCloud(){
   const sz=window._lastGSSize||JSON.stringify(D).length;
   const pct=Math.min(100,Math.round(sz/BATAS_CLOUD*100));
@@ -4317,7 +4325,7 @@ async function cekDiagnostikSinkron(){
   const el=document.getElementById('diag-sinkron-hasil');
   if(!el)return;
   el.innerHTML='<p style="font-size:12px;margin-top:10px">⏳ Mengecek...</p>';
-  const DATA_KEYS_DIAG=['anggota','absensi','pelanggaran','proker','prokerTahunan','evaluasi','lomba','agenda','adat','info','kas','komando','pengumuman','pemetaan','samapta','materi','izin'];
+  const DATA_KEYS_DIAG=['anggota','absensi','pelanggaran','proker','prokerTahunan','evaluasi','lomba','agenda','adat','info','kas','komando','pengumuman','pemetaan','samapta','materi','izin','paketSoal','hasilSimulasi'];
   let html='';
   try{
     const t0=Date.now();
