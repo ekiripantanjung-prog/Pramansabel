@@ -447,10 +447,12 @@ let GS_URL='';try{GS_URL=localStorage.getItem('pramansabel_gsurl')||GS_DEFAULT;}
 const ONESIGNAL_APP_ID_DEFAULT='a7f6b3cd-47cb-4be7-97b0-f6d6bac58b86';
 let ONESIGNAL_APP_ID='';try{ONESIGNAL_APP_ID=localStorage.getItem('pramansabel_onesignal_appid')||ONESIGNAL_APP_ID_DEFAULT;}catch(e){ONESIGNAL_APP_ID=ONESIGNAL_APP_ID_DEFAULT;}
 let ONESIGNAL_REST_KEY='';try{ONESIGNAL_REST_KEY=localStorage.getItem('pramansabel_onesignal_restkey')||'';}catch(e){}
+let _oneSignalInitErr=null,_oneSignalInitDone=false;
 if(ONESIGNAL_APP_ID){
   window.OneSignalDeferred=window.OneSignalDeferred||[];
   OneSignalDeferred.push(async function(OneSignal){
-    try{ await OneSignal.init({appId:ONESIGNAL_APP_ID,allowLocalhostAsSecureOrigin:true}); }catch(e){}
+    try{ await OneSignal.init({appId:ONESIGNAL_APP_ID,allowLocalhostAsSecureOrigin:true}); _oneSignalInitDone=true; }
+    catch(e){ _oneSignalInitErr=(e&&e.message)||String(e); try{console.error('[OneSignal init]',e);}catch(_){} }
   });
 }
 // Minta izin notifikasi ke browser & daftarkan HP ini ke OneSignal. Dipanggil
@@ -458,13 +460,19 @@ if(ONESIGNAL_APP_ID){
 function aktifkanNotifikasiPush(){
   if(!ONESIGNAL_APP_ID)return toast('⚠️ Notifikasi push belum disetel Pembina. Lihat Pengaturan → Notifikasi.');
   if(!window.OneSignalDeferred)return toast('⚠️ Modul notifikasi belum siap (butuh internet). Coba lagi sebentar.');
+  let _selesai=false;
+  setTimeout(()=>{
+    if(_selesai)return;
+    toast('⏳ Belum ada respons dari layanan notifikasi (>6 detik).'+(_oneSignalInitErr?(' Error: '+_oneSignalInitErr):' Coba cek koneksi internet atau pengaturan Site URL di OneSignal.'));
+  },6000);
   OneSignalDeferred.push(async function(OneSignal){
     try{
       await OneSignal.Notifications.requestPermission();
       const aktif=OneSignal.Notifications.permission;
+      _selesai=true;
       toast(aktif?'🔔 Notifikasi diaktifkan di HP ini!':'❌ Izin notifikasi ditolak — aktifkan lewat pengaturan browser kalau berubah pikiran.');
       renderPengaturan();
-    }catch(e){ toast('❌ Gagal mengaktifkan notifikasi'); }
+    }catch(e){ _selesai=true; try{console.error('[OneSignal requestPermission]',e);}catch(_){} toast('❌ Gagal mengaktifkan notifikasi: '+((e&&e.message)||e)); }
   });
 }
 function simpanKonfigOneSignal(){
