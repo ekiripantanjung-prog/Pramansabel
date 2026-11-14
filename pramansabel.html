@@ -3293,7 +3293,7 @@ function renderSimulasi(){
     const jmlTiu=(p.tiu||[]).length,jmlTwk=(p.twk||[]).length;
     html+=`<div class="item">
       <div class="item-title">${esc(p.nama)}</div>
-      <div style="font-size:12px;color:var(--fg2)">${esc(p.kategori||'-')} · ${jmlTiu} soal TIU + ${jmlTwk} soal TWK · Dibuat oleh ${esc(p.dibuatOleh||'-')}</div>
+      <div style="font-size:12px;color:var(--fg2)">${esc(p.kategori||'-')} · ${jmlTiu} soal TIU + ${jmlTwk} soal TWK · ⏱️ ${p.durasiMenit||40} menit · Dibuat oleh ${esc(p.dibuatOleh||'-')}</div>
       <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">
         ${C.simulasi_kerjakan(R)?`<button class="btn btn-ok btn-sm" onclick="mulaiSimulasi('${p.id}')">▶️ Kerjakan</button>`:''}
         ${C.simulasi_kelola(R)?`<button class="btn btn-ghost btn-sm" onclick="modalPaketSoal('${p.id}')">✏️ Edit</button>`:''}
@@ -3381,6 +3381,8 @@ function bukaModalPaket(h){
   <div class="field"><label>Tingkat</label><select id="ps-kategori">
     ${['Kabupaten','Provinsi','Nasional'].map(k=>`<option${h.kategori===k?' selected':''}>${k}</option>`).join('')}
   </select></div>
+  <div class="field"><label>⏱️ Durasi Pengerjaan (menit)</label><input id="ps-durasi" type="number" min="1" value="${h.durasiMenit||40}"></div>
+  <div style="font-size:11px;color:var(--fg3);margin:-6px 0 10px">Waktu akan berjalan mundur sejak anggota mulai mengerjakan. Kalau waktu habis, jawaban otomatis dikumpulkan.</div>
   <div class="sec" style="margin-top:14px">🧠 Soal TIU (${_paketSoal.tiu.length})</div>
   <div style="border:1px dashed var(--bd);padding:8px;border-radius:10px;margin-bottom:8px">
     <div style="font-size:11px;color:var(--fg3);margin-bottom:4px">📋 Impor cepat — tempel teks soal (format: "1. Soal" lalu "A. opsi" s/d "E. opsi", kunci jawaban diberi tanda * di depan huruf, misal "*B. opsi"). Ini akan MENGGANTI semua soal TIU yang ada di form.</div>
@@ -3422,7 +3424,7 @@ function ambilSoalPaketDariForm(bagian){
   }));
 }
 function ambilHeaderPaketDariForm(){
-  return{nama:document.getElementById('ps-nama')?.value,kategori:document.getElementById('ps-kategori')?.value};
+  return{nama:document.getElementById('ps-nama')?.value,kategori:document.getElementById('ps-kategori')?.value,durasiMenit:document.getElementById('ps-durasi')?.value};
 }
 function tambahSoalPaket(bagian){
   _paketSoal.tiu=ambilSoalPaketDariForm('tiu');
@@ -3443,9 +3445,10 @@ function simpanPaketSoal(){
   const twk=ambilSoalPaketDariForm('twk').filter(s=>s.teks);
   if(!tiu.length&&!twk.length)return toast('Isi minimal 1 soal TIU/TWK sebelum disimpan');
   const kategori=document.getElementById('ps-kategori').value;
+  const durasiMenit=Math.max(1,parseInt(document.getElementById('ps-durasi').value)||40);
   const existing=_paketEditId?D.paketSoal.find(x=>x.id===_paketEditId):null;
   const data=existing?{...existing}:{id:uid(),dibuatOleh:RLBL[R]};
-  data.nama=nama;data.kategori=kategori;data.tiu=tiu;data.twk=twk;
+  data.nama=nama;data.kategori=kategori;data.tiu=tiu;data.twk=twk;data.durasiMenit=durasiMenit;
   const idx=D.paketSoal.findIndex(x=>x.id===data.id);
   if(idx>=0)D.paketSoal[idx]=data;else D.paketSoal.push(data);
   _paketEditId=null;_paketSoal={tiu:[],twk:[]};
@@ -3464,10 +3467,11 @@ function mulaiSimulasi(paketId){
   const p=D.paketSoal.find(x=>x.id===paketId);if(!p)return;
   if(!(p.tiu&&p.tiu.length)&&!(p.twk&&p.twk.length))return toast('Paket ini belum ada soalnya');
   openModal(`<div class="modal-title">Mulai Simulasi <button class="modal-close" onclick="closeModal()">×</button></div>
-  <p style="font-size:13px;color:var(--fg2);margin-bottom:10px">${esc(p.nama)} — ${(p.tiu||[]).length} soal TIU, ${(p.twk||[]).length} soal TWK. Kerjakan semua soal lalu tap "Selesai Mengerjakan" di bagian paling bawah.</p>
+  <p style="font-size:13px;color:var(--fg2);margin-bottom:10px">${esc(p.nama)} — ${(p.tiu||[]).length} soal TIU, ${(p.twk||[]).length} soal TWK. ⏱️ Waktu pengerjaan: <b>${p.durasiMenit||40} menit</b>, berjalan mundur sejak Anda tap "Mulai Mengerjakan". Kerjakan semua soal lalu tap "Selesai Mengerjakan", atau jawaban akan otomatis dikumpulkan saat waktu habis.</p>
   <div class="field"><label>Nama Anda</label><input id="sim-nama" placeholder="Nama lengkap"></div>
   <button class="btn btn-primary btn-full" onclick="bukaSoalSimulasi('${paketId}')">▶️ Mulai Mengerjakan</button>`);
 }
+let _simTimerId=null,_simSisaDetik=0;
 function bukaSoalSimulasi(paketId){
   const nama=document.getElementById('sim-nama').value.trim();
   if(!nama)return toast('Nama harus diisi');
@@ -3478,11 +3482,43 @@ function bukaSoalSimulasi(paketId){
   closeModal();
   document.getElementById('tab-kegiatan').innerHTML=renderSoalSimulasi(p);
   window.scrollTo(0,0);
+  mulaiTimerSimulasi(p.durasiMenit||40);
+}
+function mulaiTimerSimulasi(menit){
+  clearInterval(_simTimerId);
+  _simSisaDetik=Math.max(1,menit)*60;
+  tampilkanTimerSimulasi();
+  _simTimerId=setInterval(()=>{
+    _simSisaDetik--;
+    if(_simSisaDetik<=0){
+      clearInterval(_simTimerId);
+      tampilkanTimerSimulasi();
+      toast('⏰ Waktu habis! Jawaban otomatis dikumpulkan.');
+      selesaiSimulasi(true);
+      return;
+    }
+    tampilkanTimerSimulasi();
+  },1000);
+}
+function tampilkanTimerSimulasi(){
+  const el=document.getElementById('sim-timer');if(!el)return;
+  const m=Math.floor(_simSisaDetik/60),s=_simSisaDetik%60;
+  const teks='⏱️ '+String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
+  el.textContent=teks;
+  el.style.color=_simSisaDetik<=300?'#ef4444':(_simSisaDetik<=600?'var(--warn)':'var(--accent)');
+}
+function batalkanSimulasi(){
+  clearInterval(_simTimerId);
+  if(!confirm('Batalkan pengerjaan simulasi ini? Jawaban yang sudah diisi tidak akan disimpan.'))return;
+  renderTabKegiatan('simulasi');
 }
 function renderSoalSimulasi(p){
   const huruf=['A','B','C','D','E'];
   let html=`<div class="sec">📝 ${esc(p.nama)}</div>
-  <div class="alert alert-warn">Jawab semua soal, lalu tap "Selesai Mengerjakan" di bagian paling bawah.</div>`;
+  <div class="alert alert-warn" style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+    <span>Jawab semua soal, lalu tap "Selesai Mengerjakan" di bagian paling bawah.</span>
+    <b id="sim-timer" style="font-size:16px;white-space:nowrap">⏱️ --:--</b>
+  </div>`;
   if((p.tiu||[]).length){
     html+=`<div class="sec" style="margin-top:12px">🧠 TIU</div>`;
     p.tiu.forEach((s,i)=>{
@@ -3500,13 +3536,14 @@ function renderSoalSimulasi(p){
     });
   }
   html+=`<button class="btn btn-primary btn-full" style="margin-top:14px" onclick="selesaiSimulasi()">✅ Selesai Mengerjakan</button>
-  <button class="btn btn-ghost btn-full" style="margin-top:8px" onclick="renderTabKegiatan('simulasi')">✕ Batalkan</button>`;
+  <button class="btn btn-ghost btn-full" style="margin-top:8px" onclick="batalkanSimulasi()">✕ Batalkan</button>`;
   return html;
 }
-function selesaiSimulasi(){
+function selesaiSimulasi(paksa){
   const p=D.paketSoal.find(x=>x.id===_simPaketId);if(!p)return;
   const belum=_simJawabanTiu.filter(j=>j===null).length+_simJawabanTwk.filter(j=>j===null).length;
-  if(belum>0 && !confirm(`Masih ada ${belum} soal belum dijawab. Tetap selesaikan?`))return;
+  if(!paksa && belum>0 && !confirm(`Masih ada ${belum} soal belum dijawab. Tetap selesaikan?`))return;
+  clearInterval(_simTimerId);
   const tiuBenar=(p.tiu||[]).filter((s,i)=>_simJawabanTiu[i]===s.jawaban).length;
   const twkBenar=(p.twk||[]).filter((s,i)=>_simJawabanTwk[i]===s.jawaban).length;
   const totalSoal=(p.tiu||[]).length+(p.twk||[]).length;
