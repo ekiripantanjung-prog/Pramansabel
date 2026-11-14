@@ -32,9 +32,19 @@ const _ml = document.createElement('link');
 _ml.rel='manifest'; _ml.href=_murl;
 document.head.appendChild(_ml);
 if('serviceWorker' in navigator){
-  const _swCode = `self.addEventListener('install',e=>self.skipWaiting());self.addEventListener('activate',e=>self.clients.claim());self.addEventListener('fetch',e=>e.respondWith(fetch(e.request).catch(()=>new Response(''))));self.addEventListener('notificationclick',e=>{e.notification.close();e.waitUntil(self.clients.matchAll({type:'window'}).then(cl=>{for(const c of cl){if('focus' in c)return c.focus();}if(self.clients.openWindow)return self.clients.openWindow('./pramansabel.html');}));});`;
-  const _swBlob = new Blob([_swCode],{type:'text/javascript'});
-  navigator.serviceWorker.register(URL.createObjectURL(_swBlob)).catch(()=>{});
+  // Cek dulu apakah sudah ada service worker aktif di scope ini (misal punya
+  // OneSignal) sebelum mendaftar punya sendiri. Blob URL baru terbentuk beda
+  // tiap kali halaman dibuka, jadi kalau didaftarkan lagi tanpa cek, browser
+  // menganggapnya "update" dan terus-menerus ganti worker tiap load — ini
+  // bentrok dengan pendaftaran worker OneSignal (untuk notifikasi push) yang
+  // butuh kontrol stabil atas scope yang sama, sehingga proses aktivasi
+  // notifikasi jadi macet diam-diam tanpa error.
+  navigator.serviceWorker.getRegistration().then(existing=>{
+    if(existing)return;
+    const _swCode = `self.addEventListener('install',e=>self.skipWaiting());self.addEventListener('activate',e=>self.clients.claim());self.addEventListener('fetch',e=>e.respondWith(fetch(e.request).catch(()=>new Response(''))));self.addEventListener('notificationclick',e=>{e.notification.close();e.waitUntil(self.clients.matchAll({type:'window'}).then(cl=>{for(const c of cl){if('focus' in c)return c.focus();}if(self.clients.openWindow)return self.clients.openWindow('./pramansabel.html');}));});`;
+    const _swBlob = new Blob([_swCode],{type:'text/javascript'});
+    navigator.serviceWorker.register(URL.createObjectURL(_swBlob)).catch(()=>{});
+  }).catch(()=>{});
 }
 let _deferredPrompt=null;
 window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();_deferredPrompt=e;});
@@ -450,9 +460,21 @@ let ONESIGNAL_REST_KEY='';try{ONESIGNAL_REST_KEY=localStorage.getItem('pramansab
 let _oneSignalInitErr=null,_oneSignalInitDone=false;
 if(ONESIGNAL_APP_ID){
   window.OneSignalDeferred=window.OneSignalDeferred||[];
+  // Situs ini ada di sub-folder GitHub Pages (bukan di root domain), jadi file
+  // OneSignalSDKWorker.js juga ada di sub-folder yang sama — bukan di root.
+  // Tanpa serviceWorkerParam/serviceWorkerPath di bawah, OneSignal defaultnya
+  // mencari worker di root domain (404) dan pendaftaran notifikasi gagal diam-diam.
+  const _osScope=location.pathname.substring(0,location.pathname.lastIndexOf('/')+1);
   OneSignalDeferred.push(async function(OneSignal){
-    try{ await OneSignal.init({appId:ONESIGNAL_APP_ID,allowLocalhostAsSecureOrigin:true}); _oneSignalInitDone=true; }
-    catch(e){ _oneSignalInitErr=(e&&e.message)||String(e); try{console.error('[OneSignal init]',e);}catch(_){} }
+    try{
+      await OneSignal.init({
+        appId:ONESIGNAL_APP_ID,
+        allowLocalhostAsSecureOrigin:true,
+        serviceWorkerParam:{scope:_osScope},
+        serviceWorkerPath:_osScope+'OneSignalSDKWorker.js'
+      });
+      _oneSignalInitDone=true;
+    }catch(e){ _oneSignalInitErr=(e&&e.message)||String(e); try{console.error('[OneSignal init]',e);}catch(_){} }
   });
 }
 // Minta izin notifikasi ke browser & daftarkan HP ini ke OneSignal. Dipanggil
