@@ -368,6 +368,8 @@ const RLBL = new Proxy(RLBL_STATIC, {
 
 const ROLES_ALL = ['pembina','pelatih','aspelatih1','aspelatih2','ketua','sekretaris','bendahara','tatib','pps_aktif','pps_senior','purna','capas','balonpas'];
 const SESI = ['Rabu Kumpul','Kamis Sore','Sabtu Latihan'];
+// Balonpas, PPS Aktif, PPS Senior: izin hanya hari Rabu & keputusan akhir (acc) wajib oleh Pembina.
+const RABU_ONLY_ROLES=['balonpas','pps_aktif','pps_senior'];
 const ASPEK = ['pb','fisik','mental','disiplin','kepemimpinan','komunikasi'];
 const ASPEK_LBL = ['PBB','Fisik','Mental','Disiplin','Kepemimpinan','Komunikasi'];
 
@@ -2013,9 +2015,8 @@ function renderIzin(){
 
   // Form pengajuan izin
   if(C.isAnggota(R)){
-    // Balonpas & PPS Aktif (angkatan berapapun yang sedang bersirkulasi di slot
-    // "Aktif") cuma boleh ajukan izin hari Rabu — PPS Senior & Capas tidak dibatasi.
-    const RABU_ONLY_ROLES=['balonpas','pps_aktif'];
+    // Balonpas, PPS Aktif, dan PPS Senior cuma boleh ajukan izin hari Rabu —
+    // Capas tidak dibatasi hari.
     const hariIni=new Date().getDay(); // 0=Minggu, 3=Rabu
     const isRabu=hariIni===3;
     const butuhRabu=RABU_ONLY_ROLES.includes(R);
@@ -2031,29 +2032,41 @@ function renderIzin(){
         <div class="field"><label>Nama</label><input id="iz-nama" placeholder="Nama lengkap Anda"></div>
         <div class="field"><label>Tanggal</label><input id="iz-tgl" type="date" value="${new Date().toISOString().split('T')[0]}"></div>
         <div class="field"><label>Sesi</label><select id="iz-sesi">${SESI.map((s,i)=>`<option value="${i}">${s}</option>`).join('')}</select></div>
-        <div class="field"><label>Alasan</label><textarea id="iz-alasan" placeholder="Jelaskan alasan izin Anda..."></textarea></div>
-        <div class="field"><label>Foto Bukti${fotowajib?' <span style="color:var(--danger)">*WAJIB</span>':' (opsional)'}</label><input type="file" id="iz-foto" accept="image/*" onchange="prevIzinFoto(this)"><img id="iz-foto-prev" class="photo-prev" style="display:none"></div>
+        <div class="field"><label>Jenis Alasan</label><select id="iz-jenis">
+          <option>Sakit</option>
+          <option>Keperluan Keluarga</option>
+          <option>Kegiatan/Tugas Sekolah Lain</option>
+          <option>Kepentingan Mendesak Lainnya</option>
+        </select></div>
+        <div class="field"><label>Jelaskan Alasan Anda <span style="color:var(--fg3);font-weight:400">(wajib jelas & masuk akal, minimal ±15 karakter)</span></label><textarea id="iz-alasan" placeholder="Contoh: Sakit demam sejak semalam, sudah periksa ke puskesmas pagi ini, surat dokter terlampir."></textarea></div>
+        <div class="field"><label>Foto Bukti${fotowajib?' <span style="color:var(--danger)">*WAJIB</span>':' (opsional, disarankan dilampirkan untuk memperkuat alasan — misal surat dokter, bukti kegiatan, dsb)'}</label><input type="file" id="iz-foto" accept="image/*" onchange="prevIzinFoto(this)"><img id="iz-foto-prev" class="photo-prev" style="display:none"></div>
         <button class="btn btn-primary btn-full" onclick="ajukanIzin()">📤 Ajukan Izin</button>
       </div>`;
     }
   }
 
-  // Daftar izin — pengurus inti lihat pending_pi, pembina lihat pending_pembina
+  // Daftar izin — pengurus inti lihat pending_pi, pembina lihat pending_pembina.
+  // Izin Balonpas/PPS Aktif/PPS Senior (RABU_ONLY_ROLES): keputusan akhir (Setujui/Tolak)
+  // hanya boleh dilakukan Pembina — Pelatih & Pengurus Inti hanya bisa melihat/meneruskan.
   const isPengurusInti=['ketua','sekretaris','bendahara','tatib','aspelatih1','aspelatih2'].includes(R);
   const isPembinaOrPelatih=['pembina','pelatih'].includes(R);
+  const isPembina=R==='pembina';
   if(isPengurusInti||isPembinaOrPelatih){
     html+=`<div class="sec">📋 Daftar Pengajuan Izin</div>`;
     const daftar=D.izin.slice().reverse();
     if(!daftar.length) html+='<div style="color:var(--fg3);font-size:13px;padding:12px 0">Belum ada pengajuan izin.</div>';
     daftar.forEach(iz=>{
-      const stLabel={'acc':'✅ DISETUJUI','tolak':'❌ DITOLAK','pending':'⏳ MENUNGGU','pending_pi':'📋 MENUNGGU PI','pending_pembina':'📤 DITERUSKAN KE PEMBINA'}[iz.status]||iz.status.toUpperCase();
+      const stLabel={'acc':'✅ DISETUJUI','tolak':'❌ DITOLAK','pending':'⏳ MENUNGGU','pending_pi':'📋 MENUNGGU PI','pending_pembina':'📤 MENUNGGU PEMBINA'}[iz.status]||iz.status.toUpperCase();
       const st=iz.status==='acc'?'badge-ok':iz.status==='tolak'?'badge-danger':'badge-warn';
+      const butuhPembinaSaja=RABU_ONLY_ROLES.includes(iz.role);
+      const bolehAccTolakFinal=butuhPembinaSaja?isPembina:(isPengurusInti||isPembinaOrPelatih);
       html+=`<div class="item"><div class="item-head"><div><div class="item-title">${esc(iz.nama)}</div><div class="item-sub">${SESI[iz.sesi]||iz.sesi} · ${tgl(iz.tgl)}</div></div><span class="badge ${st}">${stLabel}</span></div>
       <div style="font-size:13px;margin-top:6px;color:var(--fg2)">${esc(iz.alasan)}</div>
       ${iz.foto?`<img src="${iz.foto}" class="photo-prev">`:''}
       ${iz.status==='pending_pi'&&isPengurusInti?`<div style="margin-top:8px;display:flex;gap:8px"><button class="btn btn-ok btn-sm" onclick="accIzin('${iz.id}','pending_pembina')">📤 Teruskan ke Pembina</button><button class="btn btn-warn btn-sm" onclick="accIzin('${iz.id}','tolak')">✗ Tolak</button></div>`:''}
-      ${iz.status==='pending_pembina'&&isPembinaOrPelatih?`<div style="margin-top:8px;display:flex;gap:8px"><button class="btn btn-ok btn-sm" onclick="accIzin('${iz.id}','acc')">✓ Setujui</button><button class="btn btn-primary btn-sm" onclick="accIzin('${iz.id}','tolak')">✗ Tolak</button></div>`:''}
-      ${iz.status==='pending'&&(isPengurusInti||isPembinaOrPelatih)?`<div style="margin-top:8px;display:flex;gap:8px"><button class="btn btn-ok btn-sm" onclick="accIzin('${iz.id}','acc')">✓ Setujui</button><button class="btn btn-primary btn-sm" onclick="accIzin('${iz.id}','tolak')">✗ Tolak</button></div>`:''}
+      ${iz.status==='pending_pembina'&&butuhPembinaSaja&&!isPembina?`<div style="margin-top:8px;font-size:12px;color:var(--fg3)">⏳ Menunggu keputusan Pembina (khusus ${RLBL[iz.role]||iz.role}, hanya Pembina yang bisa menyetujui/menolak).</div>`:''}
+      ${iz.status==='pending_pembina'&&bolehAccTolakFinal?`<div style="margin-top:8px;display:flex;gap:8px"><button class="btn btn-ok btn-sm" onclick="accIzin('${iz.id}','acc')">✓ Setujui</button><button class="btn btn-primary btn-sm" onclick="accIzin('${iz.id}','tolak')">✗ Tolak</button></div>`:''}
+      ${iz.status==='pending'&&bolehAccTolakFinal?`<div style="margin-top:8px;display:flex;gap:8px"><button class="btn btn-ok btn-sm" onclick="accIzin('${iz.id}','acc')">✓ Setujui</button><button class="btn btn-primary btn-sm" onclick="accIzin('${iz.id}','tolak')">✗ Tolak</button></div>`:''}
       </div>`;
     });
   }
@@ -2095,15 +2108,24 @@ function prevIzinFoto(inp){
 function ajukanIzin(){
   const nama=document.getElementById('iz-nama')?.value.trim();
   if(!nama)return toast('Nama harus diisi');
-  const alasan=document.getElementById('iz-alasan')?.value.trim();
-  if(!alasan)return toast('Alasan harus diisi');
+  const jenisEl=document.getElementById('iz-jenis');
+  const jenis=jenisEl?jenisEl.value:'';
+  const detail=document.getElementById('iz-alasan')?.value.trim();
+  if(!detail)return toast('Alasan harus diisi');
+  // Validasi kejelasan: wajib penjelasan yang cukup rinci, bukan cuma 1-2 kata,
+  // supaya alasan izin logis dan bisa dinilai jelas oleh yang memeriksa.
+  if(detail.length<15)return toast('⚠️ Alasan terlalu singkat. Jelaskan lebih rinci dan jelas (minimal ±15 karakter), misal kapan, kenapa, dan kondisinya.');
+  const alasan=jenis?`${jenis} — ${detail}`:detail;
   const foto=document.getElementById('iz-foto-prev')?.src||null;
   const fotoData=foto&&foto.startsWith('data:')?foto:null;
   if(R==='balonpas'&&!fotoData)return toast('Balonpas wajib upload foto bukti izin');
-  // Status approval chain: balonpas → pending_pi (pengurus inti) → pending_pembina → acc/tolak
-  const statusAwal=R==='balonpas'?'pending_pi':'pending';
+  // Status approval chain:
+  // - balonpas → pending_pi (pengurus inti teruskan) → pending_pembina (HANYA Pembina yang acc/tolak)
+  // - pps_aktif & pps_senior → langsung pending_pembina (HANYA Pembina yang acc/tolak)
+  // - peran lain (capas, dll) → pending (Pengurus Inti/Pembina/Pelatih boleh acc/tolak)
+  const statusAwal=R==='balonpas'?'pending_pi':(RABU_ONLY_ROLES.includes(R)?'pending_pembina':'pending');
   D.izin.push({id:uid(),nama,role:R,tgl:document.getElementById('iz-tgl').value,sesi:parseInt(document.getElementById('iz-sesi').value),alasan,foto:fotoData,status:statusAwal,tglAjuan:Date.now()});
-  save();toast(R==='balonpas'?'Izin diajukan ke Pengurus Inti':'Izin diajukan, menunggu persetujuan');
+  save();toast(R==='balonpas'?'Izin diajukan ke Pengurus Inti':(RABU_ONLY_ROLES.includes(R)?'Izin diajukan, menunggu persetujuan Pembina':'Izin diajukan, menunggu persetujuan'));
   document.getElementById('iz-nama').value='';document.getElementById('iz-alasan').value='';
 }
 function accIzin(id,status){
