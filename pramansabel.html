@@ -430,6 +430,7 @@ function defD(){return{
   izin:[],
   paketSoal:[],
   hasilSimulasi:[],
+  izinUlangSimulasi:[],
   ttd:null, // base64 TTD Pembina
   pins:{},
   config:{pelatih_komando:false,tahunAktif:26,tahunSenior:25},
@@ -595,7 +596,7 @@ function migrasiKodeEtik(){
 }
 // Field data yang berupa daftar/array (punya banyak item dengan id masing-masing).
 // Dipakai supaya sinkronisasi cloud menggabungkan, bukan menimpa habis.
-const DATA_ARRAY_KEYS=['anggota','absensi','pelanggaran','pembinaanKhusus','proker','prokerTahunan','evaluasi','lomba','agenda','adat','info','kas','komando','pengumuman','pemetaan','samapta','materi','izin','paketSoal','hasilSimulasi'];
+const DATA_ARRAY_KEYS=['anggota','absensi','pelanggaran','pembinaanKhusus','proker','prokerTahunan','evaluasi','lomba','agenda','adat','info','kas','komando','pengumuman','pemetaan','samapta','materi','izin','paketSoal','hasilSimulasi','izinUlangSimulasi'];
 // Hapus satu item dari daftar sekaligus MENANDAINYA sebagai terhapus (tombstone).
 // Kenapa perlu: sinkronisasi cloud menggabungkan data per-id dari cloud+lokal supaya
 // input baru dari HP lain tidak hilang — tapi akibatnya kalau item cuma dibuang dari
@@ -3302,17 +3303,143 @@ function renderSimulasi(){
     </div>`;
   });
   if(['pembina','pelatih'].includes(R) && D.hasilSimulasi.length){
-    html+=`<div class="sec" style="margin-top:14px">📊 Riwayat Hasil Anggota</div>`;
-    D.hasilSimulasi.slice().reverse().slice(0,50).forEach(h=>{
+    html+=`<div class="sec" style="margin-top:14px">📊 Hasil & Statistik Simulasi</div>
+    <button class="btn btn-blue btn-sm" style="margin-bottom:10px" onclick="bukaStatistikSimulasi()">📊 Lihat Rekap & Statistik Lengkap</button>
+    <div style="font-size:12px;color:var(--fg2);margin-bottom:10px">${D.hasilSimulasi.length} hasil pengerjaan tercatat dari semua paket.</div>`;
+    html+=`<div class="sec" style="font-size:13px">Hasil Terbaru</div>`;
+    D.hasilSimulasi.slice().reverse().slice(0,10).forEach(h=>{
       const paket=D.paketSoal.find(p=>p.id===h.paketId);
+      const izinAktif=adaIzinUlang(h.nama,h.paketId);
       html+=`<div class="item">
         <div class="item-title">${esc(h.nama)} <span style="font-weight:400;color:var(--fg2);font-size:12px">(${esc(RLBL[h.role]||h.role)})</span></div>
         <div style="font-size:12px;color:var(--fg2)">${esc(paket?paket.nama:'Paket dihapus')} · ${jamTgl(h.waktu)}</div>
         <div style="margin-top:4px;font-size:13px">TIU: ${h.tiuBenar}/${h.totalTiu} · TWK: ${h.twkBenar}/${h.totalTwk} · <b>Skor: ${h.skorTotal}/100</b></div>
+        ${paket?(izinAktif?`<span class="badge badge-ok" style="margin-top:6px;display:inline-block">🔓 Sudah diizinkan mengerjakan ulang</span>`:`<button class="btn btn-ghost btn-sm" style="margin-top:6px" onclick="izinkanUlangSimulasi('${esc(h.nama).replace(/'/g,"\\'")}','${h.paketId}')">🔓 Izinkan Mengerjakan Ulang</button>`):''}
       </div>`;
     });
   }
   return html;
+}
+
+// ── Rekap & Statistik Hasil Simulasi (Pembina/Pelatih) ──
+let _statSimPaketId='semua';
+function bukaStatistikSimulasi(){
+  document.getElementById('tab-kegiatan').innerHTML=renderStatistikSimulasi();
+  window.scrollTo(0,0);
+}
+function pilihPaketStatistik(v){
+  _statSimPaketId=v;
+  document.getElementById('tab-kegiatan').innerHTML=renderStatistikSimulasi();
+  window.scrollTo(0,0);
+}
+function hasilTerfilterStatistik(){
+  return _statSimPaketId==='semua'?D.hasilSimulasi.slice():D.hasilSimulasi.filter(h=>h.paketId===_statSimPaketId);
+}
+function renderStatistikSimulasi(){
+  if(!['pembina','pelatih'].includes(R))return'<div class="alert alert-warn">Hanya Pembina/Pelatih yang dapat melihat rekap ini.</div>';
+  const hasil=hasilTerfilterStatistik();
+  const paketOpts=`<option value="semua"${_statSimPaketId==='semua'?' selected':''}>— Semua Paket —</option>`+
+    D.paketSoal.map(p=>`<option value="${p.id}"${_statSimPaketId===p.id?' selected':''}>${esc(p.nama)}</option>`).join('');
+
+  let html=`<div class="sec">📊 Rekap & Statistik Hasil Simulasi</div>
+  <button class="btn btn-ghost btn-sm" style="margin-bottom:10px" onclick="renderTabKegiatan('simulasi')">← Kembali ke Simulasi</button>
+  <div class="field"><label>Filter Paket</label><select onchange="pilihPaketStatistik(this.value)">${paketOpts}</select></div>`;
+
+  if(!hasil.length){
+    html+='<div class="alert alert-warn">Belum ada hasil pengerjaan untuk filter ini.</div>';
+    return html;
+  }
+
+  // ── Statistik ringkasan ──
+  const n=hasil.length;
+  const avg=arr=>arr.reduce((s,v)=>s+v,0)/arr.length;
+  const skorArr=hasil.map(h=>h.skorTotal);
+  const avgSkor=Math.round(avg(skorArr)*10)/10;
+  const avgTiuPct=Math.round(avg(hasil.map(h=>h.totalTiu?h.tiuBenar/h.totalTiu*100:0))*10)/10;
+  const avgTwkPct=Math.round(avg(hasil.map(h=>h.totalTwk?h.twkBenar/h.totalTwk*100:0))*10)/10;
+  const tertinggi=hasil.slice().sort((a,b)=>b.skorTotal-a.skorTotal)[0];
+  const terendah=hasil.slice().sort((a,b)=>a.skorTotal-b.skorTotal)[0];
+
+  html+=`<div class="card" style="margin-top:10px">
+    <div style="display:flex;gap:16px;flex-wrap:wrap">
+      <div><div style="font-size:12px;color:var(--fg2)">Jumlah Peserta</div><div style="font-size:20px;font-weight:700">${n}</div></div>
+      <div><div style="font-size:12px;color:var(--fg2)">Rata-rata Skor</div><div style="font-size:20px;font-weight:700;color:var(--accent)">${avgSkor}</div></div>
+      <div><div style="font-size:12px;color:var(--fg2)">Rata-rata TIU</div><div style="font-size:20px;font-weight:700">${avgTiuPct}%</div></div>
+      <div><div style="font-size:12px;color:var(--fg2)">Rata-rata TWK</div><div style="font-size:20px;font-weight:700">${avgTwkPct}%</div></div>
+    </div>
+    <div style="margin-top:10px;font-size:13px">
+      🏆 Skor Tertinggi: <b>${esc(tertinggi.nama)}</b> (${tertinggi.skorTotal})<br>
+      ⚠️ Skor Terendah: <b>${esc(terendah.nama)}</b> (${terendah.skorTotal})
+    </div>
+  </div>`;
+
+  // ── Distribusi skor ──
+  const bucket=[0,0,0,0,0]; // 0-20,21-40,41-60,61-80,81-100
+  skorArr.forEach(s=>{const i=Math.min(4,Math.floor(s/20.0001));bucket[i]++;});
+  const bucketLbl=['0-20','21-40','41-60','61-80','81-100'];
+  html+=`<div class="sec" style="font-size:13px;margin-top:12px">📈 Distribusi Skor</div><div class="card">`;
+  bucket.forEach((c,i)=>{
+    const pct=n?Math.round(c/n*100):0;
+    html+=`<div style="margin-top:6px"><div class="gauge-row"><div class="gauge-label" style="min-width:52px">${bucketLbl[i]}</div><div class="gauge-bar"><div class="gauge-fill" style="width:${pct}%;background:var(--accent)"></div></div><div class="gauge-val">${c}</div></div></div>`;
+  });
+  html+=`</div>`;
+
+  // ── Soal tersulit (persentase benar terendah) — hanya untuk paket spesifik ──
+  if(_statSimPaketId!=='semua'){
+    const p=D.paketSoal.find(x=>x.id===_statSimPaketId);
+    if(p){
+      const analisis=[];
+      ['tiu','twk'].forEach(bagian=>{
+        (p[bagian]||[]).forEach((s,i)=>{
+          const jawabKey=bagian==='tiu'?'jawabanTiu':'jawabanTwk';
+          const dijawabOleh=hasil.filter(h=>h[jawabKey]&&h[jawabKey][i]!=null);
+          const benar=dijawabOleh.filter(h=>h[jawabKey][i]===s.jawaban).length;
+          const pct=dijawabOleh.length?Math.round(benar/dijawabOleh.length*100):null;
+          analisis.push({bagian:bagian.toUpperCase(),no:i+1,teks:s.teks,pct,dijawab:dijawabOleh.length});
+        });
+      });
+      const terjawab=analisis.filter(a=>a.pct!==null).sort((a,b)=>a.pct-b.pct).slice(0,10);
+      if(terjawab.length){
+        html+=`<div class="sec" style="font-size:13px;margin-top:12px">🧩 10 Soal Tersulit (persentase benar terendah)</div>`;
+        terjawab.forEach(a=>{
+          html+=`<div class="item"><div style="font-size:12px;color:var(--fg2)">${a.bagian} #${a.no} · dijawab ${a.dijawab} orang</div>
+          <div style="font-size:13px;margin-top:2px">${esc(a.teks)}</div>
+          <div style="margin-top:4px"><span class="badge ${a.pct<40?'badge-danger':(a.pct<70?'badge-warn':'badge-ok')}">${a.pct}% benar</span></div></div>`;
+        });
+      }
+    }
+  }
+
+  // ── Tabel lengkap seluruh peserta ──
+  html+=`<div class="sec" style="font-size:13px;margin-top:12px">📋 Data Lengkap Peserta</div>
+  <button class="btn btn-blue btn-sm" style="margin-bottom:10px" onclick="downloadHasilSimulasiCSV()">📥 Download CSV</button>`;
+  hasil.slice().sort((a,b)=>b.skorTotal-a.skorTotal).forEach(h=>{
+    const paket=D.paketSoal.find(p=>p.id===h.paketId);
+    const izinAktif=adaIzinUlang(h.nama,h.paketId);
+    html+=`<div class="item">
+      <div class="item-title">${esc(h.nama)} <span style="font-weight:400;color:var(--fg2);font-size:12px">(${esc(RLBL[h.role]||h.role)})</span></div>
+      <div style="font-size:12px;color:var(--fg2)">${esc(paket?paket.nama:'Paket dihapus')} · ${jamTgl(h.waktu)}</div>
+      <div style="margin-top:4px;font-size:13px">TIU: ${h.tiuBenar}/${h.totalTiu} · TWK: ${h.twkBenar}/${h.totalTwk} · <b>Skor: ${h.skorTotal}/100</b></div>
+      ${paket?(izinAktif?`<span class="badge badge-ok" style="margin-top:6px;display:inline-block">🔓 Sudah diizinkan mengerjakan ulang</span>`:`<button class="btn btn-ghost btn-sm" style="margin-top:6px" onclick="izinkanUlangSimulasi('${esc(h.nama).replace(/'/g,"\\'")}','${h.paketId}')">🔓 Izinkan Mengerjakan Ulang</button>`):''}
+    </div>`;
+  });
+  return html;
+}
+function downloadHasilSimulasiCSV(){
+  const hasil=hasilTerfilterStatistik().slice().sort((a,b)=>b.skorTotal-a.skorTotal);
+  let csv='Nama,Peran,Paket,Tanggal,TIU Benar,TIU Total,TWK Benar,TWK Total,Skor Total\n';
+  hasil.forEach(h=>{
+    const paket=D.paketSoal.find(p=>p.id===h.paketId);
+    const row=[h.nama,RLBL[h.role]||h.role,paket?paket.nama:'Paket dihapus',jamTgl(h.waktu),h.tiuBenar,h.totalTiu,h.twkBenar,h.totalTwk,h.skorTotal];
+    csv+=row.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')+'\n';
+  });
+  const blob=new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  const namaPaket=_statSimPaketId==='semua'?'semua_paket':(D.paketSoal.find(p=>p.id===_statSimPaketId)?.nama||'paket').replace(/[^a-z0-9]+/gi,'_');
+  a.href=url;a.download=`hasil_simulasi_${namaPaket}.csv`;a.click();
+  URL.revokeObjectURL(url);
+  toast('📥 Rekap hasil simulasi diunduh');
 }
 
 // ── Kelola paket soal (buat/edit/hapus) ──
@@ -3476,11 +3603,31 @@ function mulaiSimulasi(paketId){
   </div>
   <button class="btn btn-primary btn-full" onclick="bukaSoalSimulasi('${paketId}')">▶️ Mulai Mengerjakan</button>`);
 }
+// ── Pembatasan: 1 anggota hanya boleh mengerjakan 1 paket soal SEKALI,
+// kecuali Pembina/Pelatih memberi izin ulang khusus untuk orang tsb. ──
+function sudahPernahKerjakan(nama,paketId){
+  return D.hasilSimulasi.some(h=>h.paketId===paketId&&h.nama===nama);
+}
+function adaIzinUlang(nama,paketId){
+  return D.izinUlangSimulasi.find(x=>x.paketId===paketId&&x.nama===nama&&!x.terpakai)||null;
+}
+function izinkanUlangSimulasi(nama,paketId){
+  if(!confirm(`Izinkan ${nama} mengerjakan ulang paket ini sekali lagi?`))return;
+  D.izinUlangSimulasi.push({id:uid(),paketId,nama,diizinkanOleh:RLBL[R]||R,waktu:Date.now(),terpakai:false});
+  save();toast('🔓 '+nama+' diizinkan mengerjakan ulang');
+  if(typeof renderStatistikSimulasi==='function'&&document.getElementById('tab-kegiatan'))document.getElementById('tab-kegiatan').innerHTML=renderStatistikSimulasi();
+}
 let _simTimerId=null,_simSisaDetik=0;
 function bukaSoalSimulasi(paketId){
   const nama=document.getElementById('sim-nama').value.trim();
   if(!nama)return toast('Nama harus diisi');
   const p=D.paketSoal.find(x=>x.id===paketId);if(!p)return;
+  if(sudahPernahKerjakan(nama,paketId)){
+    const izin=adaIzinUlang(nama,paketId);
+    if(!izin)return toast('⛔ '+nama+' sudah pernah mengerjakan paket ini. Minta izin ke Pembina/Pelatih untuk mengerjakan ulang.');
+    izin.terpakai=true;save();
+    toast('🔓 Izin mengerjakan ulang dipakai — selamat mengerjakan lagi!');
+  }
   _simPaketId=paketId;_simNama=nama;
   _simJawabanTiu=new Array((p.tiu||[]).length).fill(null);
   _simJawabanTwk=new Array((p.twk||[]).length).fill(null);
@@ -4601,7 +4748,7 @@ async function cekDiagnostikSinkron(){
   const el=document.getElementById('diag-sinkron-hasil');
   if(!el)return;
   el.innerHTML='<p style="font-size:12px;margin-top:10px">⏳ Mengecek...</p>';
-  const DATA_KEYS_DIAG=['anggota','absensi','pelanggaran','pembinaanKhusus','proker','prokerTahunan','evaluasi','lomba','agenda','adat','info','kas','komando','pengumuman','pemetaan','samapta','materi','izin','paketSoal','hasilSimulasi'];
+  const DATA_KEYS_DIAG=['anggota','absensi','pelanggaran','pembinaanKhusus','proker','prokerTahunan','evaluasi','lomba','agenda','adat','info','kas','komando','pengumuman','pemetaan','samapta','materi','izin','paketSoal','hasilSimulasi','izinUlangSimulasi'];
   let html='';
   try{
     const t0=Date.now();
