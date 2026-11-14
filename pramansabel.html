@@ -375,6 +375,7 @@ function defD(){return{
   anggota:[],
   absensi:[],
   pelanggaran:[],
+  pembinaanKhusus:[],
   proker:[],
   prokerTahunan:[],
   evaluasi:[],
@@ -594,7 +595,7 @@ function migrasiKodeEtik(){
 }
 // Field data yang berupa daftar/array (punya banyak item dengan id masing-masing).
 // Dipakai supaya sinkronisasi cloud menggabungkan, bukan menimpa habis.
-const DATA_ARRAY_KEYS=['anggota','absensi','pelanggaran','proker','prokerTahunan','evaluasi','lomba','agenda','adat','info','kas','komando','pengumuman','pemetaan','samapta','materi','izin','paketSoal','hasilSimulasi'];
+const DATA_ARRAY_KEYS=['anggota','absensi','pelanggaran','pembinaanKhusus','proker','prokerTahunan','evaluasi','lomba','agenda','adat','info','kas','komando','pengumuman','pemetaan','samapta','materi','izin','paketSoal','hasilSimulasi'];
 // Hapus satu item dari daftar sekaligus MENANDAINYA sebagai terhapus (tombstone).
 // Kenapa perlu: sinkronisasi cloud menggabungkan data per-id dari cloud+lokal supaya
 // input baru dari HP lain tidak hilang — tapi akibatnya kalau item cuma dibuang dari
@@ -816,6 +817,10 @@ const C={
   // Pembina); semua anggota (Balonpas s.d Purna) boleh mengerjakannya.
   simulasi_kelola:r=>['pembina','pelatih','pps_aktif','purna'].includes(r),
   simulasi_kerjakan:r=>['balonpas','capas','pps_aktif','pps_senior','purna'].includes(r),
+  // Pembinaan Khusus: daftar anggota yang pelanggarannya sudah berat (alfa
+  // tanpa izin berulang / poin Tatib tinggi) untuk ditindaklanjuti serius.
+  // Yang berwenang memasukkan/mengelola: Pembina, Pelatih, TATIB.
+  pembinaan_khusus_kelola:r=>['pembina','pelatih','tatib'].includes(r),
 };
 
 // ═══════════════════════════════════════════
@@ -1811,6 +1816,144 @@ function getAnggotaMelebihi(){
   return D.anggota.filter(a=>a.totalAlfa>=3);
 }
 
+// ── Pembinaan Khusus: anggota dengan alfa tanpa izin berulang (≥3×) dan/atau
+// akumulasi poin pelanggaran Tatib yang tinggi (≥10 poin) disarankan masuk
+// daftar ini untuk ditindaklanjuti serius oleh Pembina/Pelatih/TATIB. ──
+const AMBANG_POIN_PEMBINAAN_KHUSUS=10;
+function poinPelanggaranAnggota(aid){
+  return D.pelanggaran.filter(p=>p.anggotaId===aid&&p.status!=='aduan').reduce((s,p)=>s+(p.poin||0),0);
+}
+function statusPembinaanKhususAnggota(aid){
+  const aktif=D.pembinaanKhusus.filter(x=>x.anggotaId===aid&&x.status==='aktif');
+  return aktif.length?aktif[aktif.length-1]:null;
+}
+function getAnggotaDisarankanPembinaanKhusus(){
+  return D.anggota.filter(a=>{
+    if(a.status!=='aktif')return false;
+    if(statusPembinaanKhususAnggota(a.id))return false; // sudah aktif dibina, tak perlu disarankan lagi
+    const alfa=a.totalAlfa||0;
+    const poin=poinPelanggaranAnggota(a.id);
+    return alfa>=3||poin>=AMBANG_POIN_PEMBINAAN_KHUSUS;
+  });
+}
+function modalTambahPembinaanKhusus(anggotaId){
+  const a=anggotaId?D.anggota.find(x=>x.id===anggotaId):null;
+  const alfa=a?(a.totalAlfa||0):0;
+  const poin=a?poinPelanggaranAnggota(a.id):0;
+  openModal(`<div class="modal-title">+ Masukkan ke Pembinaan Khusus <button class="modal-close" onclick="closeModal()">×</button></div>
+  <div class="field"><label>Nama Anggota</label>
+    <select id="pk-nama">
+      <option value="">-- Pilih --</option>
+      ${D.anggota.filter(x=>x.status==='aktif').map(x=>`<option value="${x.id}"${a&&a.id===x.id?' selected':''}>${esc(x.nama)} (${RLBL[x.role]||x.role})</option>`).join('')}
+    </select>
+  </div>
+  ${a?`<div style="font-size:12px;color:var(--fg2);margin:-4px 0 10px">Alfa tanpa izin: ${alfa}× · Poin pelanggaran Tatib: ${poin}</div>`:''}
+  <div class="field"><label>Alasan Dimasukkan ke Pembinaan Khusus</label><textarea id="pk-alasan" placeholder="Contoh: 3x alfa tanpa izin berturut-turut dan beberapa kali melanggar Tatib">${a?`${alfa>=3?alfa+'x alfa tanpa izin. ':''}${poin>=AMBANG_POIN_PEMBINAAN_KHUSUS?'Akumulasi poin pelanggaran Tatib: '+poin+'. ':''}`:''}</textarea></div>
+  <button class="btn btn-primary btn-full" onclick="simpanPembinaanKhusus()">💾 Masukkan ke Pembinaan Khusus</button>`);
+}
+function simpanPembinaanKhusus(){
+  const anggotaId=document.getElementById('pk-nama').value;
+  const alasan=document.getElementById('pk-alasan').value.trim();
+  if(!anggotaId)return toast('Pilih anggota dulu');
+  if(!alasan)return toast('Alasan harus diisi');
+  const a=D.anggota.find(x=>x.id===anggotaId);if(!a)return;
+  if(statusPembinaanKhususAnggota(anggotaId))return toast(a.nama+' sudah aktif di Pembinaan Khusus');
+  D.pembinaanKhusus.push({
+    id:uid(),anggotaId,nama:a.nama,role:a.role,
+    alasanMasuk:alasan,waktuMasuk:Date.now(),dicatatOleh:RLBL[R]||R,
+    status:'aktif',tindakLanjut:[]
+  });
+  save();closeModal();toast('✅ '+a.nama+' dimasukkan ke Pembinaan Khusus');renderTabKegiatan('tatib');
+}
+function modalTindakLanjutPK(pkId){
+  const pk=D.pembinaanKhusus.find(x=>x.id===pkId);if(!pk)return;
+  openModal(`<div class="modal-title">Catat Tindak Lanjut — ${esc(pk.nama)} <button class="modal-close" onclick="closeModal()">×</button></div>
+  <div class="field"><label>Jenis Tindak Lanjut</label>
+    <select id="pk-tl-jenis">
+      <option>Peringatan Tertulis</option>
+      <option>Pemanggilan Orang Tua/Wali</option>
+      <option>Pembinaan Tambahan</option>
+      <option>Skorsing</option>
+      <option>Lainnya</option>
+    </select>
+  </div>
+  <div class="field"><label>Catatan</label><textarea id="pk-tl-catatan" placeholder="Detail tindak lanjut yang dilakukan..."></textarea></div>
+  <button class="btn btn-primary btn-full" onclick="simpanTindakLanjutPK('${pkId}')">💾 Simpan Tindak Lanjut</button>`);
+}
+function simpanTindakLanjutPK(pkId){
+  const pk=D.pembinaanKhusus.find(x=>x.id===pkId);if(!pk)return;
+  const jenis=document.getElementById('pk-tl-jenis').value;
+  const catatan=document.getElementById('pk-tl-catatan').value.trim();
+  pk.tindakLanjut=pk.tindakLanjut||[];
+  pk.tindakLanjut.push({id:uid(),jenis,catatan,waktu:Date.now(),olehSiapa:RLBL[R]||R});
+  save();closeModal();toast('Tindak lanjut dicatat');renderTabKegiatan('tatib');
+}
+function selesaikanPembinaanKhusus(pkId){
+  const pk=D.pembinaanKhusus.find(x=>x.id===pkId);if(!pk)return;
+  if(!confirm('Tandai '+pk.nama+' sudah selesai menjalani Pembinaan Khusus? Riwayatnya tetap disimpan di arsip.'))return;
+  pk.status='selesai';pk.waktuSelesai=Date.now();pk.diselesaikanOleh=RLBL[R]||R;
+  save();toast('Ditandai selesai dibina');renderTabKegiatan('tatib');
+}
+function hapusPembinaanKhusus(pkId){
+  const pk=D.pembinaanKhusus.find(x=>x.id===pkId);if(!pk)return;
+  if(!confirm('Hapus permanen catatan Pembinaan Khusus untuk '+pk.nama+'? Tindakan ini tidak bisa dibatalkan.'))return;
+  tandaHapus('pembinaanKhusus',pkId);
+  save();toast('Catatan dihapus');renderTabKegiatan('tatib');
+}
+function renderPembinaanKhusus(){
+  if(!C.pembinaan_khusus_kelola(R))return '';
+  let html=`<div class="sec" style="margin-top:16px">🚨 Pembinaan Khusus</div>
+  <div style="font-size:12px;color:var(--fg2);margin-bottom:10px">Anggota dengan pelanggaran berat (alfa tanpa izin berulang dan/atau akumulasi poin Tatib tinggi) untuk ditindaklanjuti serius oleh Pembina/Pelatih/TATIB.</div>
+  <button class="btn btn-warn btn-sm" style="margin-bottom:12px" onclick="modalTambahPembinaanKhusus()">+ Masukkan ke Pembinaan Khusus</button>`;
+
+  const disarankan=getAnggotaDisarankanPembinaanKhusus();
+  if(disarankan.length){
+    html+=`<div class="sec" style="margin-top:10px;font-size:13px">💡 Disarankan Masuk Pembinaan Khusus</div>`;
+    disarankan.forEach(a=>{
+      const alfa=a.totalAlfa||0,poin=poinPelanggaranAnggota(a.id);
+      html+=`<div class="item" style="border-left:4px solid var(--warn)">
+        <div class="item-title">${esc(a.nama)} <span style="font-weight:400;color:var(--fg2);font-size:12px">(${RLBL[a.role]||a.role})</span></div>
+        <div style="margin-top:4px;display:flex;gap:8px;flex-wrap:wrap">
+          ${alfa>=3?`<span class="badge badge-danger">Alfa: ${alfa}×</span>`:''}
+          ${poin>=AMBANG_POIN_PEMBINAAN_KHUSUS?`<span class="badge badge-warn">Poin Pelanggaran: ${poin}</span>`:''}
+        </div>
+        <button class="btn btn-warn btn-sm" style="margin-top:8px" onclick="modalTambahPembinaanKhusus('${a.id}')">+ Masukkan</button>
+      </div>`;
+    });
+  }
+
+  const aktif=D.pembinaanKhusus.filter(x=>x.status==='aktif');
+  html+=`<div class="sec" style="margin-top:10px;font-size:13px">📋 Sedang Dibina (${aktif.length})</div>`;
+  if(!aktif.length)html+='<div style="color:var(--fg3);font-size:13px">Tidak ada anggota di Pembinaan Khusus saat ini.</div>';
+  aktif.slice().reverse().forEach(pk=>{
+    html+=`<div class="item" style="border-left:4px solid var(--danger)">
+      <div class="item-title">${esc(pk.nama)} <span style="font-weight:400;color:var(--fg2);font-size:12px">(${RLBL[pk.role]||pk.role})</span></div>
+      <div style="font-size:12px;color:var(--fg2);margin-top:2px">Masuk: ${jamTgl(pk.waktuMasuk)} · Dicatat oleh ${esc(pk.dicatatOleh||'-')}</div>
+      <div style="font-size:13px;margin-top:4px">${esc(pk.alasanMasuk)}</div>
+      ${(pk.tindakLanjut||[]).length?`<div style="margin-top:8px"><b style="font-size:12px">Riwayat Tindak Lanjut:</b>${pk.tindakLanjut.map(tl=>`<div style="font-size:12px;color:var(--fg2);margin-top:3px">• <b>${esc(tl.jenis)}</b> — ${esc(tl.catatan||'-')} <span style="color:var(--fg3)">(${jamTgl(tl.waktu)}, oleh ${esc(tl.olehSiapa||'-')})</span></div>`).join('')}</div>`:''}
+      <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-primary btn-sm" onclick="modalTindakLanjutPK('${pk.id}')">+ Catat Tindak Lanjut</button>
+        <button class="btn btn-ok btn-sm" onclick="selesaikanPembinaanKhusus('${pk.id}')">✅ Selesai Dibina</button>
+        <button class="btn btn-ghost btn-sm" style="color:#ef4444" onclick="hapusPembinaanKhusus('${pk.id}')">🗑 Hapus</button>
+      </div>
+    </div>`;
+  });
+
+  const selesai=D.pembinaanKhusus.filter(x=>x.status==='selesai');
+  if(selesai.length){
+    html+=`<div class="sec" style="margin-top:10px;font-size:13px">🗄️ Arsip — Selesai Dibina (${selesai.length})</div>`;
+    selesai.slice().reverse().forEach(pk=>{
+      html+=`<div class="item">
+        <div class="item-title">${esc(pk.nama)} <span style="font-weight:400;color:var(--fg2);font-size:12px">(${RLBL[pk.role]||pk.role})</span></div>
+        <div style="font-size:12px;color:var(--fg2)">Masuk: ${jamTgl(pk.waktuMasuk)} · Selesai: ${jamTgl(pk.waktuSelesai)} · oleh ${esc(pk.diselesaikanOleh||'-')}</div>
+        <div style="font-size:13px;margin-top:4px">${esc(pk.alasanMasuk)}</div>
+        <button class="btn btn-ghost btn-sm" style="margin-top:6px;color:#ef4444" onclick="hapusPembinaanKhusus('${pk.id}')">🗑 Hapus dari Arsip</button>
+      </div>`;
+    });
+  }
+  return html;
+}
+
 function renderRekapAnggota(){
   const melebihi=getAnggotaMelebihi();
   let html=`<div class="sec">⚠️ Anggota Melewati Batas (≥3 Alfa)</div>`;
@@ -2613,6 +2756,8 @@ function renderTatib(){
   D.adat.forEach(a=>{
     html+=`<div class="item"><div class="item-head"><div><div class="item-title">${esc(a.jenis)}</div><div class="item-sub">Kode: ${esc(a.kode)} · Tindakan: ${esc(a.tindakan)}</div></div><span class="badge badge-danger">${a.poin} poin</span></div></div>`;
   });
+
+  html+=renderPembinaanKhusus();
   return html;
 }
 
@@ -3139,7 +3284,53 @@ function renderSimulasi(){
 
 // ── Kelola paket soal (buat/edit/hapus) ──
 let _paketEditId=null,_paketSoal={tiu:[],twk:[]};
-function soalKosong(){return{teks:'',opsi:['','','',''],jawaban:0}}
+function soalKosong(){return{teks:'',opsi:['','','','',''],jawaban:0}}
+// Parser impor cepat: format teks bebas —
+// "1. Teks soal" lalu baris opsi "A. teks", kunci jawaban ditandai awalan * (misal "*B. teks").
+// Mendukung 4 atau 5 opsi (A-E); opsi yang tidak ada dibiarkan kosong.
+function parseSoalTeks(teks){
+  const HURUF='ABCDE';
+  const baris=(teks||'').split(/\r?\n/);
+  const soal=[];
+  let cur=null;
+  baris.forEach(ln=>{
+    const l=ln.trim();
+    if(!l)return;
+    const mSoal=l.match(/^\*?\s*\(?\d+[\.\)]\s*(.*)$/);
+    const mOpsi=l.match(/^(\*?)\s*([A-Ea-e])[\.\)]\s*(.*)$/);
+    if(mOpsi && HURUF.includes(mOpsi[2].toUpperCase()) && cur){
+      const oi=HURUF.indexOf(mOpsi[2].toUpperCase());
+      cur.opsi[oi]=mOpsi[3].trim();
+      if(mOpsi[1]==='*')cur.jawaban=oi;
+      return;
+    }
+    if(mSoal){
+      cur=soalKosong();
+      cur.teks=mSoal[1].trim();
+      soal.push(cur);
+      return;
+    }
+    // baris lanjutan (catatan dsb) — gabungkan ke teks soal kalau belum ada opsi tercatat
+    if(cur && cur.opsi.every(o=>!o)){
+      cur.teks=(cur.teks+' '+l).trim();
+    }
+  });
+  return soal.filter(s=>s.teks);
+}
+function imporSoalDariTeks(bagian){
+  const ta=document.getElementById('ps-impor-'+bagian);
+  const teks=ta?ta.value:'';
+  if(!teks||!teks.trim())return toast('Tempel teks soal dulu di kotak impor');
+  const hasil=parseSoalTeks(teks);
+  if(!hasil.length)return toast('Tidak ada soal yang terbaca — cek lagi formatnya (nomor lalu A./B./C./dst, kunci jawaban diberi tanda *)');
+  _paketSoal.tiu=ambilSoalPaketDariForm('tiu');
+  _paketSoal.twk=ambilSoalPaketDariForm('twk');
+  const sudahAda=_paketSoal[bagian].some(s=>s.teks);
+  if(sudahAda && !confirm(`Impor akan MENGGANTI semua soal ${bagian.toUpperCase()} yang sudah ada di form ini dengan ${hasil.length} soal baru. Lanjutkan?`))return;
+  _paketSoal[bagian]=hasil;
+  bukaModalPaket(ambilHeaderPaketDariForm());
+  toast(`✅ ${hasil.length} soal ${bagian.toUpperCase()} berhasil diimpor`);
+}
 function modalPaketSoal(editId){
   _paketEditId=editId||null;
   const p=editId?D.paketSoal.find(x=>x.id===editId):null;
@@ -3158,15 +3349,25 @@ function bukaModalPaket(h){
     ${['Kabupaten','Provinsi','Nasional'].map(k=>`<option${h.kategori===k?' selected':''}>${k}</option>`).join('')}
   </select></div>
   <div class="sec" style="margin-top:14px">🧠 Soal TIU (${_paketSoal.tiu.length})</div>
+  <div style="border:1px dashed var(--bd);padding:8px;border-radius:10px;margin-bottom:8px">
+    <div style="font-size:11px;color:var(--fg3);margin-bottom:4px">📋 Impor cepat — tempel teks soal (format: "1. Soal" lalu "A. opsi" s/d "E. opsi", kunci jawaban diberi tanda * di depan huruf, misal "*B. opsi"). Ini akan MENGGANTI semua soal TIU yang ada di form.</div>
+    <textarea id="ps-impor-tiu" rows="4" placeholder="Tempel teks soal TIU di sini..."></textarea>
+    <button class="btn btn-ghost btn-sm" style="margin-top:4px" onclick="imporSoalDariTeks('tiu')">📋 Impor dari Teks</button>
+  </div>
   <div id="ps-rows-tiu">${_paketSoal.tiu.map((s,i)=>soalPaketRowHTML('tiu',s,i)).join('')}</div>
   <button class="btn btn-ghost btn-sm" style="margin-top:6px" onclick="tambahSoalPaket('tiu')">+ Tambah Soal TIU</button>
   <div class="sec" style="margin-top:14px">🇮🇩 Soal TWK (${_paketSoal.twk.length})</div>
+  <div style="border:1px dashed var(--bd);padding:8px;border-radius:10px;margin-bottom:8px">
+    <div style="font-size:11px;color:var(--fg3);margin-bottom:4px">📋 Impor cepat — tempel teks soal (format sama seperti TIU). Ini akan MENGGANTI semua soal TWK yang ada di form.</div>
+    <textarea id="ps-impor-twk" rows="4" placeholder="Tempel teks soal TWK di sini..."></textarea>
+    <button class="btn btn-ghost btn-sm" style="margin-top:4px" onclick="imporSoalDariTeks('twk')">📋 Impor dari Teks</button>
+  </div>
   <div id="ps-rows-twk">${_paketSoal.twk.map((s,i)=>soalPaketRowHTML('twk',s,i)).join('')}</div>
   <button class="btn btn-ghost btn-sm" style="margin-top:6px" onclick="tambahSoalPaket('twk')">+ Tambah Soal TWK</button>
   <button class="btn btn-primary btn-full" style="margin-top:14px" onclick="simpanPaketSoal()">💾 Simpan Paket Soal</button>`);
 }
 function soalPaketRowHTML(bagian,s,i){
-  const huruf=['A','B','C','D'];
+  const huruf=['A','B','C','D','E'];
   return`<div style="border:1px solid var(--bd);padding:10px;border-radius:10px;margin-bottom:8px" data-row="${i}">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
       <b style="font-size:13px">${bagian.toUpperCase()} #${i+1}</b>
@@ -3246,7 +3447,7 @@ function bukaSoalSimulasi(paketId){
   window.scrollTo(0,0);
 }
 function renderSoalSimulasi(p){
-  const huruf=['A','B','C','D'];
+  const huruf=['A','B','C','D','E'];
   let html=`<div class="sec">📝 ${esc(p.nama)}</div>
   <div class="alert alert-warn">Jawab semua soal, lalu tap "Selesai Mengerjakan" di bagian paling bawah.</div>`;
   if((p.tiu||[]).length){
@@ -3285,7 +3486,7 @@ function selesaiSimulasi(){
   window.scrollTo(0,0);
 }
 function renderHasilSimulasi(p,hasil){
-  const huruf=['A','B','C','D'];
+  const huruf=['A','B','C','D','E'];
   let html=`<div class="sec">✅ Hasil Simulasi — ${esc(hasil.nama)}</div>
   <div class="item">
     <div style="display:flex;gap:18px;flex-wrap:wrap;margin-bottom:4px">
@@ -4325,7 +4526,7 @@ async function cekDiagnostikSinkron(){
   const el=document.getElementById('diag-sinkron-hasil');
   if(!el)return;
   el.innerHTML='<p style="font-size:12px;margin-top:10px">⏳ Mengecek...</p>';
-  const DATA_KEYS_DIAG=['anggota','absensi','pelanggaran','proker','prokerTahunan','evaluasi','lomba','agenda','adat','info','kas','komando','pengumuman','pemetaan','samapta','materi','izin','paketSoal','hasilSimulasi'];
+  const DATA_KEYS_DIAG=['anggota','absensi','pelanggaran','pembinaanKhusus','proker','prokerTahunan','evaluasi','lomba','agenda','adat','info','kas','komando','pengumuman','pemetaan','samapta','materi','izin','paketSoal','hasilSimulasi'];
   let html='';
   try{
     const t0=Date.now();
