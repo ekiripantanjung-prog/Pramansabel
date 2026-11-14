@@ -337,7 +337,8 @@ const RLBL_STATIC = {
   aspelatih1:'👟 Asisten Pelatih 1',aspelatih2:'👟 Asisten Pelatih 2',
   ketua:'⭐ Ketua PPS',sekretaris:'📋 Sekretaris',
   bendahara:'💰 Bendahara',tatib:'⚖️ TATIB',
-  capas:'🎗️ Capas (Calon Paskib)',balonpas:'🌱 Balonpas'
+  capas:'🎗️ Capas (Calon Paskib)',balonpas:'🌱 Balonpas',
+  purna:'🎓 Purna PASKIBRA'
 };
 // RLBL: hanya 2 "slot" angkatan PPS yang bersirkulasi (Aktif & Senior).
 // Labelnya dinamis mengikuti D.config.tahunAktif/tahunSenior, jadi tidak perlu
@@ -351,7 +352,7 @@ const RLBL = new Proxy(RLBL_STATIC, {
   }
 });
 
-const ROLES_ALL = ['pembina','pelatih','aspelatih1','aspelatih2','ketua','sekretaris','bendahara','tatib','pps_aktif','pps_senior','capas','balonpas'];
+const ROLES_ALL = ['pembina','pelatih','aspelatih1','aspelatih2','ketua','sekretaris','bendahara','tatib','pps_aktif','pps_senior','purna','capas','balonpas'];
 const SESI = ['Rabu Kumpul','Kamis Sore','Sabtu Latihan'];
 const ASPEK = ['pb','fisik','mental','disiplin','kepemimpinan','komunikasi'];
 const ASPEK_LBL = ['PBB','Fisik','Mental','Disiplin','Kepemimpinan','Komunikasi'];
@@ -560,24 +561,14 @@ async function saveGS(){
   // karakter per sel) — sebelumnya push yang gagal di sisi server diam saja
   // (fetch().catch(()=>{}) tidak pernah mengecek isi responsnya), jadi data
   // terlihat "tersimpan" di HP pembuatnya padahal tidak pernah sampai ke cloud.
-  if(teksKirim.length>BATAS_CLOUD-500){
+  if(teksKirim.length>49500){
     window._gsOverCapacity=true;
     toast('🚫 GAGAL sinkron ke cloud: data sudah melewati batas penyimpanan (~50.000 karakter). Buka Pengaturan → Sinkron untuk detail.');
     return;
   }
   window._gsOverCapacity=false;
-  _pendingPush=fetch(GS_URL,{method:'POST',body:teksKirim}).then(r=>r.text()).then(t=>{
-    // Apps Script versi baru membalas {ok:true} atau {error:"..."} — tampilkan kalau gagal
-    try{const j=JSON.parse(t);if(j&&j.error){window._gsOverCapacity=true;toast('❌ Gagal simpan ke cloud: '+j.error,5000);}}catch(e){}
-  }).catch(()=>{}).finally(()=>{_pendingPush=null;});
+  _pendingPush=fetch(GS_URL,{method:'POST',body:teksKirim}).catch(()=>{}).finally(()=>{_pendingPush=null;});
   return _pendingPush;
-}
-// Cek apakah Apps Script sudah versi baru yang menyimpan data terpecah ke banyak sel
-// (tidak terbatas 50.000 karakter). Versi lama tidak mengenal ?info=1.
-async function cekKapasitasGS(){
-  if(!GS_URL)return;
-  try{const r=await fetch(GS_URL+'?info=1&t='+Date.now());const j=await r.json();
-    if(j&&j.chunked){BATAS_CLOUD=j.maks||2000000;}}catch(e){}
 }
 async function loadGS(){
   if(!GS_URL)return false;
@@ -622,7 +613,7 @@ async function syncCloud(dir){if(!GS_URL){toast('⚠️ URL Google Sheet belum d
 function saveGSURL(url){GS_URL=url.trim();try{localStorage.setItem('pramansabel_gsurl',GS_URL);}catch(e){}toast(GS_URL?'✅ URL tersimpan':'URL dikosongkan');tabPengaturan('sinkron',document.querySelector('#s-pengaturan .tab.on'));}
 load();
 // Auto-sync: ambil data dari cloud saat buka app
-if(GS_URL){cekKapasitasGS().finally(()=>loadGS().then(ok=>{if(ok&&R)goScreen('beranda');}));}
+if(GS_URL){loadGS().then(ok=>{if(ok&&R)goScreen('beranda');});}
 // Auto-sync setiap 30 detik jika ada role aktif
 let _lastKomId='',_lastPngId='';
 setInterval(async()=>{
@@ -650,13 +641,8 @@ setInterval(async()=>{
     const activeScreen=document.querySelector('.screen.on')?.id?.replace('s-','');
     const sedangMengetik=document.activeElement&&['INPUT','TEXTAREA'].includes(document.activeElement.tagName);
     if(activeScreen==='beranda'&&!sedangMengetik)renderBeranda();
-    // Tab Kegiatan (Proker/Tahunan) juga disegarkan supaya kiriman dari HP lain
-    // langsung terlihat tanpa harus pindah menu — kecuali sedang mengisi form.
-    const modalBuka=document.getElementById('overlay')?.classList.contains('show');
-    if(activeScreen==='anggota'&&!sedangMengetik&&!modalBuka&&document.getElementById('tab-sesi')&&!C.absensi_edit(R))renderSesi(window._absSesi||0);
-    if(activeScreen==='kegiatan'&&!sedangMengetik&&!modalBuka&&window._tabKegAktif&&document.getElementById('tab-kegiatan'))renderTabKegiatan(window._tabKegAktif);
   });
-},15000);
+},5000);
 function showNotif(judul,pesan){
   const el=document.createElement('div');
   el.style.cssText='position:fixed;top:70px;left:50%;transform:translateX(-50%);background:var(--accent);color:#fff;padding:12px 16px;border-radius:10px;z-index:9999;max-width:90vw;box-shadow:0 4px 20px rgba(0,0,0,0.3);animation:slideDown .3s ease';
@@ -743,6 +729,8 @@ function navLabel(r){
   ];
   // Sekretaris hanya bisa absen — tampilkan beranda, anggota, lainnya
   if(r==='sekretaris') return all.filter(i=>['beranda','anggota','pengaturan'].includes(i.id));
+  // Purna (alumni) sudah tidak aktif berlatih — cukup lihat info/pengumuman & pengaturan akun
+  if(r==='purna') return all.filter(i=>['beranda','pengaturan'].includes(i.id));
   return all;
 }
 
@@ -814,44 +802,12 @@ function goScreen(id){
 // ═══════════════════════════════════════════
 // BERANDA
 // ═══════════════════════════════════════════
-// ── Pengingat arsip tahunan (khusus Pembina) ──
-// Muncul di Beranda bila: (a) sudah masuk Juli–Agustus (masa serah terima jabatan),
-// ada data sebelum 1 Juli, dan arsip tahun ini belum dilakukan; atau
-// (b) kapan pun, penyimpanan cloud sudah terpakai ≥ 70%.
-function pengingatArsipHTML(){
-  if(R!=='pembina')return '';
-  const now=new Date();
-  const thn=now.getMonth()>=6?now.getFullYear():now.getFullYear()-1;
-  const batas=new Date(thn,6,1);
-  const sudah=D.config&&D.config.arsipTerakhir&&D.config.arsipTerakhir>=thn+'-07-01';
-  const tunda=D.config&&D.config.arsipTunda&&D.config.arsipTunda>Date.now();
-  const kat=(typeof ARSIP_KATEGORI!=='undefined'?ARSIP_KATEGORI.filter(c=>c.on).map(c=>c.k):['absensi','komando','pengumuman','kas']);
-  const nLama=kat.reduce((n,k)=>n+(D[k]||[]).filter(x=>{const t=x&&parseTglAny(x.tgl);return t&&t<batas;}).length,0);
-  const pakai=Math.round(JSON.stringify(D).length/(typeof BATAS_CLOUD!=='undefined'?BATAS_CLOUD:50000)*100);
-  let msg='';
-  if(pakai>=70)msg=`⚠️ <b>Penyimpanan cloud sudah terpakai ${pakai}%.</b> Segera arsipkan data lama supaya data baru tetap bisa tersimpan.`;
-  else if(now.getMonth()>=6&&now.getMonth()<=7&&!sudah&&!tunda&&nLama)msg=`🗄️ <b>Waktunya arsip data tahunan!</b> Ada ${nLama} data sebelum 1 Juli ${thn}. Arsipkan & bersihkan supaya aplikasi tetap ringan untuk pengurus baru.`;
-  if(!msg)return '';
-  return`<div class="alert alert-warn" style="margin-bottom:10px;font-size:13px">${msg}
-    <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
-      <button class="btn btn-primary btn-sm" onclick="bukaArsip()">Buka Arsip Data →</button>
-      ${pakai<70?`<button class="btn btn-ghost btn-sm" onclick="D.config.arsipTunda=Date.now()+7*864e5;save();renderBeranda()">Ingatkan minggu depan</button>`:''}
-    </div></div>`;
-}
-function bukaArsip(){
-  goScreen('pengaturan');
-  const tabs=[...document.querySelectorAll('#s-pengaturan .tab')];
-  const t=tabs.find(b=>b.textContent.includes('Sinkron'));
-  tabPengaturan('sinkron',t);
-  setTimeout(()=>{if(typeof hitungArsip==='function')hitungArsip();document.getElementById('arsip-batas')?.scrollIntoView({behavior:'smooth',block:'center'});},150);
-}
-
 function renderBeranda(){
   const el=document.getElementById('s-beranda');
   const unreadKom=D.komando.filter(k=>!k.dibaca).length;
   const unreadPng=D.pengumuman.filter(k=>!k.dibaca).length;
 
-  let html=pengingatArsipHTML();
+  let html='';
 
   // Status sinkron — supaya anggota bisa pastikan data sudah terhubung ke cloud
   if(GS_URL){
@@ -1293,7 +1249,7 @@ function filterDaftarAnggota(){
 function renderDaftarAnggotaList(q){
   let html='';
   let any=false;
-  const groups={pps_aktif:`PPS Angkatan ${D.config.tahunAktif} (Aktif)`,pps_senior:`PPS Angkatan ${D.config.tahunSenior} (Senior)`,capas:'Capas (Calon Paskib)',balonpas:'Balonpas'};
+  const groups={pps_aktif:`PPS Angkatan ${D.config.tahunAktif} (Aktif)`,pps_senior:`PPS Angkatan ${D.config.tahunSenior} (Senior)`,capas:'Capas (Calon Paskib)',balonpas:'Balonpas',purna:'Purna PASKIBRA (Alumni)'};
   Object.entries(groups).forEach(([k,label])=>{
     let list=D.anggota.filter(a=>a.role===k);
     if(q) list=list.filter(a=>a.nama.toLowerCase().includes(q));
@@ -1547,7 +1503,7 @@ function modalEditAnggota(id){
   <div class="field"><label>Nama</label><input id="ea-nama" value="${esc(a.nama)}"></div>
   <div class="field"><label>Kelas</label><input id="ea-kelas" value="${esc(a.kelas||'')}"></div>
   <div class="field"><label>Peran</label><select id="ea-role">
-    ${['pps_aktif','pps_senior','capas','balonpas'].map(r=>`<option value="${r}"${a.role===r?' selected':''}>${RLBL[r]}</option>`).join('')}
+    ${['pps_aktif','pps_senior','purna','capas','balonpas'].map(r=>`<option value="${r}"${a.role===r?' selected':''}>${RLBL[r]}</option>`).join('')}
   </select></div>
   <div class="field"><label>Status</label><select id="ea-status">
     <option value="aktif"${a.status==='aktif'?' selected':''}>Aktif</option>
@@ -1597,13 +1553,22 @@ function gantiAngkatan(){
   const jmlSenior=D.anggota.filter(a=>a.role==='pps_senior').length;
   const jmlAktif=D.anggota.filter(a=>a.role==='pps_aktif').length;
   const tahunBaru=tAktif+1;
-  if(!confirm(`PERGANTIAN ANGKATAN PPS\n\n1) PPS Angkatan ${tSenior} (Senior, ${jmlSenior} orang) dianggap sudah LULUS SEKOLAH — datanya akan DIHAPUS dari aplikasi.\n2) PPS Angkatan ${tAktif} (Aktif, ${jmlAktif} orang) otomatis naik jadi Angkatan Senior — tetap bantu melatih & membimbing angkatan baru.\n3) Slot Angkatan Aktif berikutnya jadi Angkatan ${tahunBaru} — siap diisi balonpas yang dilantik selanjutnya.\n\nIni tidak bisa dibatalkan. Lanjutkan?`))return;
-  D.anggota=D.anggota.filter(a=>a.role!=='pps_senior');
-  D.anggota.forEach(a=>{if(a.role==='pps_aktif')a.role='pps_senior';});
+  if(!confirm(`PERGANTIAN ANGKATAN PPS\n\n1) PPS Angkatan ${tSenior} (Senior, ${jmlSenior} orang) dianggap sudah LULUS SEKOLAH — datanya TIDAK dihapus, tapi dipindah jadi "Purna PASKIBRA" (alumni) supaya riwayatnya tetap tersimpan.\n2) PPS Angkatan ${tAktif} (Aktif, ${jmlAktif} orang) otomatis naik jadi Angkatan Senior — tetap bantu melatih & membimbing angkatan baru.\n3) Slot Angkatan Aktif berikutnya jadi Angkatan ${tahunBaru} — siap diisi balonpas yang dilantik selanjutnya.\n\nIni tidak bisa dibatalkan. Lanjutkan?`))return;
+  // Dulu: data Angkatan Senior yang lulus langsung DIHAPUS habis dari array
+  // (D.anggota=D.anggota.filter(a=>a.role!=='pps_senior')) — riwayat alumni jadi
+  // hilang sama sekali. Sekarang: dipindah jadi role 'purna' (Purna PASKIBRA),
+  // datanya tetap ada sebagai arsip alumni, cuma tidak lagi masuk hitungan aktif.
+  D.anggota.forEach(a=>{
+    if(a.role==='pps_senior'){
+      a.role='purna';a.status='purna';a.angkatanPurna=tSenior;a.tglPurna=Date.now();
+    } else if(a.role==='pps_aktif'){
+      a.role='pps_senior';
+    }
+  });
   D.config.tahunSenior=tAktif;
   D.config.tahunAktif=tahunBaru;
   save();
-  toast(`✅ Pergantian selesai. Angkatan ${tSenior} (lama) dihapus, Angkatan ${tAktif} jadi Senior, Angkatan ${tahunBaru} jadi Aktif.`);
+  toast(`✅ Pergantian selesai. Angkatan ${tSenior} jadi Purna PASKIBRA (datanya tetap tersimpan), Angkatan ${tAktif} jadi Senior, Angkatan ${tahunBaru} jadi Aktif.`);
   renderAnggota();
 }
 function keluarAnggota(id){
@@ -1630,119 +1595,75 @@ function simpanKeluarBalonpas(id){
   document.querySelectorAll('#s-anggota .tab')[0].classList.add('on');
 }
 
-// ═══════════════════════════════════════════
-// ABSENSI
-// Satu sesi (tanggal + sesi) disimpan sebagai SATU catatan berisi status semua
-// anggota: {id,tgl,sesi,st:{anggotaId:'h'|'i'|'s'|'a'}}. Jauh lebih hemat ruang
-// daripada satu catatan per anggota, dan SEMUA anggota tercatat — termasuk yang
-// hadir. (Dulu yang tidak diubah dari "Hadir" tidak pernah tersimpan, sehingga
-// CSV berisi "-" dan rekap kosong.) Catatan lama per-anggota tetap terbaca.
-// ═══════════════════════════════════════════
-const AB_KODE={h:'hadir',i:'izin',s:'sakit',a:'alfa'};
-const AB_KE={hadir:'h',izin:'i',sakit:'s',alfa:'a'};
-const AB_PERAN=['pps_aktif','pps_senior','balonpas'];
-function absTglStr(d){return (d||new Date()).toLocaleDateString('id-ID');}
-function absTglAktif(){return window._absTgl||absTglStr();}
-function absSesiId(si,tglStr){const d=parseTglAny(tglStr)||new Date();return 'ab'+d.getFullYear()+String(d.getMonth()+1).padStart(2,'0')+String(d.getDate()).padStart(2,'0')+'_'+si;}
-function absSesiRec(si,tglStr){const id=absSesiId(si,tglStr);return (D.absensi||[]).find(r=>r&&r.id===id&&r.st);}
-function absStatus(aid,si,tglStr){
-  const s=absSesiRec(si,tglStr);if(s&&s.st[aid])return AB_KODE[s.st[aid]]||s.st[aid];
-  const lama=(D.absensi||[]).find(x=>x&&!x.st&&x.anggotaId===aid&&x.sesi===si&&x.tgl===tglStr);
-  return lama?lama.status:null;
-}
-// Semua absensi sebagai daftar datar {anggotaId,sesi,tgl,status} — format baru & lama digabung,
-// catatan sesi (baru) menang bila ada dobel.
-function absenFlat(){
-  const map=new Map();
-  (D.absensi||[]).forEach(r=>{if(r&&!r.st&&r.anggotaId)map.set(r.anggotaId+'|'+r.sesi+'|'+r.tgl,{anggotaId:r.anggotaId,sesi:r.sesi,tgl:r.tgl,status:r.status});});
-  (D.absensi||[]).forEach(r=>{if(r&&r.st)for(const aid in r.st)map.set(aid+'|'+r.sesi+'|'+r.tgl,{anggotaId:aid,sesi:r.sesi,tgl:r.tgl,status:AB_KODE[r.st[aid]]||r.st[aid]});});
-  return Array.from(map.values());
-}
-function absAnggotaSesi(){return D.anggota.filter(a=>AB_PERAN.includes(a.role)&&a.status==='aktif');}
-function hitungUlangTotalAbsen(){
-  const flat=absenFlat();const alfa={},izin={};
-  flat.forEach(r=>{if(r.status==='alfa')alfa[r.anggotaId]=(alfa[r.anggotaId]||0)+1;if(r.status==='izin')izin[r.anggotaId]=(izin[r.anggotaId]||0)+1;});
-  D.anggota.forEach(a=>{a.totalAlfa=alfa[a.id]||0;a.totalIzin=izin[a.id]||0;});
-}
-
 function renderAbsensi(){
   const canAccess=C.absensi_edit(R)||C.isAnggota(R)||C.komando_kirim(R)||C.isPengurus(R);
   if(!canAccess){
     return'<div class="alert alert-warn">Hanya Sekretaris yang dapat mengisi absensi.</div>';
   }
-  const d=parseTglAny(absTglAktif())||new Date();
-  const iso=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
-  const sesiTabs=SESI.map((s,i)=>`<button class="tab${i===(window._absSesi||0)?' on':''}" onclick="tabSesi(${i},this)">${s}</button>`).join('');
-  const dlBtn=(C.absensi_edit(R)||C.isPengurus(R))?`<button class="btn btn-blue btn-sm" onclick="downloadAbsensiCSV()">📥 Download CSV</button>`:'';
-  setTimeout(()=>renderSesi(window._absSesi||0),0);
-  return`<div style="display:flex;gap:8px;align-items:flex-end;margin-bottom:10px;flex-wrap:wrap">
-      <div class="field" style="margin:0;flex:1;min-width:150px"><label>📅 Tanggal absensi</label>
-      <input type="date" id="abs-tgl" value="${iso}" max="${new Date().toISOString().slice(0,10)}" onchange="gantiTglAbsensi(this.value)"></div>${dlBtn}</div>
-    <div class="tabs" id="abs-tabs">${sesiTabs}</div><div id="tab-sesi"></div>`;
-}
-function gantiTglAbsensi(v){
-  if(!v)return;const [y,m,dd]=v.split('-').map(Number);
-  window._absTgl=absTglStr(new Date(y,m-1,dd));
-  renderSesi(window._absSesi||0);
+  const sesiTabs=SESI.map((s,i)=>`<button class="tab${i===0?' on':''}" onclick="tabSesi(${i},this)">${s}</button>`).join('');
+  const dlBtn=(C.absensi_edit(R)||C.isPengurus(R))?`<button class="btn btn-blue btn-sm" style="float:right;margin-bottom:8px" onclick="downloadAbsensiCSV()">📥 Download CSV</button>`:'';
+  return`${dlBtn}<div class="tabs">${sesiTabs}</div><div id="tab-sesi"></div>`;
 }
 function downloadAbsensiCSV(){
-  const tg=absTglAktif();
+  const today=new Date().toLocaleDateString('id-ID');
   let csv='Nama,Kelas,Peran,';
   csv+=SESI.join(',')+'\n';
   D.anggota.filter(a=>a.status==='aktif').forEach(a=>{
     const row=[a.nama,a.kelas||'-',RLBL[a.role]||a.role];
-    SESI.forEach((_,si)=>row.push(absStatus(a.id,si,tg)||'-'));
+    SESI.forEach((_,si)=>{
+      const rec=D.absensi.find(x=>x.anggotaId===a.id&&x.sesi===si&&x.tgl===today);
+      row.push(rec?.status||'-');
+    });
     csv+=row.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')+'\n';
   });
   const blob=new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8'});
   const url=URL.createObjectURL(blob);
   const a=document.createElement('a');
-  a.href=url;a.download=`absensi_${tg.replace(/\//g,'-')}.csv`;a.click();
+  a.href=url;a.download=`absensi_${today.replace(/\//g,'-')}.csv`;a.click();
   URL.revokeObjectURL(url);
   toast('📥 CSV absensi diunduh');
 }
 
+// Panggil setelah renderAbsensi
+setTimeout(()=>{
+  const el=document.getElementById('tab-sesi');
+  if(el) renderSesi(0);
+},50);
+
 function tabSesi(i,btn){
-  document.querySelectorAll('#abs-tabs .tab').forEach(b=>b.classList.remove('on'));
+  document.querySelectorAll('#tab-anggota .tabs .tab').forEach(b=>b.classList.remove('on'));
   btn?.classList.add('on');
-  window._absSesi=i;
   renderSesi(i);
 }
 
 function renderSesi(si){
   const el=document.getElementById('tab-sesi');if(!el)return;
-  window._absSesi=si;
   const sesiNama=SESI[si];
-  const tg=absTglAktif();
+  const today=new Date().toLocaleDateString('id-ID');
   const isEditor=C.absensi_edit(R);
-  const daftar=absAnggotaSesi();
-  const rec=absSesiRec(si,tg);
-  const tercatat=daftar.filter(a=>absStatus(a.id,si,tg)).length;
-  const hitung={hadir:0,izin:0,sakit:0,alfa:0};daftar.forEach(a=>{const v=absStatus(a.id,si,tg);if(v&&hitung[v]!==undefined)hitung[v]++;});
 
-  let html=`<div class="sec">${sesiNama} — ${tg}</div>`;
-  html+=tercatat
-    ?`<div class="alert alert-ok" style="font-size:12px">✅ Tercatat ${tercatat}/${daftar.length} anggota · Hadir ${hitung.hadir} · Izin ${hitung.izin} · Sakit ${hitung.sakit} · Alfa ${hitung.alfa}</div>`
-    :`<div class="alert alert-warn" style="font-size:12px">${isEditor?'⚠️ Belum disimpan. Ubah yang tidak hadir, lalu tekan <b>💾 Simpan Absensi</b>.':'Belum ada absensi untuk sesi & tanggal ini.'}</div>`;
+  let html=`<div class="sec">${sesiNama} — ${today}</div>`;
   if(isEditor){
-    html+=`<div class="card" id="abs-list">`;
-    daftar.forEach(a=>{
-      const v=absStatus(a.id,si,tg)||'hadir';
+    html+=`<div class="card">`;
+    D.anggota.filter(a=>['pps_aktif','pps_senior','balonpas'].includes(a.role)&&a.status==='aktif').forEach(a=>{
+      const rec=D.absensi.find(x=>x.anggotaId===a.id&&x.sesi===si&&x.tgl===today)||null;
+      const v=rec?.status||'hadir';
       html+=`<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
         <div><div style="font-weight:600;font-size:13px">${esc(a.nama)}</div><div style="font-size:11px;color:var(--fg2)">${esc(a.kelas||'-')}</div></div>
-        <select data-aid="${a.id}" onchange="simpanAbsensiSesi(${si},true)" style="padding:4px 8px;border-radius:6px;border:1.5px solid var(--border);background:var(--bg);color:var(--fg);font-size:12px">
+        <select onchange="setAbsensi('${a.id}',${si},'${today}',this.value)" style="padding:4px 8px;border-radius:6px;border:1.5px solid var(--border);background:var(--bg);color:var(--fg);font-size:12px">
           <option value="hadir"${v==='hadir'?' selected':''}>Hadir</option>
           <option value="alfa"${v==='alfa'?' selected':''}>Alfa</option>
           <option value="izin"${v==='izin'?' selected':''}>Izin</option>
           <option value="sakit"${v==='sakit'?' selected':''}>Sakit</option>
         </select></div>`;
     });
-    html+=`</div><button class="btn btn-primary btn-full" style="margin-top:10px" onclick="simpanAbsensiSesi(${si})">💾 Simpan Absensi ${sesiNama}</button>
-    <p style="font-size:11px;color:var(--fg2);margin-top:6px">Semua anggota ikut tersimpan, termasuk yang Hadir. Absensi tanggal lain bisa dibuka/diperbaiki lewat pilihan tanggal di atas.</p>`;
+    html+=`</div>`;
   } else if(C.isAnggota(R)||C.isPengurus(R)){
+    // Anggota/balonpas/pengurus (Pembina, Pelatih, Ketua, dll) lihat rekap absensi semua (read-only)
     html+=`<div class="card"><div class="card-title" style="font-size:13px">📋 Data Absensi ${sesiNama}</div>`;
-    daftar.forEach(a=>{
-      const v=absStatus(a.id,si,tg)||'-';
+    D.anggota.filter(a=>['pps_aktif','pps_senior','balonpas'].includes(a.role)&&a.status==='aktif').forEach(a=>{
+      const rec=D.absensi.find(x=>x.anggotaId===a.id&&x.sesi===si&&x.tgl===today);
+      const v=rec?.status||'-';
       const badge=v==='hadir'?'badge-ok':v==='alfa'?'badge-danger':v==='izin'?'badge-info':v==='sakit'?'badge-warn':'';
       html+=`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border)">
         <div style="font-size:13px">${esc(a.nama)}</div>
@@ -1755,29 +1676,17 @@ function renderSesi(si){
   el.innerHTML=html;
 }
 
-// Simpan SELURUH sesi sekaligus (semua anggota sesuai pilihan di layar).
-function simpanAbsensiSesi(si,diam){
-  if(!C.absensi_edit(R))return;
-  const tg=absTglAktif();
-  const st={};
-  document.querySelectorAll('#abs-list select[data-aid]').forEach(sel=>{st[sel.dataset.aid]=AB_KE[sel.value]||'h';});
-  if(!Object.keys(st).length)return toast('Tidak ada anggota untuk diabsen');
-  const id=absSesiId(si,tg);
-  const data={id,tgl:tg,sesi:si,st,oleh:RLBL[R],w:Date.now()};
-  const idx=D.absensi.findIndex(r=>r&&r.id===id);
-  if(idx>=0)D.absensi[idx]=data;else D.absensi.push(data);
-  hitungUlangTotalAbsen();
-  save();
-  if(!diam)toast('✅ Absensi '+SESI[si]+' '+tg+' tersimpan ('+Object.keys(st).length+' anggota)');
-  else toast('Absensi disimpan');
-  renderSesi(si);
-}
-// Kompatibilitas: dipanggil dari tempat lain dengan format lama
 function setAbsensi(aid,si,tgl,status){
-  const id=absSesiId(si,tgl);let r=D.absensi.find(x=>x&&x.id===id&&x.st);
-  if(!r){r={id,tgl,sesi:si,st:{},oleh:RLBL[R],w:Date.now()};absAnggotaSesi().forEach(a=>{r.st[a.id]=AB_KE[absStatus(a.id,si,tgl)||'hadir'];});D.absensi.push(r);}
-  r.st[aid]=AB_KE[status]||'h';r.w=Date.now();
-  hitungUlangTotalAbsen();save();toast('Absensi disimpan');
+  let rec=D.absensi.find(x=>x.anggotaId===aid&&x.sesi===si&&x.tgl===tgl);
+  if(rec) rec.status=status;
+  else D.absensi.push({id:uid(),anggotaId:aid,sesi:si,tgl,status});
+  // hitung alfa
+  const a=D.anggota.find(x=>x.id===aid);
+  if(a){
+    a.totalAlfa=D.absensi.filter(x=>x.anggotaId===aid&&x.status==='alfa').length;
+    a.totalIzin=D.absensi.filter(x=>x.anggotaId===aid&&x.status==='izin').length;
+  }
+  save();toast('Absensi disimpan');
 }
 
 function getAnggotaMelebihi(){
@@ -1809,14 +1718,19 @@ function renderIzin(){
 
   // Form pengajuan izin
   if(C.isAnggota(R)){
+    // Balonpas & PPS Aktif (angkatan berapapun yang sedang bersirkulasi di slot
+    // "Aktif") cuma boleh ajukan izin hari Rabu — PPS Senior & Capas tidak dibatasi.
+    const RABU_ONLY_ROLES=['balonpas','pps_aktif'];
     const hariIni=new Date().getDay(); // 0=Minggu, 3=Rabu
     const isRabu=hariIni===3;
-    if(R==='balonpas'&&!isRabu){
-      html+=`<div class="sec">📝 Izin Balonpas</div>
-      <div class="alert alert-warn">⛔ Balonpas hanya bisa mengajukan izin pada <strong>hari Rabu</strong>. Hari ini bukan Rabu — pengajuan izin tidak tersedia.</div>`;
+    const butuhRabu=RABU_ONLY_ROLES.includes(R);
+    if(butuhRabu&&!isRabu){
+      const namaPeran=R==='balonpas'?'Balonpas':RLBL[R].replace(/^\S+\s/,'');
+      html+=`<div class="sec">📝 Izin ${namaPeran}</div>
+      <div class="alert alert-warn">⛔ ${namaPeran} hanya bisa mengajukan izin pada <strong>hari Rabu</strong>. Hari ini bukan Rabu — pengajuan izin tidak tersedia.</div>`;
     } else {
       const fotowajib=R==='balonpas';
-      html+=`<div class="sec">📝 Ajukan Izin${R==='balonpas'?' (Rabu — Wajib Foto Bukti)':''}</div>
+      html+=`<div class="sec">📝 Ajukan Izin${R==='balonpas'?' (Rabu — Wajib Foto Bukti)':butuhRabu?' (Rabu)':''}</div>
       <div class="card">
         ${R==='balonpas'?'<div class="alert alert-warn" style="font-size:12px;margin-bottom:10px">⚠️ Izin balonpas wajib disertai foto bukti. Izin akan diteruskan ke Pengurus Inti → Pembina untuk disetujui.</div>':''}
         <div class="field"><label>Nama</label><input id="iz-nama" placeholder="Nama lengkap Anda"></div>
@@ -1987,7 +1901,6 @@ function tabKegiatan(t,btn){
   renderTabKegiatan(t);
 }
 function renderTabKegiatan(t){
-  window._tabKegAktif=t;
   const el=document.getElementById('tab-kegiatan');
   if(t==='proker') el.innerHTML=renderProker();
   else if(t==='tahunan') el.innerHTML=renderProkerTahunan();
@@ -2001,11 +1914,6 @@ function renderTabKegiatan(t){
 // PROKER
 function renderProker(){
   let html='';
-  if(R==='pembina'){
-    const nTunggu=(D.prokerTahunan||[]).filter(x=>!x.accPembina).length;
-    const nMasukan=(D.prokerTahunan||[]).filter(x=>!x.accPembina).reduce((n,x)=>n+((x.catatanPelatih||[]).length),0);
-    if(nTunggu)html+=`<div class="alert alert-warn" style="margin-bottom:12px;cursor:pointer" onclick="tabKegiatan('tahunan',document.querySelectorAll('#s-kegiatan .tab')[1])">📅 Ada <b>${nTunggu} Proker Tahunan</b> menunggu persetujuan${nMasukan?` · 💬 ${nMasukan} masukan Pelatih`:''}. <u>Buka tab Tahunan →</u></div>`;
-  }
   if(C.proker_buat(R)){
     html+=`<button class="btn btn-primary btn-sm" style="margin-bottom:12px" onclick="modalProker()">+ Buat Proker</button>
     <button class="btn btn-blue btn-sm" style="margin-bottom:12px;margin-left:8px" onclick="modalProposal()">📄 Buat Proposal</button>`;
@@ -2068,9 +1976,8 @@ function renderProkerTahunan(){
   }
   if(!D.prokerTahunan.length) html+='<div class="alert alert-warn">Belum ada Program Kerja Tahunan.</div>';
   D.prokerTahunan.slice().reverse().forEach(pt=>{
-    // Proker Tahunan cukup disetujui Pembina
-    const stClass=pt.accPembina?'badge-ok':'badge-grey';
-    const stLabel=pt.accPembina?'Disetujui':'Menunggu Pembina';
+    const stClass=pt.accPembina&&pt.accPelatih?'badge-ok':pt.accPembina||pt.accPelatih?'badge-warn':'badge-grey';
+    const stLabel=pt.accPembina&&pt.accPelatih?'Disetujui':(pt.accPembina||pt.accPelatih)?'Sebagian':'Menunggu';
     html+=`<div class="item"><div class="item-head"><div><div class="item-title">${esc(pt.judul)}</div><div class="item-sub">Tahun Ajaran ${esc(pt.tahun)} · ${(pt.items||[]).length} kegiatan</div></div><span class="badge ${stClass}">${stLabel}</span></div>
     ${pt.visi?`<div style="font-size:12px;margin-top:6px"><b>Visi:</b> ${esc(pt.visi)}</div>`:''}
     ${pt.misi?`<div style="font-size:12px;margin-top:4px"><b>Misi:</b> ${esc(pt.misi)}</div>`:''}
@@ -2078,10 +1985,8 @@ function renderProkerTahunan(){
       <tr style="text-align:left;border-bottom:1px solid var(--border)"><th style="padding:4px">Kegiatan</th><th style="padding:4px">Bulan</th><th style="padding:4px">PJ</th></tr>
       ${(pt.items||[]).map(it=>`<tr style="border-bottom:1px solid var(--border)"><td style="padding:4px">${esc(it.nama)}</td><td style="padding:4px">${esc(it.bulan||'-')}</td><td style="padding:4px">${esc(it.pj||'-')}</td></tr>`).join('')}
     </table>
-    ${htmlCatatanPelatih(pt)}
     <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
-      ${PERAN_PELATIH.includes(R)?`<button class="btn btn-blue btn-sm" onclick="modalCatatanPelatih('${pt.id}')">💬 Beri Masukan</button>`:''}
-      ${R==='pembina'&&!pt.accPembina?`<button class="btn btn-ok btn-sm" onclick="accProkerTahunan('${pt.id}','pembina')">✓ Setujui</button>`:''}
+      ${C.proker_acc(R)&&!pt['acc'+((R==='pembina'?'Pembina':'Pelatih'))]?`<button class="btn btn-ok btn-sm" onclick="accProkerTahunan('${pt.id}','${R}')">✓ Setujui</button>`:''}
       <button class="btn btn-ghost btn-sm" onclick="exportProkerTahunanPDF('${pt.id}')">📄 PDF</button>
       <button class="btn btn-ghost btn-sm" onclick="exportProkerTahunanWord('${pt.id}')">📝 Word</button>
       ${C.proker_buat(R)?`<button class="btn btn-ghost btn-sm" onclick="modalProkerTahunan('${pt.id}')">✏️ Edit</button>`:''}
@@ -2090,46 +1995,6 @@ function renderProkerTahunan(){
   });
   return html;
 }
-// ── Catatan / masukan Pelatih untuk Proker Tahunan ──
-// Pelatih & Asisten Pelatih bisa memberi masukan (tidak wajib, tidak menahan
-// persetujuan). Pembina membaca masukan ini sebelum menekan Setujui, dan Ketua
-// melihatnya saat memperbaiki proker. Disimpan di pt.catatanPelatih = [{id,dari,role,isi,w}].
-const PERAN_PELATIH=['pelatih','aspelatih1','aspelatih2'];
-function htmlCatatanPelatih(pt){
-  const list=pt.catatanPelatih||[];
-  if(!list.length)return PERAN_PELATIH.includes(R)?'':`<div style="font-size:11px;color:var(--fg2);margin-top:8px">💬 Belum ada masukan dari Pelatih.</div>`;
-  return`<div style="margin-top:10px;border-left:3px solid #3b82f6;padding:6px 10px;background:rgba(59,130,246,.08);border-radius:6px">
-    <div style="font-size:12px;font-weight:700;margin-bottom:4px">💬 Masukan Pelatih (${list.length})</div>
-    ${list.map(c=>`<div style="font-size:12px;padding:5px 0;border-top:1px solid var(--border)">
-      <div style="color:var(--fg2);font-size:11px">${esc(c.dari||'-')} · ${tgl(c.w)}
-        ${(c.role===R||R==='pembina')?`<a href="#" style="color:#ef4444;margin-left:6px" onclick="event.preventDefault();hapusCatatanPelatih('${pt.id}','${c.id}')">hapus</a>`:''}</div>
-      <div style="white-space:pre-wrap">${esc(c.isi)}</div></div>`).join('')}
-  </div>`;
-}
-function modalCatatanPelatih(id){
-  const pt=D.prokerTahunan.find(x=>x.id===id);if(!pt)return;
-  openModal(`<div class="modal-title">💬 Masukan untuk Proker Tahunan <button class="modal-close" onclick="closeModal()">×</button></div>
-  <p style="font-size:12px;color:var(--fg2);margin-bottom:8px">${esc(pt.judul)} · ${esc(pt.tahun)}<br>Masukan ini dibaca Pembina sebelum menyetujui, dan dibaca Ketua untuk memperbaiki proker. Tidak menahan persetujuan.</p>
-  <div class="field"><label>Masukan / catatan</label><textarea id="cp-isi" rows="5" placeholder="Contoh: Latihan variasi formasi sebaiknya mulai Februari supaya siap untuk LKBB bulan Maret."></textarea></div>
-  <button class="btn btn-primary btn-full" id="cp-kirim" onclick="simpanCatatanPelatih('${id}')">💾 Kirim Masukan</button>`);
-}
-function simpanCatatanPelatih(id){
-  const btn=document.getElementById('cp-kirim');if(btn&&btn.disabled)return;
-  const isi=(document.getElementById('cp-isi')?.value||'').trim();
-  if(isi.length<5)return toast('Tulis masukannya dulu');
-  const pt=D.prokerTahunan.find(x=>x.id===id);if(!pt)return;
-  if(btn){btn.disabled=true;btn.textContent='Menyimpan…';}
-  if(!Array.isArray(pt.catatanPelatih))pt.catatanPelatih=[];
-  pt.catatanPelatih.push({id:uid(),dari:RLBL[R],role:R,isi,w:Date.now()});
-  save();closeModal();toast('💬 Masukan terkirim ke Pembina & Ketua');renderTabKegiatan('tahunan');
-}
-function hapusCatatanPelatih(id,cid){
-  const pt=D.prokerTahunan.find(x=>x.id===id);if(!pt||!pt.catatanPelatih)return;
-  if(!confirm('Hapus masukan ini?'))return;
-  pt.catatanPelatih=pt.catatanPelatih.filter(c=>c.id!==cid);
-  save();toast('Masukan dihapus');renderTabKegiatan('tahunan');
-}
-
 let _tahunanEditId=null,_tahunanItems=[];
 function modalProkerTahunan(editId){
   _tahunanEditId=editId||null;
@@ -2140,9 +2005,7 @@ function modalProkerTahunan(editId){
 function bukaModalTahunan(h){
   h=h||{};
   const isEdit=!!_tahunanEditId;
-  const ptAsli=isEdit?D.prokerTahunan.find(x=>x.id===_tahunanEditId):null;
   openModal(`<div class="modal-title">${isEdit?'Edit':'Buat'} Program Kerja Tahunan <button class="modal-close" onclick="closeModal()">×</button></div>
-  ${ptAsli&&(ptAsli.catatanPelatih||[]).length?htmlCatatanPelatih(ptAsli).replace(/<a href[^>]*>hapus<\/a>/g,''):''}
   <div class="field"><label>Tahun Ajaran</label><input id="pt-tahun" placeholder="Misal: 2026/2027" value="${esc(h.tahun||'')}"></div>
   <div class="field"><label>Judul</label><input id="pt-judul" placeholder="Program Kerja Tahunan PASKIBRA" value="${esc(h.judul!==undefined?h.judul:'Program Kerja Tahunan PASKIBRA MAN 1 Belitung')}"></div>
   <div class="field"><label>Visi</label><textarea id="pt-visi" placeholder="Visi kepengurusan...">${esc(h.visi||'')}</textarea></div>
@@ -2187,12 +2050,11 @@ function simpanProkerTahunan(){
   const items=ambilBarisTahunanDariForm().filter(it=>it.nama);
   const existing=_tahunanEditId?D.prokerTahunan.find(x=>x.id===_tahunanEditId):null;
   const data=existing?{...existing}:{id:uid(),accPembina:false,accPelatih:false,dibuatOleh:RLBL[R]};
-  if(existing&&existing.accPembina){data.accPembina=false;data.accPelatih=false;}
   data.tahun=tahun;data.judul=judul;data.visi=document.getElementById('pt-visi').value.trim();data.misi=document.getElementById('pt-misi').value.trim();data.items=items;
   const idx=D.prokerTahunan.findIndex(x=>x.id===data.id);
   if(idx>=0)D.prokerTahunan[idx]=data;else D.prokerTahunan.push(data);
   _tahunanEditId=null;_tahunanItems=[];
-  save();closeModal();toast(existing&&existing.accPembina?'Perubahan disimpan — menunggu persetujuan ulang Pembina':'Program Kerja Tahunan disimpan, menunggu persetujuan Pembina');renderTabKegiatan('tahunan');
+  save();closeModal();toast('Program Kerja Tahunan disimpan');renderTabKegiatan('tahunan');
 }
 function hapusProkerTahunan(id){
   const pt=D.prokerTahunan.find(x=>x.id===id);if(!pt)return;
@@ -2202,8 +2064,7 @@ function hapusProkerTahunan(id){
 }
 function accProkerTahunan(id,role){
   const pt=D.prokerTahunan.find(x=>x.id===id);if(!pt)return;
-  if(role!=='pembina')return toast('Proker Tahunan hanya disetujui oleh Pembina');
-  pt.accPembina=true;pt.accPelatih=true; // accPelatih ikut ditandai agar laporan lama menghitungnya disetujui
+  if(role==='pembina')pt.accPembina=true;else pt.accPelatih=true;
   save();toast('Program Kerja Tahunan disetujui');renderTabKegiatan('tahunan');
 }
 function _bodyTahunanHTML(pt){
@@ -2214,9 +2075,7 @@ function _bodyTahunanHTML(pt){
   <table style="width:100%;border-collapse:collapse;margin-top:12px" border="1" cellpadding="6">
     <tr style="background:#eee"><th>No</th><th>Nama Kegiatan</th><th>Bulan</th><th>Penanggung Jawab</th></tr>
     ${(pt.items||[]).map((it,i)=>`<tr><td>${i+1}</td><td>${esc(it.nama)}</td><td>${esc(it.bulan||'-')}</td><td>${esc(it.pj||'-')}</td></tr>`).join('')}
-  </table>
-  ${(pt.catatanPelatih||[]).length?`<p style="margin-top:14px"><b>Masukan Pelatih:</b></p><ul>${pt.catatanPelatih.map(c=>`<li>${esc(c.isi)} <i style="color:#666">(${esc(c.dari||'-')}, ${tgl(c.w)})</i></li>`).join('')}</ul>`:''}
-  <p style="margin-top:14px">Status: ${pt.accPembina?'<b>Disetujui Pembina</b>':'Menunggu persetujuan Pembina'}</p>`;
+  </table>`;
 }
 function exportProkerTahunanPDF(id){
   const pt=D.prokerTahunan.find(x=>x.id===id);if(!pt)return;
@@ -2337,7 +2196,7 @@ function simpanProker(sbgDraft){
     // dihitung dari sisa ruang yang benar-benar ada sekarang, bukan angka tetap
     // — sebelumnya dipatok 400KB padahal sisa ruang bisa jauh lebih kecil, dan
     // itulah sebab lampiran bikin Proker gagal tersimpan tanpa pemberitahuan.
-    const sisaRuang=(BATAS_CLOUD-2000)-JSON.stringify(D).length; // sisakan jarak aman dari batas ~50.000
+    const sisaRuang=48000-JSON.stringify(D).length; // sisakan jarak aman dari batas ~50.000
     const maxRawBytes=Math.max(0,Math.floor(sisaRuang*0.7)); // base64 menggembungkan ~1.37x
     if(sisaRuang<2000){
       toast('⚠️ Data cloud sudah hampir penuh (lihat Pengaturan → Sinkron → Cek Status Sinkron). Lampiran TIDAK bisa disimpan sampai ada ruang tersisa. Proker tetap disimpan tanpa lampiran.');
@@ -3131,9 +2990,9 @@ function renderRekapPembina(){
   const pps=anggotaAktif.filter(a=>['pps_aktif','pps_senior'].includes(a.role));
   const balonpas=anggotaAktif.filter(a=>a.role==='balonpas'||a.role==='capas');
   // Absensi bulan ini
-  const absBln=absenFlat().filter(a=>{const d=parseTglAny(a.tgl);return d&&d.getMonth()===bln&&d.getFullYear()===thn;});
-  const totalSesi=new Set(absBln.map(a=>a.tgl+'|'+a.sesi)).size;
-  const rataHadir=absBln.length?Math.round(absBln.filter(a=>a.status==='hadir').length/absBln.length*100):0;
+  const absBln=D.absensi.filter(a=>{const d=new Date(a.tgl);return d.getMonth()===bln&&d.getFullYear()===thn;});
+  const totalSesi=absBln.length;
+  const rataHadir=totalSesi?Math.round(absBln.reduce((s,a)=>{const h=Object.values(a.data||{}).filter(v=>v==='H').length;const t=Object.values(a.data||{}).length;return s+(t?h/t:0);},0)/totalSesi*100):0;
   // Pelanggaran bulan ini
   const pelBln=D.pelanggaran.filter(p=>{const d=new Date(p.tgl);return d.getMonth()===bln&&d.getFullYear()===thn;});
   const pelResmi=pelBln.filter(p=>p.status!=='aduan');
@@ -3314,7 +3173,7 @@ function hitungRentangPeriode(jenis,ref){
 }
 function rekapAbsensi(start,end){
   const counts={};
-  absenFlat().forEach(r=>{
+  D.absensi.forEach(r=>{
     const d=parseTglAny(r.tgl);if(!d||d<start||d>end)return;
     if(!counts[r.anggotaId])counts[r.anggotaId]={hadir:0,izin:0,sakit:0,alfa:0};
     if(counts[r.anggotaId][r.status]!==undefined)counts[r.anggotaId][r.status]++;
@@ -4065,7 +3924,7 @@ function renderTTD(){
   :`<div class="card"><p style="font-size:13px;color:var(--fg2);margin-bottom:12px">Belum ada TTD tersimpan.</p></div>
   <button class="btn btn-primary btn-full" onclick="buatTTDBaru()">✍ Buat Tanda Tangan</button>`}`;
 }
-let BATAS_CLOUD=50000; // diperbesar otomatis bila Apps Script versi baru (dipecah) terdeteksi
+const BATAS_CLOUD=50000;
 function renderKapasitasCloud(){
   const sz=window._lastGSSize||JSON.stringify(D).length;
   const pct=Math.min(100,Math.round(sz/BATAS_CLOUD*100));
@@ -4100,119 +3959,7 @@ function renderSinkron(){
     <p style="font-size:12px;color:var(--fg2);margin-bottom:10px">Cek langsung apa yang tersimpan di cloud dari HP ini — tekan tombol ini lalu screenshot hasilnya kalau perlu dikirim ke developer.</p>
     <button class="btn btn-ghost btn-sm btn-full" onclick="cekDiagnostikSinkron()">🔍 Cek Status Sinkron</button>
     <div id="diag-sinkron-hasil"></div>
-  </div>${R==='pembina'?renderArsipCard():''}`:'<div class="alert alert-warn" style="margin-top:12px">Isi URL Apps Script dulu untuk mulai sinkron.</div>'}`;
-}
-// ═══════════════════════════════════════════
-// ARSIP & BERSIHKAN DATA LAMA (khusus Pembina, disarankan tiap serah terima jabatan)
-// 1) hitung data sebelum tanggal batas  2) unduh arsip (Excel rekap + cadangan lengkap)
-// 3) hapus data lama dari aplikasi & cloud. Saldo kas lama dipindah jadi "Saldo awal"
-//    supaya saldo kas tidak berubah. Hapus memakai tandaHapus() agar tidak muncul lagi
-//    dari HP lain / cloud saat sinkron.
-// ═══════════════════════════════════════════
-const ARSIP_KATEGORI=[
-  {k:'absensi',n:'Absensi',on:true},{k:'komando',n:'Komando',on:true},{k:'pengumuman',n:'Pengumuman',on:true},
-  {k:'izin',n:'Izin',on:true},{k:'agenda',n:'Agenda',on:true},{k:'evaluasi',n:'Evaluasi',on:true},
-  {k:'pelanggaran',n:'Pelanggaran',on:true},{k:'kas',n:'Kas (saldo tetap dibawa)',on:true},
-  {k:'proker',n:'Proker per-kegiatan',on:true},{k:'samapta',n:'Samapta',on:true},{k:'lomba',n:'Lomba (riwayat prestasi)',on:false}
-];
-function arsipBatasDefault(){const d=new Date();const y=d.getMonth()>=6?d.getFullYear():d.getFullYear()-1;return y+'-07-01';}
-function renderArsipCard(){
-  return`<div class="card" style="margin-top:12px">
-    <div class="card-title">🗄️ Arsip & Bersihkan Data Lama</div>
-    <p style="font-size:12px;color:var(--fg2);margin-bottom:10px">Lakukan <b>setahun sekali</b> (saat serah terima jabatan) supaya aplikasi tetap ringan. Data <b>sebelum</b> tanggal batas akan diunduh sebagai arsip, lalu dihapus dari aplikasi. Data anggota, adat, info, dan Proker Tahunan tidak disentuh.</p>
-    <div class="field"><label>Tanggal batas (data sebelum tanggal ini dibersihkan)</label>
-      <input type="date" id="arsip-batas" value="${window._arsipBatas||arsipBatasDefault()}" max="${new Date().toISOString().slice(0,10)}" onchange="window._arsipBatas=this.value;window._arsipSiap=null;hitungArsip()"></div>
-    <button class="btn btn-ghost btn-sm btn-full" onclick="hitungArsip()">1️⃣ Hitung data lama</button>
-    <div id="arsip-hasil"></div>
-  </div>`;
-}
-function arsipLbl(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
-function arsipUkuran(n){return n<1000?n+' kar.':Math.round(n/1000)+' rb kar.';}
-function arsipBatasDate(){const v=document.getElementById('arsip-batas')?.value||arsipBatasDefault();const[y,m,d]=v.split('-').map(Number);return new Date(y,m-1,d,0,0,0,0);}
-function arsipLama(k,batas){return (D[k]||[]).filter(x=>{if(!x)return false;const t=parseTglAny(x.tgl);return t&&!isNaN(t.getTime())&&t<batas;});}
-function arsipDipilih(){return ARSIP_KATEGORI.filter(c=>{const el=document.getElementById('arsip-c-'+c.k);return el?el.checked:c.on;}).map(c=>c.k);}
-function hitungArsip(){
-  const el=document.getElementById('arsip-hasil');if(!el)return;
-  const batas=arsipBatasDate();
-  let total=0,uk=0;
-  const baris=ARSIP_KATEGORI.map(c=>{
-    const lama=arsipLama(c.k,batas);const sz=JSON.stringify(lama).length;
-    if(c.on){total+=lama.length;uk+=sz;}
-    return`<label style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px">
-      <span><input type="checkbox" id="arsip-c-${c.k}" ${c.on?'checked':''} ${lama.length?'':'disabled'} onchange="window._arsipSiap=null;hitungArsipRingkas()"> ${c.n}</span>
-      <span style="color:var(--fg2)">${lama.length} data · ${lama.length?arsipUkuran(sz):'-'}</span></label>`;}).join('');
-  el.innerHTML=`<div style="margin-top:10px">${baris}</div>
-    <div id="arsip-ringkas" style="font-size:12px;margin:10px 0"></div>
-    <button class="btn btn-blue btn-sm btn-full" onclick="unduhArsip()">2️⃣ Unduh Arsip (Excel rekap + cadangan lengkap)</button>
-    <button class="btn btn-sm btn-full" id="arsip-hapus" style="margin-top:8px;background:#b91c1c;color:#fff" onclick="hapusDataLama()">3️⃣ Hapus Data Lama dari Aplikasi</button>
-    <p style="font-size:11px;color:var(--fg2);margin-top:6px">Tombol 3 baru bisa dipakai setelah arsip diunduh (tombol 2). Simpan file arsipnya di Google Drive.</p>`;
-  hitungArsipRingkas();
-}
-function hitungArsipRingkas(){
-  const el=document.getElementById('arsip-ringkas');if(!el)return;
-  const batas=arsipBatasDate();let n=0,sz=0;
-  arsipDipilih().forEach(k=>{const l=arsipLama(k,batas);n+=l.length;sz+=JSON.stringify(l).length;});
-  el.innerHTML=n?`Akan dibersihkan: <b>${n} data</b> sebelum <b>${tgl(batas)}</b> · menghemat ±<b>${arsipUkuran(sz)}</b>${window._arsipSiap?' <span style="color:#22c55e">✅ Arsip sudah diunduh</span>':''}`
-    :'✅ Tidak ada data lama sebelum tanggal ini.';
-  const b=document.getElementById('arsip-hapus');if(b){b.disabled=!n||!window._arsipSiap;b.style.opacity=b.disabled?.45:1;}
-}
-function unduhArsip(){
-  const batas=arsipBatasDate();const kat=arsipDipilih();
-  let awal=batas;kat.forEach(k=>arsipLama(k,batas).forEach(x=>{const t=parseTglAny(x.tgl);if(t<awal)awal=t;}));
-  const akhir=new Date(batas.getTime()-1);const lbl=arsipLbl(batas);
-  // 1) Cadangan lengkap (seluruh data aplikasi, bisa dipulihkan bila perlu)
-  try{
-    const blob=new Blob([JSON.stringify({dibuat:new Date().toISOString(),batas:lbl,data:{...D}})],{type:'application/json'});
-    const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`Cadangan_PASMANSABEL_sebelum_${lbl}.json`;a.click();
-    setTimeout(()=>URL.revokeObjectURL(a.href),4000);
-  }catch(e){return toast('❌ Gagal membuat cadangan: '+e.message);}
-  // 2) Rekap Excel periode yang akan dibersihkan
-  if(typeof XLSX!=='undefined'){
-    try{
-      const wb=XLSX.utils.book_new();
-      kumpulkanRekapData('gabungan',awal,akhir).forEach(sec=>{
-        const aoa=[[sec.judul],[`Periode: ${tgl(awal)} - ${tgl(akhir)}`],[],sec.kolom,...sec.rows];
-        if(sec.ringkasan&&sec.ringkasan.length){aoa.push([]);sec.ringkasan.forEach(r=>aoa.push([r.label,r.value]));}
-        XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(aoa),(sec.judul.replace('Rekap ','')||'Data').slice(0,31));
-      });
-      const daftar=(k,kol,f)=>{const l=arsipLama(k,batas);if(l.length)XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([kol,...l.map(f)]),k.charAt(0).toUpperCase()+k.slice(1));};
-      daftar('komando',['Tanggal','Dari','Pesan'],x=>[tgl(x.tgl),x.dari||'-',x.pesan||'']);
-      daftar('pengumuman',['Tanggal','Dari','Pesan'],x=>[tgl(x.tgl),x.dari||'-',x.pesan||'']);
-      daftar('proker',['Tanggal','Judul','Jenis','Isi','Pembina','Pelatih'],x=>[tgl(x.tgl),x.judul||'',x.jenis||'',x.isi||'',x.accPembina?'✓':'',x.accPelatih?'✓':'']);
-      daftar('agenda',['Tanggal','Judul','Tempat','Keterangan'],x=>[x.tgl,x.judul||'',x.tempat||'',x.keterangan||'']);
-      daftar('evaluasi',['Tanggal','Judul','Isi'],x=>[x.tgl,x.judul||'',x.isi||'']);
-      daftar('izin',['Tanggal','Nama','Sesi','Alasan','Status'],x=>[x.tgl,x.nama||'',SESI[x.sesi]||x.sesi,x.alasan||'',x.status||'']);
-      XLSX.writeFile(wb,`Arsip_PASMANSABEL_sampai_${arsipLbl(akhir)}.xlsx`);
-    }catch(e){toast('⚠️ Rekap Excel gagal dibuat, tapi cadangan lengkap sudah diunduh');}
-  }else toast('⚠️ Modul Excel belum siap — cadangan lengkap (.json) tetap diunduh');
-  window._arsipSiap=lbl;
-  toast('📥 Arsip diunduh. Simpan file-nya di Google Drive, lalu tekan tombol 3️⃣',4500);
-  hitungArsipRingkas();
-}
-function hapusDataLama(){
-  const batas=arsipBatasDate();const lbl=arsipLbl(batas);
-  if(window._arsipSiap!==lbl)return toast('Unduh arsip dulu (tombol 2️⃣) sebelum menghapus');
-  const kat=arsipDipilih();let n=0;kat.forEach(k=>n+=arsipLama(k,batas).length);
-  if(!n)return toast('Tidak ada data lama untuk dihapus');
-  const ketik=prompt(`⚠️ ${n} data sebelum ${tgl(batas)} akan DIHAPUS PERMANEN dari aplikasi dan cloud.\n\nPastikan file arsip sudah tersimpan.\n\nKetik HAPUS untuk melanjutkan:`);
-  if(ketik===null)return;
-  if(String(ketik).trim().toUpperCase()!=='HAPUS')return toast('Dibatalkan — tulisan tidak sesuai');
-  // Kas: bawa saldo lama sebagai "Saldo awal" supaya saldo kas tidak berubah
-  if(kat.includes('kas')){
-    const lamaKas=arsipLama('kas',batas);
-    const saldo=lamaKas.reduce((s,k)=>s+(k.jenis==='masuk'?1:-1)*(Number(k.nominal)||0),0);
-    if(lamaKas.length&&saldo!==0){
-      D.kas.push({id:uid(),tgl:batas.getTime(),ket:'Saldo awal (dari arsip sebelum '+tgl(batas)+')',nominal:Math.abs(saldo),jenis:saldo>=0?'masuk':'keluar',kategori:'Saldo Awal',buktiFoto:null,dicatatOleh:'Sistem Arsip'});
-    }
-  }
-  kat.forEach(k=>{arsipLama(k,batas).forEach(x=>tandaHapus(k,x.id));});
-  if(typeof hitungUlangTotalAbsen==='function')hitungUlangTotalAbsen();
-  if(!D.config)D.config={};D.config.arsipTerakhir=lbl;delete D.config.arsipTunda;
-  window._arsipSiap=null;
-  save();
-  toast(`🗑 ${n} data lama dibersihkan. Menyimpan ke cloud...`,4000);
-  setTimeout(()=>{if(typeof syncCloud==='function')syncCloud('push');},800);
-  hitungArsip();
+  </div>`:'<div class="alert alert-warn" style="margin-top:12px">Isi URL Apps Script dulu untuk mulai sinkron.</div>'}`;
 }
 async function cekDiagnostikSinkron(){
   const el=document.getElementById('diag-sinkron-hasil');
@@ -4350,7 +4097,7 @@ function resetData(){
 
 <div id="footer-cr" style="text-align:center;padding:16px;font-size:11px;color:var(--fg3);margin-top:8px;border-top:1px solid var(--border)">
   © 2026 Eki Ripan J.R, S.Pd., Gr. · Pembina PASKIBRA MAN 1 Belitung<br>
-  <span style="font-size:10px;opacity:.7">PASMANSABEL — Aplikasi Manajemen PASKIBRA MAN 1 Belitung</span><br><span style="font-size:10px;opacity:.6">Versi 13 Nov 2026 · 22.20</span>
+  <span style="font-size:10px;opacity:.7">PASMANSABEL — Aplikasi Manajemen PASKIBRA MAN 1 Belitung</span>
 </div>
 </body>
 </html>
