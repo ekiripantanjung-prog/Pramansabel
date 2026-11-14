@@ -221,6 +221,10 @@ input,select,textarea{font-family:inherit}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script>if(window.pdfjsLib)pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';</script>
+<!-- Notifikasi Push (OneSignal) — supaya Komando/Pengumuman bisa masuk notif HP
+     walau aplikasi sedang ditutup, kayak WA. Kalau ONESIGNAL_APP_ID belum diisi
+     (lihat konstanta di <script> utama), baris ini tidak melakukan apa-apa. -->
+<script defer src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js"></script>
 </head>
 <body>
 
@@ -425,6 +429,73 @@ let R = null; // role saat ini
 
 const GS_DEFAULT='https://script.google.com/macros/s/AKfycbzdZ3IVx3jmo7HR3W1b2BFTjUGJs-z7JIJFJhdOV6FVuJkajqGEvtauONMrJuEX9bevxw/exec';
 let GS_URL='';try{GS_URL=localStorage.getItem('pramansabel_gsurl')||GS_DEFAULT;}catch(e){GS_URL=GS_DEFAULT;}
+
+// ═══════════════════════════════════════════
+// NOTIFIKASI PUSH (OneSignal) — supaya Komando/Pengumuman masuk ke notifikasi
+// HP walau aplikasi sedang ditutup, mirip WA. Dua hal yang perlu diisi, dari
+// dashboard onesignal.com (Settings → Keys & IDs) setelah bikin akun gratis:
+//
+// 1) ONESIGNAL_APP_ID_DEFAULT — ID aplikasi, AMAN ditaruh langsung di kode ini
+//    (sama seperti GS_DEFAULT di atas) karena cuma dipakai tiap HP anggota
+//    buat "daftar" terima notifikasi, bukan buat kirim. Ganti nilainya di
+//    bawah ini setelah dapat App ID dari OneSignal, lalu upload ulang filenya.
+// 2) REST API Key — ini KUNCI RAHASIA (bisa dipakai siapapun yang punya buat
+//    kirim notifikasi ke semua orang), jadi TIDAK ditaruh di kode ini supaya
+//    tidak kelihatan publik di GitHub. Diisi lewat Pengaturan → Notifikasi,
+//    cuma oleh Pembina/Ketua/Sekretaris/TATIB (yang memang berhak kirim
+//    Komando/Pengumuman), dan cuma tersimpan di HP masing-masing.
+const ONESIGNAL_APP_ID_DEFAULT='';
+let ONESIGNAL_APP_ID='';try{ONESIGNAL_APP_ID=localStorage.getItem('pramansabel_onesignal_appid')||ONESIGNAL_APP_ID_DEFAULT;}catch(e){ONESIGNAL_APP_ID=ONESIGNAL_APP_ID_DEFAULT;}
+let ONESIGNAL_REST_KEY='';try{ONESIGNAL_REST_KEY=localStorage.getItem('pramansabel_onesignal_restkey')||'';}catch(e){}
+if(ONESIGNAL_APP_ID){
+  window.OneSignalDeferred=window.OneSignalDeferred||[];
+  OneSignalDeferred.push(async function(OneSignal){
+    try{ await OneSignal.init({appId:ONESIGNAL_APP_ID,allowLocalhostAsSecureOrigin:true}); }catch(e){}
+  });
+}
+// Minta izin notifikasi ke browser & daftarkan HP ini ke OneSignal. Dipanggil
+// dari tombol "🔔 Aktifkan Notifikasi" di Pengaturan — bisa oleh siapa saja.
+function aktifkanNotifikasiPush(){
+  if(!ONESIGNAL_APP_ID)return toast('⚠️ Notifikasi push belum disetel Pembina. Lihat Pengaturan → Notifikasi.');
+  if(!window.OneSignalDeferred)return toast('⚠️ Modul notifikasi belum siap (butuh internet). Coba lagi sebentar.');
+  OneSignalDeferred.push(async function(OneSignal){
+    try{
+      await OneSignal.Notifications.requestPermission();
+      const aktif=OneSignal.Notifications.permission;
+      toast(aktif?'🔔 Notifikasi diaktifkan di HP ini!':'❌ Izin notifikasi ditolak — aktifkan lewat pengaturan browser kalau berubah pikiran.');
+      renderPengaturan();
+    }catch(e){ toast('❌ Gagal mengaktifkan notifikasi'); }
+  });
+}
+function simpanKonfigOneSignal(){
+  const appId=document.getElementById('os-appid')?.value.trim()||'';
+  const restKey=document.getElementById('os-restkey')?.value.trim()||'';
+  ONESIGNAL_APP_ID=appId;ONESIGNAL_REST_KEY=restKey;
+  try{
+    localStorage.setItem('pramansabel_onesignal_appid',appId);
+    localStorage.setItem('pramansabel_onesignal_restkey',restKey);
+  }catch(e){}
+  toast('✅ Pengaturan notifikasi tersimpan di HP ini. Muat ulang aplikasi supaya aktif.');
+}
+// Kirim notifikasi push ke semua HP yang sudah "Aktifkan Notifikasi". Dipanggil
+// otomatis tiap ada Komando/Pengumuman baru — gagal diam-diam (mis. REST key
+// belum diisi atau sedang offline) supaya tidak mengganggu alur kirim utama.
+async function kirimPushNotifikasi(judul,isi){
+  if(!ONESIGNAL_APP_ID||!ONESIGNAL_REST_KEY)return;
+  try{
+    await fetch('https://onesignal.com/api/v1/notifications',{
+      method:'POST',
+      headers:{'Content-Type':'application/json; charset=utf-8','Authorization':'Basic '+ONESIGNAL_REST_KEY},
+      body:JSON.stringify({
+        app_id:ONESIGNAL_APP_ID,
+        included_segments:['Subscribed Users'],
+        headings:{en:judul},
+        contents:{en:(isi||'').slice(0,150)},
+        url:location.href.split('#')[0]
+      })
+    });
+  }catch(e){}
+}
 let _lastLocalSave=0,_pendingPush=null,_gsPushTimer=null,_gsDirty=false;
 function save(){_lastLocalSave=Date.now();try{localStorage.setItem(SK,JSON.stringify(D));}catch(e){} scheduleGSPush();}
 function scheduleGSPush(){
@@ -914,6 +985,7 @@ function kirimKomando(){
   D.komando.push({id:uid(),pesan:v,tgl:Date.now(),dari:RLBL[R],dibaca:false});
 
   save();toast('Komando dikirim!');
+  kirimPushNotifikasi('⚡ Komando dari '+RLBL[R],v);
   document.getElementById('inp-kom').value='';
   renderBeranda();
   // Aplikasi web tidak bisa kirim notifikasi kalau ditutup — tawarkan broadcast ke WA grup supaya pasti sampai
@@ -1176,6 +1248,7 @@ function kirimPengumuman(){
   const hadLampiran=!!_pngLampiran;
   D.pengumuman.push({id:uid(),pesan:v||'(Lihat lampiran)',tgl:Date.now(),dari:RLBL[R],dibaca:false,lampiran:_pngLampiran});
   save();toast('Pengumuman dikirim!');
+  kirimPushNotifikasi('📢 Pengumuman dari '+RLBL[R],v||'Ada lampiran baru — buka aplikasi untuk lihat');
   document.getElementById('inp-png').value='';
   const pv=document.getElementById('png-file-prev');if(pv){pv.style.display='none';pv.innerHTML='';}
   const pf=document.getElementById('inp-png-file');if(pf)pf.value='';
@@ -3880,6 +3953,7 @@ function renderPengaturan(){
     ${C.ttd(R)?`<button class="tab" onclick="tabPengaturan('ttd',this)">TTD</button>`:''}
     ${R==='pembina'?`<button class="tab" onclick="tabPengaturan('config',this)">Konfigurasi</button>`:''}
     <button class="tab" onclick="tabPengaturan('sinkron',this)">☁️ Sinkron</button>
+    <button class="tab" onclick="tabPengaturan('notif',this)">🔔 Notifikasi</button>
   </div><div id="tab-pengaturan"></div>`;
   el.innerHTML=html;
   renderTabPengaturan('info');
@@ -3895,6 +3969,31 @@ function renderTabPengaturan(t){
   else if(t==='ttd') el.innerHTML=renderTTD();
   else if(t==='config') el.innerHTML=renderConfig();
   else if(t==='sinkron') el.innerHTML=renderSinkron();
+  else if(t==='notif') el.innerHTML=renderNotifikasi();
+}
+function renderNotifikasi(){
+  const bisaKirim=C.komando_kirim(R)||C.pengumuman_kirim(R)||['ketua','sekretaris','tatib','bendahara'].includes(R);
+  let html=`<div class="card">
+    <div class="card-title">🔔 Notifikasi Push</div>
+    <div style="font-size:13px;color:var(--fg2);margin-bottom:10px">Biar Komando & Pengumuman baru muncul jadi notifikasi di HP, mirip WA — walau aplikasi sedang ditutup.</div>`;
+  if(!ONESIGNAL_APP_ID){
+    html+=`<div class="alert alert-warn" style="font-size:12px">⚠️ Fitur ini belum disetel Pembina. ${bisaKirim?'Isi dulu di bagian bawah.':'Hubungi Pembina/pengurus untuk mengaktifkannya.'}</div>`;
+  } else {
+    html+=`<button class="btn btn-primary btn-full" onclick="aktifkanNotifikasiPush()">🔔 Aktifkan Notifikasi di HP Ini</button>
+    <div style="font-size:11px;color:var(--fg3);margin-top:8px">Browser akan minta izin notifikasi — pilih "Izinkan". Sekali diaktifkan, berlaku terus di HP ini sampai dimatikan sendiri lewat pengaturan browser/HP.</div>`;
+  }
+  html+='</div>';
+  if(bisaKirim){
+    html+=`<div class="card" style="margin-top:12px">
+      <div class="card-title">⚙️ Setel Layanan Notifikasi (Pengurus)</div>
+      <div style="font-size:12px;color:var(--fg2);margin-bottom:10px">Diisi sekali pakai akun gratis di <strong>onesignal.com</strong> → bikin Web Push App → ambil App ID & REST API Key dari Settings → Keys & IDs. Nilai ini cuma tersimpan di HP ini (tidak ikut ke GitHub/cloud), jadi tiap pengurus yang mau kirim notif perlu isi juga di HP masing-masing.</div>
+      <div class="field"><label>OneSignal App ID</label><input id="os-appid" placeholder="contoh: 8e5c6b1a-..." value="${esc(ONESIGNAL_APP_ID)}"></div>
+      <div class="field"><label>OneSignal REST API Key</label><input id="os-restkey" type="password" placeholder="Rahasia — jangan sebar" value="${esc(ONESIGNAL_REST_KEY)}"></div>
+      <button class="btn btn-ok btn-full" onclick="simpanKonfigOneSignal()">💾 Simpan di HP Ini</button>
+      <div class="alert alert-warn" style="font-size:11px;margin-top:8px">⚠️ REST API Key itu rahasia — siapapun yang punya bisa kirim notifikasi ke semua orang. Jangan foto/screenshot lalu sebar ke grup.</div>
+    </div>`;
+  }
+  return html;
 }
 function renderInfoPengaturan(){
   return`<div class="card">
