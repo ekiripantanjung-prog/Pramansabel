@@ -851,8 +851,9 @@ function navLabel(r){
     {id:'laporan',icon:'📊',lbl:'Laporan'},
     {id:'pengaturan',icon:'⚙️',lbl:'Lainnya'},
   ];
-  // Sekretaris hanya bisa absen — tampilkan beranda, anggota, lainnya
-  if(r==='sekretaris') return all.filter(i=>['beranda','anggota','pengaturan'].includes(i.id));
+  // Sekretaris: absensi + notulensi rapat/evaluasi (tugas utamanya) — tampilkan
+  // beranda, anggota, laporan (tempat tab Evaluasi/Notulen berada), lainnya.
+  if(r==='sekretaris') return all.filter(i=>['beranda','anggota','laporan','pengaturan'].includes(i.id));
   // Purna (alumni) sudah tidak aktif berlatih — cukup lihat info/pengumuman & pengaturan akun
   if(r==='purna') return all.filter(i=>['beranda','pengaturan'].includes(i.id));
   return all;
@@ -3916,14 +3917,17 @@ function renderRekapPembina(){
 
 function renderLaporan(){
   const el=document.getElementById('s-laporan');
+  // Sekretaris masuk ke Laporan terutama untuk isi Notulen/Evaluasi (tugas utamanya),
+  // jadi tab Evaluasi yang dibuka pertama; peran lain tetap default ke Keuangan.
+  const tabAwal=R==='sekretaris'?'evaluasi':'keuangan';
   let html=`<div class="tabs">
-    <button class="tab on" onclick="tabLaporan('keuangan',this)">Keuangan</button>
-    <button class="tab" onclick="tabLaporan('evaluasi',this)">Evaluasi</button>
+    <button class="tab${tabAwal==='keuangan'?' on':''}" onclick="tabLaporan('keuangan',this)">Keuangan</button>
+    <button class="tab${tabAwal==='evaluasi'?' on':''}" onclick="tabLaporan('evaluasi',this)">Evaluasi</button>
     ${C.isPengurus(R)||C.isAnggota(R)?`<button class="tab" onclick="tabLaporan('ringkasan',this)">Laporan</button>`:''}
     ${C.isPengurus(R)?`<button class="tab" onclick="tabLaporan('rekap',this)">📊 Rekap Periode</button>`:''}
   </div><div id="tab-laporan"></div>`;
   el.innerHTML=html;
-  renderTabLaporan('keuangan');
+  renderTabLaporan(tabAwal);
 }
 function tabLaporan(t,btn){
   document.querySelectorAll('#s-laporan .tab').forEach(b=>b.classList.remove('on'));
