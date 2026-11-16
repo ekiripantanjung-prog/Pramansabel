@@ -3920,9 +3920,12 @@ function renderLaporan(){
   // Sekretaris masuk ke Laporan terutama untuk isi Notulen/Evaluasi (tugas utamanya),
   // jadi tab Evaluasi yang dibuka pertama; peran lain tetap default ke Keuangan.
   const tabAwal=R==='sekretaris'?'evaluasi':'keuangan';
+  // Notulen rapat/evaluasi bersifat rahasia bagi Balonpas (sering membahas penilaian
+  // mereka sendiri) — jadi tab "Evaluasi" tidak ditampilkan sama sekali untuk Balonpas.
+  const bolehLihatEvaluasi=R!=='balonpas';
   let html=`<div class="tabs">
     <button class="tab${tabAwal==='keuangan'?' on':''}" onclick="tabLaporan('keuangan',this)">Keuangan</button>
-    <button class="tab${tabAwal==='evaluasi'?' on':''}" onclick="tabLaporan('evaluasi',this)">Evaluasi</button>
+    ${bolehLihatEvaluasi?`<button class="tab${tabAwal==='evaluasi'?' on':''}" onclick="tabLaporan('evaluasi',this)">Evaluasi</button>`:''}
     ${C.isPengurus(R)||C.isAnggota(R)?`<button class="tab" onclick="tabLaporan('ringkasan',this)">Laporan</button>`:''}
     ${C.isPengurus(R)?`<button class="tab" onclick="tabLaporan('rekap',this)">📊 Rekap Periode</button>`:''}
   </div><div id="tab-laporan"></div>`;
@@ -4252,6 +4255,12 @@ function catatKas(){
 }
 
 function renderEvaluasi(){
+  // Lapis kedua (defense in depth): walau tab "Evaluasi" sudah disembunyikan untuk
+  // Balonpas di renderLaporan(), fungsi ini sendiri juga menolak menampilkan isinya
+  // kalau sampai terpanggil lewat cara lain — notulen rapat/evaluasi rahasia bagi mereka.
+  if(R==='balonpas'){
+    return '<div class="alert alert-warn">🔒 Notulen rapat & evaluasi bersifat rahasia dan tidak dapat diakses oleh Balonpas.</div>';
+  }
   let html='';
   const bisaKelolaEv=['pembina','pelatih','sekretaris'].includes(R);
   if(bisaKelolaEv){
