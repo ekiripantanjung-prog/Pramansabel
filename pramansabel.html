@@ -286,7 +286,10 @@ input,select,textarea{font-family:inherit}
 // DATA STORE
 // ═══════════════════════════════════════════
 const SK = 'pramansabel_v3';
-const PIN_ROLES=['pembina','pelatih','aspelatih1','aspelatih2','ketua','sekretaris','bendahara','tatib'];
+// Semua role selain Balonpas & Capas boleh dikasih PIN — kalau tidak, Balonpas/Capas
+// bisa lolos dari filter "Rahasia" dengan cara login memilih role lain yang tanpa PIN
+// (mis. PPS Aktif/Senior/Purna), karena role itu tidak termasuk yang difilter.
+const PIN_ROLES=['pembina','pelatih','aspelatih1','aspelatih2','ketua','sekretaris','bendahara','tatib','pps_aktif','pps_senior','purna'];
 let _pinBuf='';let _pinTarget='';let _pinCb=null;let _pinMode='check';let _pinNewBuf='';
 
 function hashPin(p){let h=0;for(let i=0;i<p.length;i++){h=((h<<5)-h)+p.charCodeAt(i);h|=0;}return h.toString(36);}
