@@ -803,6 +803,9 @@ const C={
   komando_kirim:r=>r==='pembina'||(r==='pelatih'&&D.config.pelatih_komando),
   pengumuman_kirim:r=>['pembina','pelatih','ketua','sekretaris'].includes(r),
   agenda_buat:r=>['pembina','pelatih','ketua','sekretaris'].includes(r),
+  // Filter rahasia: Balonpas & Capas (anggota junior/calon) tidak boleh melihat
+  // Agenda/Pengumuman/Komando yang ditandai "Rahasia" oleh Pengurus/PPS/Pelatih/Pembina.
+  bisaLihatRahasia:r=>!['balonpas','capas'].includes(r),
   pemetaan_edit:r=>['pelatih','pembina','aspelatih1','aspelatih2','pps_aktif','pps_senior'].includes(r)||r==='balonpas',
   laporan:r=>r==='pembina',
   anggota_edit:r=>['pembina','ketua'].includes(r),
@@ -946,7 +949,8 @@ function renderBeranda(){
   }
 
   // Komando Cepat (mendesak) — tampilkan 5 terbaru saja di Beranda, sisanya lewat riwayat
-  const komList=D.komando.slice().reverse();
+  // Komando yang ditandai rahasia disembunyikan dari Balonpas/Capas.
+  const komList=D.komando.filter(k=>!k.rahasia||C.bisaLihatRahasia(R)).slice().reverse();
   const KOM_LIMIT=5;
   if(komList.length){
     html+=`<div class="sec">⚡ KOMANDO CEPAT</div>`;
@@ -964,7 +968,8 @@ function renderBeranda(){
   html+=renderAgendaBeranda();
 
   // Pengumuman — tampilkan 5 terbaru saja di Beranda, sisanya lewat riwayat
-  const pngList=D.pengumuman.slice().reverse();
+  // Pengumuman yang ditandai rahasia disembunyikan dari Balonpas/Capas.
+  const pngList=D.pengumuman.filter(p=>!p.rahasia||C.bisaLihatRahasia(R)).slice().reverse();
   const PNG_LIMIT=5;
   if(pngList.length){
     html+=`<div class="sec">📢 PENGUMUMAN</div>`;
@@ -999,6 +1004,7 @@ function renderBeranda(){
     html+=`<div class="sec">⚡ KIRIM KOMANDO CEPAT</div>
     <div class="card">
       <div class="field"><label>Pesan Komando</label><textarea id="inp-kom" placeholder="Tulis perintah mendesak..."></textarea></div>
+      <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--fg2);margin-bottom:8px"><input type="checkbox" id="inp-kom-rahasia"> 🔒 Rahasia (sembunyikan dari Balonpas & Capas)</label>
       <button class="btn btn-primary btn-full" onclick="kirimKomando()">⚡ Kirim Komando</button>
       <div style="display:flex;gap:8px;margin-top:8px">
         <button class="btn btn-ghost btn-sm" style="flex:1" onclick="buatFileDariTeks('inp-kom','gambar')">🖼️ Jadikan Gambar</button>
@@ -1013,6 +1019,7 @@ function renderBeranda(){
     <div class="card">
       <div class="field"><label>Isi Pengumuman</label><textarea id="inp-png" placeholder="Tulis pengumuman, atau kosongkan kalau hanya mau kirim file/foto rencana latihan..."></textarea></div>
       <div class="field"><label>Lampiran — Foto/Scan Rencana Latihan atau PDF (opsional)</label><input type="file" id="inp-png-file" accept="image/*,application/pdf" onchange="prevPngFile(this)"><div id="png-file-prev" style="display:none;margin-top:6px"></div></div>
+      <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--fg2);margin-bottom:8px"><input type="checkbox" id="inp-png-rahasia"> 🔒 Rahasia (sembunyikan dari Balonpas & Capas)</label>
       <button class="btn btn-blue btn-full" onclick="kirimPengumuman()">📢 Kirim Pengumuman</button>
       <div style="display:flex;gap:8px;margin-top:8px">
         <button class="btn btn-ghost btn-sm" style="flex:1" onclick="buatFileDariTeks('inp-png','gambar')">🖼️ Jadikan Gambar</button>
@@ -1036,7 +1043,8 @@ function renderBeranda(){
 function kirimKomando(){
   const v=document.getElementById('inp-kom')?.value.trim();
   if(!v)return toast('Tulis pesan komando dulu');
-  D.komando.push({id:uid(),pesan:v,tgl:Date.now(),dari:RLBL[R],dibaca:false});
+  const rahasiaKom=document.getElementById('inp-kom-rahasia')?.checked||false;
+  D.komando.push({id:uid(),pesan:v,tgl:Date.now(),dari:RLBL[R],dibaca:false,rahasia:rahasiaKom});
 
   save();toast('Komando dikirim!');
   kirimPushNotifikasi('⚡ Komando dari '+RLBL[R],v);
@@ -1118,20 +1126,24 @@ function hapusPengumuman(id){
 }
 function renderKomandoItem(k){
   const bisaEdit=C.komando_kirim(R)||['ketua','tatib'].includes(R);
-  return `<div class="komando-box"><h3>⚡ Komando dari ${esc(k.dari)}</h3><p>${esc(k.pesan)}</p>${buildResponBar('komando',k)}<div class="kmeta" style="display:flex;justify-content:space-between;align-items:center">${tgl(k.tgl)} ${!k.dibaca?'<span class="badge badge-warn">Baru</span>':''}<div style="display:flex;gap:4px">${bisaEdit?`<button onclick="editKomando('${k.id}')" style="background:rgba(255,255,255,0.15);border:none;color:#fff;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer">✏️</button>`:''}<button onclick="hapusKomando('${k.id}')" style="background:rgba(255,255,255,0.2);border:none;color:#fff;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer">🗑</button></div></div></div>`;
+  const rahasiaBadge=k.rahasia?'<span class="badge" style="background:rgba(0,0,0,0.3);color:#fff">🔒 Rahasia</span>':'';
+  return `<div class="komando-box"><h3>⚡ Komando dari ${esc(k.dari)}</h3><p>${esc(k.pesan)}</p>${buildResponBar('komando',k)}<div class="kmeta" style="display:flex;justify-content:space-between;align-items:center">${tgl(k.tgl)} ${!k.dibaca?'<span class="badge badge-warn">Baru</span>':''}${rahasiaBadge}<div style="display:flex;gap:4px">${bisaEdit?`<button onclick="editKomando('${k.id}')" style="background:rgba(255,255,255,0.15);border:none;color:#fff;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer">✏️</button>`:''}<button onclick="hapusKomando('${k.id}')" style="background:rgba(255,255,255,0.2);border:none;color:#fff;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer">🗑</button></div></div></div>`;
 }
 function renderPengumumanItem(p){
   const bisaEditPng=C.pengumuman_kirim(R);
   const lampiranBtn=p.lampiran?`<button onclick="lihatLampiran('${p.id}')" style="background:rgba(255,255,255,0.25);border:none;color:#fff;border-radius:4px;padding:3px 10px;font-size:11px;cursor:pointer;margin-top:6px">${p.lampiran.type==='pdf'?'📄 Buka PDF':'🖼️ Lihat Foto'}</button>`:'';
-  return `<div class="pengumuman-box"><h3>📢 Dari ${esc(p.dari)}</h3><p style="font-size:14px">${esc(p.pesan)}</p>${lampiranBtn}${buildResponBar('pengumuman',p)}<div style="font-size:11px;opacity:.7;margin-top:6px;display:flex;justify-content:space-between;align-items:center">${tgl(p.tgl)}<div style="display:flex;gap:4px">${bisaEditPng?`<button onclick="editPengumuman('${p.id}')" style="background:rgba(255,255,255,0.15);border:none;color:#fff;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer">✏️</button>`:''}<button onclick="hapusPengumuman('${p.id}')" style="background:rgba(255,255,255,0.2);border:none;color:#fff;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer">🗑</button></div></div></div>`;
+  const rahasiaBadgePng=p.rahasia?'<span class="badge" style="background:rgba(0,0,0,0.3);color:#fff">🔒 Rahasia</span>':'';
+  return `<div class="pengumuman-box"><h3>📢 Dari ${esc(p.dari)}</h3><p style="font-size:14px">${esc(p.pesan)}</p>${lampiranBtn}${buildResponBar('pengumuman',p)}<div style="font-size:11px;opacity:.7;margin-top:6px;display:flex;justify-content:space-between;align-items:center">${tgl(p.tgl)}${rahasiaBadgePng}<div style="display:flex;gap:4px">${bisaEditPng?`<button onclick="editPengumuman('${p.id}')" style="background:rgba(255,255,255,0.15);border:none;color:#fff;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer">✏️</button>`:''}<button onclick="hapusPengumuman('${p.id}')" style="background:rgba(255,255,255,0.2);border:none;color:#fff;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer">🗑</button></div></div></div>`;
 }
 function lihatRiwayatKomando(){
-  const list=D.komando.slice().reverse();
+  // Riwayat juga difilter: Balonpas/Capas tidak melihat komando rahasia.
+  const list=D.komando.filter(k=>!k.rahasia||C.bisaLihatRahasia(R)).slice().reverse();
   openModal(`<div class="modal-title">🕓 Riwayat Komando (${list.length}) <button class="modal-close" onclick="closeModal()">×</button></div>
   <div>${list.map(renderKomandoItem).join('')}</div>`);
 }
 function lihatRiwayatPengumuman(){
-  const list=D.pengumuman.slice().reverse();
+  // Riwayat juga difilter: Balonpas/Capas tidak melihat pengumuman rahasia.
+  const list=D.pengumuman.filter(p=>!p.rahasia||C.bisaLihatRahasia(R)).slice().reverse();
   openModal(`<div class="modal-title">🕓 Riwayat Pengumuman (${list.length}) <button class="modal-close" onclick="closeModal()">×</button></div>
   <div>${list.map(renderPengumumanItem).join('')}</div>`);
 }
@@ -1139,6 +1151,7 @@ function editKomando(id){
   const k=D.komando.find(x=>x.id===id);if(!k)return;
   openModal(`<div class="modal-title">Edit Komando <button class="modal-close" onclick="closeModal()">×</button></div>
   <div class="field"><label>Pesan Komando</label><textarea id="ek-pesan" style="min-height:100px">${esc(k.pesan)}</textarea></div>
+  <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--fg2);margin-bottom:10px"><input type="checkbox" id="ek-rahasia" ${k.rahasia?'checked':''}> 🔒 Rahasia (sembunyikan dari Balonpas & Capas)</label>
   <div style="display:flex;gap:8px">
     <button class="btn btn-primary btn-full" onclick="simpanEditKomando('${id}')">💾 Simpan</button>
     <button class="btn btn-warn btn-sm" onclick="hapusKomando('${id}');closeModal()">🗑 Hapus</button>
@@ -1148,7 +1161,7 @@ function simpanEditKomando(id){
   const k=D.komando.find(x=>x.id===id);if(!k)return;
   const v=document.getElementById('ek-pesan').value.trim();
   if(!v)return toast('Pesan tidak boleh kosong');
-  k.pesan=v;k.dieditOleh=RLBL[R];k.tglEdit=Date.now();
+  k.pesan=v;k.dieditOleh=RLBL[R];k.tglEdit=Date.now();k.rahasia=document.getElementById('ek-rahasia')?.checked||false;
   save();closeModal();toast('Komando diperbarui');renderBeranda();
 }
 function editPengumuman(id){
@@ -1156,6 +1169,7 @@ function editPengumuman(id){
   openModal(`<div class="modal-title">Edit Pengumuman <button class="modal-close" onclick="closeModal()">×</button></div>
   <div class="field"><label>Isi Pengumuman</label><textarea id="ep-pesan" style="min-height:100px">${esc(p.pesan)}</textarea></div>
   <div style="font-size:12px;color:var(--fg2);margin-bottom:10px">Dari: ${esc(p.dari)}</div>
+  <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--fg2);margin-bottom:10px"><input type="checkbox" id="ep-rahasia" ${p.rahasia?'checked':''}> 🔒 Rahasia (sembunyikan dari Balonpas & Capas)</label>
   <div style="display:flex;gap:8px">
     <button class="btn btn-primary btn-full" onclick="simpanEditPengumuman('${id}')">💾 Simpan</button>
     <button class="btn btn-warn btn-sm" onclick="hapusPengumuman('${id}');closeModal()">🗑 Hapus</button>
@@ -1165,7 +1179,7 @@ function simpanEditPengumuman(id){
   const p=D.pengumuman.find(x=>x.id===id);if(!p)return;
   const v=document.getElementById('ep-pesan').value.trim();
   if(!v)return toast('Pesan tidak boleh kosong');
-  p.pesan=v;p.dieditOleh=RLBL[R];p.tglEdit=Date.now();
+  p.pesan=v;p.dieditOleh=RLBL[R];p.tglEdit=Date.now();p.rahasia=document.getElementById('ep-rahasia')?.checked||false;
   save();closeModal();toast('Pengumuman diperbarui');renderBeranda();
 }
 function lihatLampiran(id){
@@ -1300,12 +1314,14 @@ function kirimPengumuman(){
   const v=document.getElementById('inp-png')?.value.trim();
   if(!v&&!_pngLampiran)return toast('Tulis pengumuman atau lampirkan file dulu');
   const hadLampiran=!!_pngLampiran;
-  D.pengumuman.push({id:uid(),pesan:v||'(Lihat lampiran)',tgl:Date.now(),dari:RLBL[R],dibaca:false,lampiran:_pngLampiran});
+  const rahasiaPng=document.getElementById('inp-png-rahasia')?.checked||false;
+  D.pengumuman.push({id:uid(),pesan:v||'(Lihat lampiran)',tgl:Date.now(),dari:RLBL[R],dibaca:false,lampiran:_pngLampiran,rahasia:rahasiaPng});
   save();toast('Pengumuman dikirim!');
   kirimPushNotifikasi('📢 Pengumuman dari '+RLBL[R],v||'Ada lampiran baru — buka aplikasi untuk lihat');
   document.getElementById('inp-png').value='';
   const pv=document.getElementById('png-file-prev');if(pv){pv.style.display='none';pv.innerHTML='';}
   const pf=document.getElementById('inp-png-file');if(pf)pf.value='';
+  const prg=document.getElementById('inp-png-rahasia');if(prg)prg.checked=false;
   _pngLampiran=null;
   renderBeranda();
   const waTeks=(v||'')+(hadLampiran?'\n\n📎 (Ada lampiran foto/PDF — lihat di aplikasi PASMANSABEL)':'');
@@ -2182,12 +2198,14 @@ function downloadIzinCSV(){
 
 // ═══════════════════════════════════════════
 // AGENDA / KEGIATAN MENDATANG
-// Bisa dilihat semua peran (anggota & balonpas termasuk), hanya pembina/pelatih/
-// ketua PPS aktif/sekretaris yang bisa isi, edit, atau hapus.
+// Bisa dilihat semua peran, hanya pembina/pelatih/ketua/sekretaris yang bisa
+// isi, edit, atau hapus — kecuali kegiatan ditandai "Rahasia", yang disembunyikan
+// dari Balonpas & Capas (lihat C.bisaLihatRahasia).
 // ═══════════════════════════════════════════
 function renderAgendaBeranda(){
   const now=Date.now()-86400000; // tetap tampilkan agenda hari ini
-  const list=D.agenda.filter(a=>!a.tgl||new Date(a.tgl).getTime()>=now).sort((a,b)=>new Date(a.tgl||0)-new Date(b.tgl||0));
+  // Agenda yang ditandai rahasia disembunyikan dari Balonpas/Capas.
+  const list=D.agenda.filter(a=>(!a.tgl||new Date(a.tgl).getTime()>=now)&&(!a.rahasia||C.bisaLihatRahasia(R))).sort((a,b)=>new Date(a.tgl||0)-new Date(b.tgl||0));
   let html=`<div class="sec">📅 AGENDA / KEGIATAN SELANJUTNYA</div>`;
   if(C.agenda_buat(R)){
     html+=`<button class="btn btn-primary btn-sm" style="margin-bottom:10px" onclick="modalAgenda()">+ Tambah Kegiatan</button>`;
@@ -2196,7 +2214,7 @@ function renderAgendaBeranda(){
     html+='<div class="alert alert-warn" style="margin-bottom:10px">Belum ada kegiatan/even yang dijadwalkan.</div>';
   } else {
     list.forEach(a=>{
-      html+=`<div class="item" style="margin-bottom:8px"><div class="item-head"><div><div class="item-title">${esc(a.judul)}</div><div class="item-sub">${tgl(a.tgl)}${a.waktu?' · '+esc(a.waktu):''}${a.tempat?' · '+esc(a.tempat):''}</div></div></div>
+      html+=`<div class="item" style="margin-bottom:8px"><div class="item-head"><div><div class="item-title">${esc(a.judul)}${a.rahasia?' <span class="badge" style="background:var(--card2);color:var(--fg2)">🔒 Rahasia</span>':''}</div><div class="item-sub">${tgl(a.tgl)}${a.waktu?' · '+esc(a.waktu):''}${a.tempat?' · '+esc(a.tempat):''}</div></div></div>
       ${a.keterangan?`<div style="font-size:13px;margin-top:6px;color:var(--fg2)">${esc(a.keterangan)}</div>`:''}
       <div style="font-size:11px;color:var(--fg3);margin-top:6px">Dibuat oleh ${esc(a.dibuatOleh||'-')}</div>
       ${C.agenda_buat(R)?`<div style="margin-top:8px;display:flex;gap:8px"><button class="btn btn-ghost btn-sm" onclick="modalEditAgenda('${a.id}')">✏️ Edit</button><button class="btn btn-ghost btn-sm" style="color:#ef4444" onclick="hapusAgenda('${a.id}')">🗑 Hapus</button></div>`:''}
@@ -2212,12 +2230,13 @@ function modalAgenda(){
   <div class="field"><label>Jam (opsional)</label><input id="ag-waktu" placeholder="Misal: 07.00 WIB"></div>
   <div class="field"><label>Tempat</label><input id="ag-tempat" placeholder="Lokasi kegiatan"></div>
   <div class="field"><label>Keterangan (opsional)</label><textarea id="ag-ket" placeholder="Info tambahan untuk anggota..."></textarea></div>
+  <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--fg2);margin-bottom:10px"><input type="checkbox" id="ag-rahasia"> 🔒 Rahasia (sembunyikan dari Balonpas & Capas)</label>
   <button class="btn btn-primary btn-full" onclick="simpanAgenda()">📅 Simpan Kegiatan</button>`);
 }
 function simpanAgenda(){
   const j=document.getElementById('ag-judul').value.trim();
   if(!j)return toast('Nama kegiatan harus diisi');
-  D.agenda.push({id:uid(),judul:j,tgl:document.getElementById('ag-tgl').value,waktu:document.getElementById('ag-waktu').value.trim(),tempat:document.getElementById('ag-tempat').value.trim(),keterangan:document.getElementById('ag-ket').value.trim(),dibuatOleh:RLBL[R]});
+  D.agenda.push({id:uid(),judul:j,tgl:document.getElementById('ag-tgl').value,waktu:document.getElementById('ag-waktu').value.trim(),tempat:document.getElementById('ag-tempat').value.trim(),keterangan:document.getElementById('ag-ket').value.trim(),dibuatOleh:RLBL[R],rahasia:document.getElementById('ag-rahasia')?.checked||false});
   save();closeModal();toast('Kegiatan ditambahkan');renderBeranda();
 }
 function modalEditAgenda(aid){
@@ -2228,13 +2247,14 @@ function modalEditAgenda(aid){
   <div class="field"><label>Jam (opsional)</label><input id="ag-waktu" value="${esc(a.waktu||'')}"></div>
   <div class="field"><label>Tempat</label><input id="ag-tempat" value="${esc(a.tempat||'')}"></div>
   <div class="field"><label>Keterangan (opsional)</label><textarea id="ag-ket">${esc(a.keterangan||'')}</textarea></div>
+  <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--fg2);margin-bottom:10px"><input type="checkbox" id="ag-rahasia" ${a.rahasia?'checked':''}> 🔒 Rahasia (sembunyikan dari Balonpas & Capas)</label>
   <button class="btn btn-primary btn-full" onclick="simpanEditAgenda('${aid}')">💾 Simpan Perubahan</button>`);
 }
 function simpanEditAgenda(aid){
   const a=D.agenda.find(x=>x.id===aid);if(!a)return;
   const j=document.getElementById('ag-judul').value.trim();
   if(!j)return toast('Nama kegiatan harus diisi');
-  a.judul=j;a.tgl=document.getElementById('ag-tgl').value;a.waktu=document.getElementById('ag-waktu').value.trim();a.tempat=document.getElementById('ag-tempat').value.trim();a.keterangan=document.getElementById('ag-ket').value.trim();
+  a.judul=j;a.tgl=document.getElementById('ag-tgl').value;a.waktu=document.getElementById('ag-waktu').value.trim();a.tempat=document.getElementById('ag-tempat').value.trim();a.keterangan=document.getElementById('ag-ket').value.trim();a.rahasia=document.getElementById('ag-rahasia')?.checked||false;
   save();closeModal();toast('Kegiatan diperbarui');renderBeranda();
 }
 function hapusAgenda(aid){
@@ -4945,6 +4965,12 @@ function buatTTDBaru(){
 }
 function renderConfig(){
   const pins=getPins();
+  // Peringatan: selama role pengurus di bawah belum punya PIN, siapa pun bisa
+  // memilih role itu langsung dari layar login tanpa PIN sama sekali — artinya
+  // filter "🔒 Rahasia" (dan hak edit lainnya) untuk role itu belum benar-benar
+  // aman, karena balonpas/capas bisa saja login sebagai role tersebut.
+  const belumPin=PIN_ROLES.filter(role=>!pins[role]);
+  const pinWarning=belumPin.length?`<div class="alert alert-warn" style="margin-bottom:12px">⚠️ <b>${belumPin.length} role pengurus belum punya PIN:</b> ${belumPin.map(r=>esc(RLBL[r]||r)).join(', ')}.<br>Selama belum di-PIN, siapa saja (termasuk Balonpas/Capas) bisa langsung memilih role itu di layar login tanpa diminta PIN — artinya konten "🔒 Rahasia" & hak edit role tersebut belum terlindungi. Set PIN di bawah untuk setiap role ini.</div>`:'';
   const pinRows=PIN_ROLES.map(role=>{
     const aktif=!!pins[role];
     return`<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border)">
@@ -4963,7 +4989,7 @@ function renderConfig(){
       </div>
     </div>`;
   }).join('');
-  return`<div class="card" style="margin-bottom:12px">
+  return`${pinWarning}<div class="card" style="margin-bottom:12px">
     <div class="card-title">Konfigurasi Sistem</div>
     <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0">
       <div><div style="font-weight:600;font-size:14px">Izinkan Pelatih Kirim Komando</div><div style="font-size:12px;color:var(--fg2)">Pelatih dapat memberi komando cepat</div></div>
