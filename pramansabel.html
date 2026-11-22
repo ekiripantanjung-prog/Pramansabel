@@ -370,7 +370,9 @@ const RLBL = new Proxy(RLBL_STATIC, {
 });
 
 const ROLES_ALL = ['pembina','pelatih','aspelatih1','aspelatih2','ketua','sekretaris','bendahara','tatib','pps_aktif','pps_senior','purna','capas','balonpas'];
-const SESI = ['Rabu Kumpul','Kamis Sore','Sabtu Latihan'];
+// Sesi ke-4 (Minggu Tambahan) untuk kegiatan ekstra di luar jadwal rutin
+// (misal tryout, lomba, latihan tambahan) yang jatuh di hari Minggu.
+const SESI = ['Rabu Kumpul','Kamis Sore','Sabtu Latihan','Minggu Tambahan'];
 // Balonpas, PPS Aktif, PPS Senior: izin hanya hari Rabu & keputusan akhir (acc) wajib oleh Pembina.
 const RABU_ONLY_ROLES=['balonpas','pps_aktif','pps_senior'];
 const ASPEK = ['pb','fisik','mental','disiplin','kepemimpinan','komunikasi'];
