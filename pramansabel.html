@@ -372,7 +372,11 @@ const RLBL = new Proxy(RLBL_STATIC, {
 const ROLES_ALL = ['pembina','pelatih','aspelatih1','aspelatih2','ketua','sekretaris','bendahara','tatib','pps_aktif','pps_senior','purna','capas','balonpas'];
 // Sesi ke-4 (Minggu Tambahan) untuk kegiatan ekstra di luar jadwal rutin
 // (misal tryout, lomba, latihan tambahan) yang jatuh di hari Minggu.
-const SESI = ['Rabu Kumpul','Kamis Sore','Sabtu Latihan','Minggu Tambahan'];
+// Sesi ke-5 (Selasa Tambahan) untuk latihan tambahan rutin di hari Selasa.
+// Selalu TAMBAHKAN sesi baru di AKHIR array, jangan sisipkan di tengah — indeks
+// sesi yang lama (0,1,2,3) sudah tersimpan di data absensi/kegiatan lama, kalau
+// urutan diubah maka data lama akan salah tunjuk ke sesi yang berbeda.
+const SESI = ['Rabu Kumpul','Kamis Sore','Sabtu Latihan','Minggu Tambahan','Selasa Tambahan'];
 // Balonpas, PPS Aktif, PPS Senior: izin hanya hari Rabu & keputusan akhir (acc) wajib oleh Pembina.
 const RABU_ONLY_ROLES=['balonpas','pps_aktif','pps_senior'];
 const ASPEK = ['pb','fisik','mental','disiplin','kepemimpinan','komunikasi'];
@@ -2918,7 +2922,10 @@ function deteksiTopikProker(p){
 // ini sampai tanggal target proker. Dibatasi maksimal 8 pertemuan biar tidak
 // kepanjangan kalau tanggal target masih jauh.
 function daftarPertemuanProker(tglTarget){
-  const hariSesi=[3,4,6]; // index SESI: 0=Rabu,1=Kamis,2=Sabtu -> getDay():3,4,6
+  // Peta hari->indeks SESI secara eksplisit (bukan posisi array) supaya aman
+  // menambah/mengubah hari latihan tanpa merusak pemetaan yang sudah ada.
+  // getDay(): 0=Minggu,1=Senin,2=Selasa,3=Rabu,4=Kamis,5=Jumat,6=Sabtu
+  const HARI_KE_SESI={2:4,3:0,4:1,6:2}; // Selasa->SESI[4], Rabu->[0], Kamis->[1], Sabtu->[2]
   const today=new Date();today.setHours(0,0,0,0);
   let target=tglTarget?new Date(tglTarget):null;
   if(target)target.setHours(0,0,0,0);
@@ -2928,8 +2935,8 @@ function daftarPertemuanProker(tglTarget){
   let cur=new Date(today);
   let guard=0;
   while(cur<=target&&guard<120){
-    const idx=hariSesi.indexOf(cur.getDay());
-    if(idx>=0)list.push({tgl:new Date(cur),sesiIdx:idx,sesiNama:SESI[idx]});
+    const idx=HARI_KE_SESI[cur.getDay()];
+    if(idx!==undefined)list.push({tgl:new Date(cur),sesiIdx:idx,sesiNama:SESI[idx]});
     cur.setDate(cur.getDate()+1);guard++;
   }
   return {list:list.slice(0,8),lewatAtauKosong:lewat||!tglTarget};
@@ -4483,7 +4490,7 @@ function renderEvaluasi(){
   }
   if(!D.evaluasi.length) html+='<div class="alert alert-warn">Belum ada notulen evaluasi.</div>';
   D.evaluasi.slice().reverse().forEach(e=>{
-    html+=`<div class="item"><div class="item-head"><div class="item-title">${esc(e.judul)}</div><div style="font-size:11px;color:var(--fg2)">${tgl(e.tgl)}</div></div>
+    html+=`<div class="item"><div class="item-head"><div class="item-title">${esc(e.judul)}${(e.sesi!=null&&SESI[e.sesi])?` <span class="badge" style="background:var(--card2);color:var(--fg2)">${esc(SESI[e.sesi])}</span>`:''}</div><div style="font-size:11px;color:var(--fg2)">${tgl(e.tgl)}</div></div>
     <div style="font-size:13px;margin-top:6px;line-height:1.6">${esc(e.isi)}</div>
     ${e.masukan?`<div style="margin-top:8px;padding:8px;background:var(--bg);border-radius:var(--rr);font-size:12px"><strong>Masukan:</strong> ${esc(e.masukan)}</div>`:''}
     <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
@@ -4501,10 +4508,10 @@ function hapusEvaluasi(id){
   save();toast('Notulen dihapus');renderTabLaporan('evaluasi');
 }
 function downloadNotulenCSV(){
-  let csv='Tanggal,Judul,Isi Notulen,Masukan,Dicatat Oleh\n';
+  let csv='Tanggal,Sesi,Judul,Isi Notulen,Masukan,Dicatat Oleh\n';
   const q=v=>`"${String(v==null?'':v).replace(/"/g,'""')}"`;
   D.evaluasi.slice().reverse().forEach(e=>{
-    csv+=[q(tgl(e.tgl)),q(e.judul),q(e.isi||''),q(e.masukan||''),q(e.dicatatOleh||'')].join(',')+'\n';
+    csv+=[q(tgl(e.tgl)),q((e.sesi!=null&&SESI[e.sesi])?SESI[e.sesi]:''),q(e.judul),q(e.isi||''),q(e.masukan||''),q(e.dicatatOleh||'')].join(',')+'\n';
   });
   const blob=new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8'});
   const url=URL.createObjectURL(blob);
@@ -4516,7 +4523,7 @@ function downloadNotulenCSV(){
 function buildNotulenBodyHTML(){
   const bulan=getBulanTahun();
   const rows=D.evaluasi.slice().reverse().map((e,i)=>`
-    <h3>${i+1}. ${esc(e.judul)} <span style="font-weight:400;font-size:10pt">— ${tgl(e.tgl)}</span></h3>
+    <h3>${i+1}. ${esc(e.judul)} <span style="font-weight:400;font-size:10pt">— ${tgl(e.tgl)}${(e.sesi!=null&&SESI[e.sesi])?' · '+esc(SESI[e.sesi]):''}</span></h3>
     <p>${esc(e.isi||'-').replace(/\n/g,'<br>')}</p>
     ${e.masukan?`<p><strong>Masukan:</strong> ${esc(e.masukan).replace(/\n/g,'<br>')}</p>`:''}
     <p style="font-size:10pt;color:#555">Dicatat oleh: ${esc(e.dicatatOleh||'-')}</p>
@@ -4557,16 +4564,19 @@ function cetakNotulenPDF(){
   });
 }
 function modalEvaluasi(){
+  const optSesi=`<option value="">— (umum/tidak terkait sesi) —</option>`+SESI.map((s,i)=>`<option value="${i}">${esc(s)}</option>`).join('');
   openModal(`<div class="modal-title">Notulen Evaluasi <button class="modal-close" onclick="closeModal()">×</button></div>
   <div class="field"><label>Judul</label><input id="ev-judul" placeholder="Judul rapat/evaluasi"></div>
   <div class="field"><label>Tanggal</label><input id="ev-tgl" type="date" value="${new Date().toISOString().split('T')[0]}"></div>
+  <div class="field"><label>Sesi Terkait (opsional)</label><select id="ev-sesi">${optSesi}</select></div>
   <div class="field"><label>Isi Notulen</label><textarea id="ev-isi" placeholder="Poin-poin rapat..." style="min-height:120px"></textarea></div>
   <button class="btn btn-primary btn-full" onclick="simpanEvaluasi()">💾 Simpan</button>`);
 }
 function simpanEvaluasi(){
   const j=document.getElementById('ev-judul').value.trim();
   if(!j)return toast('Judul harus diisi');
-  D.evaluasi.push({id:uid(),judul:j,tgl:document.getElementById('ev-tgl').value,isi:document.getElementById('ev-isi').value.trim(),dicatatOleh:RLBL[R]});
+  const sesiVal=document.getElementById('ev-sesi').value;
+  D.evaluasi.push({id:uid(),judul:j,tgl:document.getElementById('ev-tgl').value,sesi:sesiVal===''?null:Number(sesiVal),isi:document.getElementById('ev-isi').value.trim(),dicatatOleh:RLBL[R]});
   save();closeModal();toast('Notulen disimpan');renderTabLaporan('evaluasi');
 }
 function modalMasukan(id){
