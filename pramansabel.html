@@ -834,10 +834,14 @@ const C={
   // tanpa izin berulang / poin Tatib tinggi) untuk ditindaklanjuti serius.
   // Yang berwenang memasukkan/mengelola: Pembina, Pelatih, TATIB.
   pembinaan_khusus_kelola:r=>['pembina','pelatih','tatib'].includes(r),
-  // Tugas video latihan PBB mandiri selama libur: hanya Balonpas yang mengirim,
-  // dan hanya PPS Aktif, Pelatih, Asisten Pelatih, serta Pembina yang boleh memeriksa.
+  // Tugas video latihan PBB mandiri selama libur: hanya Balonpas yang mengirim.
+  // Yang boleh MEMERIKSA (tandai dicek + beri catatan): PPS Aktif, Pelatih, Asisten
+  // Pelatih, dan Pembina (pihak yang menilai kemampuan PBB-nya langsung).
+  // Yang boleh LIHAT saja (read-only, untuk pencatatan/pengawasan organisasi):
+  // tambahan Sekretaris, TATIB, dan Bendahara.
   tugasPPB_kirim:r=>r==='balonpas',
   tugasPPB_cek:r=>['pps_aktif','pelatih','aspelatih1','aspelatih2','pembina'].includes(r),
+  tugasPPB_lihat:r=>C.tugasPPB_cek(r)||['sekretaris','tatib','bendahara'].includes(r),
   // Pamong: pasangan pembimbing — 1 PPS Aktif (angkatan aktif saat ini) membimbing
   // maksimal 2 Balonpas. Yang berwenang mengatur pasangan: Pembina, Pelatih, Ketua.
   pamong_edit:r=>['pembina','pelatih','ketua'].includes(r),
@@ -1356,7 +1360,7 @@ function renderAnggota(){
     <button class="tab on" onclick="tabAnggota('daftar',this)">Daftar</button>
     <button class="tab" onclick="tabAnggota('absensi',this)">Absensi</button>
     <button class="tab" onclick="tabAnggota('izin',this)">Izin</button>
-    ${(C.tugasPPB_kirim(R)||C.tugasPPB_cek(R))?`<button class="tab" onclick="tabAnggota('tugasppb',this)">Tugas PBB</button>`:''}
+    ${(C.tugasPPB_kirim(R)||C.tugasPPB_lihat(R))?`<button class="tab" onclick="tabAnggota('tugasppb',this)">Tugas PBB</button>`:''}
     <button class="tab" onclick="tabAnggota('pamong',this)">Pamong</button>
     <button class="tab" onclick="tabAnggota('rekap',this)">Rekap</button>
   </div><div id="tab-anggota"></div>`;
@@ -2243,8 +2247,9 @@ function renderTugasPPB(){
       </div>`;
     });
   }
-  if(C.tugasPPB_cek(R)){
+  if(C.tugasPPB_lihat(R)){
     html+=`<div class="sec">📋 Daftar Tugas Video Latihan PBB (Balonpas)</div>
+    ${!C.tugasPPB_cek(R)?`<div class="alert alert-warn" style="font-size:12px;margin-bottom:10px">ℹ️ Anda bisa melihat daftar ini untuk keperluan pencatatan, namun penilaian/penandaan "sudah dicek" hanya dilakukan oleh PPS Aktif, Pelatih, Asisten Pelatih, atau Pembina.</div>`:''}
     <div style="margin-bottom:10px"><button class="btn btn-ghost btn-sm" onclick="downloadTugasPPBCSV()">⬇️ Unduh Rekap CSV</button></div>`;
     const daftar=D.tugasPPB.slice().reverse();
     if(!daftar.length) html+='<div class="alert alert-warn">Belum ada tugas yang dikirim Balonpas.</div>';
@@ -2254,10 +2259,10 @@ function renderTugasPPB(){
       <div style="font-size:13px;margin-top:6px"><a href="${esc(t.link)}" target="_blank" rel="noopener">🔗 Buka Video</a></div>
       ${t.catatan?`<div style="font-size:12px;color:var(--fg2);margin-top:4px">📝 Dari Balonpas: ${esc(t.catatan)}</div>`:''}
       ${t.catatanPemeriksa?`<div style="font-size:12px;color:var(--fg2);margin-top:6px;background:var(--card2);padding:6px 8px;border-radius:8px">💬 ${esc(t.catatanPemeriksa)} <span style="color:var(--fg3)">— ${esc(t.dicekOleh||'')}</span></div>`:''}
-      <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
+      ${C.tugasPPB_cek(R)?`<div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
         ${t.status!=='dicek'?`<button class="btn btn-ok btn-sm" onclick="tandaiDicekTugas('${t.id}')">✅ Tandai Sudah Dicek</button>`:''}
         <button class="btn btn-ghost btn-sm" onclick="modalCatatanTugas('${t.id}')">💬 ${t.catatanPemeriksa?'Ubah':'Beri'} Catatan</button>
-      </div>
+      </div>`:''}
       </div>`;
     });
   }
