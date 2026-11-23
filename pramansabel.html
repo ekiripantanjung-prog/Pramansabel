@@ -438,6 +438,8 @@ function defD(){return{
   paketSoal:[],
   hasilSimulasi:[],
   izinUlangSimulasi:[],
+  tugasPPB:[], // tugas video latihan PBB mandiri selama libur (kiriman Balonpas)
+  pamong:[], // pasangan pamong: 1 PPS Aktif membimbing maks. 2 Balonpas
   ttd:null, // base64 TTD Pembina
   pins:{},
   config:{pelatih_komando:false,tahunAktif:26,tahunSenior:25},
@@ -603,7 +605,7 @@ function migrasiKodeEtik(){
 }
 // Field data yang berupa daftar/array (punya banyak item dengan id masing-masing).
 // Dipakai supaya sinkronisasi cloud menggabungkan, bukan menimpa habis.
-const DATA_ARRAY_KEYS=['anggota','absensi','pelanggaran','pembinaanKhusus','proker','prokerTahunan','evaluasi','lomba','agenda','adat','info','kas','komando','pengumuman','pemetaan','samapta','materi','izin','paketSoal','hasilSimulasi','izinUlangSimulasi'];
+const DATA_ARRAY_KEYS=['anggota','absensi','pelanggaran','pembinaanKhusus','proker','prokerTahunan','evaluasi','lomba','agenda','adat','info','kas','komando','pengumuman','pemetaan','samapta','materi','izin','paketSoal','hasilSimulasi','izinUlangSimulasi','tugasPPB','pamong'];
 // Hapus satu item dari daftar sekaligus MENANDAINYA sebagai terhapus (tombstone).
 // Kenapa perlu: sinkronisasi cloud menggabungkan data per-id dari cloud+lokal supaya
 // input baru dari HP lain tidak hilang — tapi akibatnya kalau item cuma dibuang dari
@@ -832,6 +834,13 @@ const C={
   // tanpa izin berulang / poin Tatib tinggi) untuk ditindaklanjuti serius.
   // Yang berwenang memasukkan/mengelola: Pembina, Pelatih, TATIB.
   pembinaan_khusus_kelola:r=>['pembina','pelatih','tatib'].includes(r),
+  // Tugas video latihan PBB mandiri selama libur: hanya Balonpas yang mengirim,
+  // dan hanya PPS Aktif, Pelatih, Asisten Pelatih, serta Pembina yang boleh memeriksa.
+  tugasPPB_kirim:r=>r==='balonpas',
+  tugasPPB_cek:r=>['pps_aktif','pelatih','aspelatih1','aspelatih2','pembina'].includes(r),
+  // Pamong: pasangan pembimbing — 1 PPS Aktif (angkatan aktif saat ini) membimbing
+  // maksimal 2 Balonpas. Yang berwenang mengatur pasangan: Pembina, Pelatih, Ketua.
+  pamong_edit:r=>['pembina','pelatih','ketua'].includes(r),
 };
 
 // ═══════════════════════════════════════════
@@ -1347,6 +1356,8 @@ function renderAnggota(){
     <button class="tab on" onclick="tabAnggota('daftar',this)">Daftar</button>
     <button class="tab" onclick="tabAnggota('absensi',this)">Absensi</button>
     <button class="tab" onclick="tabAnggota('izin',this)">Izin</button>
+    ${(C.tugasPPB_kirim(R)||C.tugasPPB_cek(R))?`<button class="tab" onclick="tabAnggota('tugasppb',this)">Tugas PBB</button>`:''}
+    <button class="tab" onclick="tabAnggota('pamong',this)">Pamong</button>
     <button class="tab" onclick="tabAnggota('rekap',this)">Rekap</button>
   </div><div id="tab-anggota"></div>`;
   el.innerHTML=html;
@@ -1360,6 +1371,8 @@ function tabAnggota(t,btn){
   if(t==='daftar') el.innerHTML=renderDaftarAnggota();
   else if(t==='absensi') el.innerHTML=renderAbsensi();
   else if(t==='izin') el.innerHTML=renderIzin();
+  else if(t==='tugasppb') el.innerHTML=renderTugasPPB();
+  else if(t==='pamong') el.innerHTML=renderPamong();
   else if(t==='rekap') el.innerHTML=renderRekapAnggota();
 }
 
@@ -2199,6 +2212,171 @@ function downloadIzinCSV(){
   a.href=url;a.download=`rekap_izin_${todayLocalInputDate()}.csv`;a.click();
   URL.revokeObjectURL(url);
   toast('📥 Rekap izin diunduh ('+D.izin.length+' data)');
+}
+
+// ═══════════════════════════════════════════
+// TUGAS PBB — kiriman video latihan mandiri Balonpas selama libur (link G Drive)
+// Kirim: hanya Balonpas. Cek/lihat semua: PPS Aktif, Pelatih, Aspel 1&2, Pembina.
+// ═══════════════════════════════════════════
+function renderTugasPPB(){
+  let html='';
+  if(C.tugasPPB_kirim(R)){
+    html+=`<div class="sec">🎥 Kirim Tugas Video Latihan PBB</div>
+    <div class="alert alert-warn" style="font-size:12px;margin-bottom:10px">⚠️ Rekam latihan PBB mandiri selama libur, unggah ke Google Drive, lalu atur sharing link menjadi <strong>"Siapa saja yang memiliki link"</strong> agar bisa dibuka Pelatih/Pembina. Tempel link-nya di bawah ini.</div>
+    <div class="card">
+      <div class="field"><label>Nama</label><input id="tp-nama" placeholder="Nama lengkap Anda"></div>
+      <div class="field"><label>Judul/Materi Latihan</label><input id="tp-judul" placeholder="Misal: Latihan Hadap Kanan & Balik Kanan"></div>
+      <div class="field"><label>Link Video (Google Drive)</label><input id="tp-link" placeholder="https://drive.google.com/..."></div>
+      <div class="field"><label>Catatan (opsional)</label><textarea id="tp-catatan" placeholder="Ceritakan singkat latihan yang dilakukan, kendala, dsb."></textarea></div>
+      <button class="btn btn-primary btn-full" onclick="kirimTugasPPB()">📤 Kirim Tugas</button>
+    </div>
+    <div class="sec" style="margin-top:14px">📋 Tugas Saya</div>`;
+    const milikSaya=D.tugasPPB.slice().reverse();
+    if(!milikSaya.length) html+='<div style="color:var(--fg3);font-size:13px;padding:8px 0">Belum ada tugas yang dikirim.</div>';
+    milikSaya.forEach(t=>{
+      const st=t.status==='dicek'?'badge-ok':'badge-warn';
+      html+=`<div class="item"><div class="item-head"><div><div class="item-title">${esc(t.nama)}</div><div class="item-sub">${esc(t.judul)} · ${jamTgl(t.tglKirim)}</div></div><span class="badge ${st}">${t.status==='dicek'?'✅ SUDAH DICEK':'⏳ MENUNGGU DICEK'}</span></div>
+      <div style="font-size:13px;margin-top:6px"><a href="${esc(t.link)}" target="_blank" rel="noopener">🔗 Buka Video</a></div>
+      ${t.catatan?`<div style="font-size:12px;color:var(--fg2);margin-top:4px">📝 ${esc(t.catatan)}</div>`:''}
+      ${t.catatanPemeriksa?`<div style="font-size:12px;color:var(--fg2);margin-top:6px;background:var(--card2);padding:6px 8px;border-radius:8px">💬 ${esc(t.catatanPemeriksa)} <span style="color:var(--fg3)">— ${esc(t.dicekOleh||'')}</span></div>`:''}
+      ${t.status!=='dicek'?`<div style="margin-top:8px"><button class="btn btn-ghost btn-sm" style="color:#ef4444" onclick="hapusTugasPPB('${t.id}')">🗑 Hapus</button></div>`:''}
+      </div>`;
+    });
+  }
+  if(C.tugasPPB_cek(R)){
+    html+=`<div class="sec">📋 Daftar Tugas Video Latihan PBB (Balonpas)</div>
+    <div style="margin-bottom:10px"><button class="btn btn-ghost btn-sm" onclick="downloadTugasPPBCSV()">⬇️ Unduh Rekap CSV</button></div>`;
+    const daftar=D.tugasPPB.slice().reverse();
+    if(!daftar.length) html+='<div class="alert alert-warn">Belum ada tugas yang dikirim Balonpas.</div>';
+    daftar.forEach(t=>{
+      const st=t.status==='dicek'?'badge-ok':'badge-warn';
+      html+=`<div class="item"><div class="item-head"><div><div class="item-title">${esc(t.nama)}</div><div class="item-sub">${esc(t.judul)} · ${jamTgl(t.tglKirim)}</div></div><span class="badge ${st}">${t.status==='dicek'?'✅ SUDAH DICEK':'⏳ MENUNGGU'}</span></div>
+      <div style="font-size:13px;margin-top:6px"><a href="${esc(t.link)}" target="_blank" rel="noopener">🔗 Buka Video</a></div>
+      ${t.catatan?`<div style="font-size:12px;color:var(--fg2);margin-top:4px">📝 Dari Balonpas: ${esc(t.catatan)}</div>`:''}
+      ${t.catatanPemeriksa?`<div style="font-size:12px;color:var(--fg2);margin-top:6px;background:var(--card2);padding:6px 8px;border-radius:8px">💬 ${esc(t.catatanPemeriksa)} <span style="color:var(--fg3)">— ${esc(t.dicekOleh||'')}</span></div>`:''}
+      <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
+        ${t.status!=='dicek'?`<button class="btn btn-ok btn-sm" onclick="tandaiDicekTugas('${t.id}')">✅ Tandai Sudah Dicek</button>`:''}
+        <button class="btn btn-ghost btn-sm" onclick="modalCatatanTugas('${t.id}')">💬 ${t.catatanPemeriksa?'Ubah':'Beri'} Catatan</button>
+      </div>
+      </div>`;
+    });
+  }
+  return html;
+}
+function kirimTugasPPB(){
+  const nama=document.getElementById('tp-nama')?.value.trim();
+  if(!nama)return toast('Nama harus diisi');
+  const judul=document.getElementById('tp-judul')?.value.trim();
+  if(!judul)return toast('Judul/materi latihan harus diisi');
+  const link=document.getElementById('tp-link')?.value.trim();
+  if(!link)return toast('Link video Google Drive harus diisi');
+  if(!/^https?:\/\//i.test(link))return toast('⚠️ Link harus diawali http:// atau https://');
+  const catatan=document.getElementById('tp-catatan')?.value.trim();
+  D.tugasPPB.push({id:uid(),nama,judul,link,catatan,status:'terkirim',tglKirim:Date.now()});
+  save();toast('Tugas video berhasil dikirim');
+  document.getElementById('tp-nama').value='';document.getElementById('tp-judul').value='';document.getElementById('tp-link').value='';document.getElementById('tp-catatan').value='';
+  tabAnggota('tugasppb',null);
+}
+function hapusTugasPPB(id){
+  if(!confirm('Hapus tugas ini?'))return;
+  tandaHapus('tugasPPB',id);save();toast('Tugas dihapus');tabAnggota('tugasppb',null);
+}
+function tandaiDicekTugas(id){
+  const t=D.tugasPPB.find(x=>x.id===id);if(!t)return;
+  t.status='dicek';t.dicekOleh=RLBL[R]||R;t.tglDicek=Date.now();
+  save();toast('Ditandai sudah dicek');tabAnggota('tugasppb',null);
+}
+function modalCatatanTugas(id){
+  const t=D.tugasPPB.find(x=>x.id===id);if(!t)return;
+  openModal(`<div class="modal-title">Catatan untuk ${esc(t.nama)} <button class="modal-close" onclick="closeModal()">×</button></div>
+  <div class="field"><label>Catatan/Masukan</label><textarea id="tpc-isi" placeholder="Misal: Hadap kanan sudah bagus, perbaiki hentakan kaki.">${esc(t.catatanPemeriksa||'')}</textarea></div>
+  <button class="btn btn-primary btn-full" onclick="simpanCatatanTugas('${id}')">💾 Simpan Catatan</button>`);
+}
+function simpanCatatanTugas(id){
+  const t=D.tugasPPB.find(x=>x.id===id);if(!t)return;
+  t.catatanPemeriksa=document.getElementById('tpc-isi').value.trim();
+  t.dicekOleh=RLBL[R]||R;
+  if(t.status!=='dicek'){t.status='dicek';t.tglDicek=Date.now();}
+  save();closeModal();toast('Catatan disimpan');tabAnggota('tugasppb',null);
+}
+function downloadTugasPPBCSV(){
+  if(!D.tugasPPB.length)return toast('Belum ada data tugas untuk direkap');
+  let csv='Nama,Judul/Materi,Link Video,Catatan Balonpas,Status,Dikirim Pada,Dicek Oleh,Catatan Pemeriksa\n';
+  D.tugasPPB.slice().reverse().forEach(t=>{
+    const row=[t.nama,t.judul,t.link,t.catatan||'',t.status==='dicek'?'Sudah Dicek':'Menunggu',jamTgl(t.tglKirim),t.dicekOleh||'',t.catatanPemeriksa||''];
+    csv+=row.map(c=>`"${String(c==null?'':c).replace(/"/g,'""')}"`).join(',')+'\n';
+  });
+  const blob=new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;a.download=`rekap_tugas_pbb_${todayLocalInputDate()}.csv`;a.click();
+  URL.revokeObjectURL(url);
+  toast('📥 Rekap tugas diunduh ('+D.tugasPPB.length+' data)');
+}
+
+// ═══════════════════════════════════════════
+// PAMONG — pasangan pembimbing: 1 PPS Aktif membimbing maksimal 2 Balonpas.
+// Atur pasangan: Pembina, Pelatih, Ketua. Dilihat semua peran.
+// ═══════════════════════════════════════════
+function renderPamong(){
+  let html=`<div class="sec">🤝 Pamong Balonpas</div>
+  <div style="font-size:12px;color:var(--fg2);margin-bottom:10px">Setiap pasangan terdiri dari 1 PPS Aktif (angkatan ${D.config.tahunAktif}) sebagai pamong yang membimbing maksimal 2 Balonpas.</div>`;
+  if(C.pamong_edit(R)){
+    html+=`<button class="btn btn-primary btn-sm" style="margin-bottom:12px" onclick="modalPamong()">+ Buat Pasangan Pamong</button>`;
+  }
+  const daftar=D.pamong.slice().reverse();
+  if(!daftar.length) html+='<div class="alert alert-warn">Belum ada pasangan pamong yang dibuat.</div>';
+  // Peringatan: balonpas yang belum punya pamong sama sekali.
+  const sudahDibimbing=new Set();
+  daftar.forEach(p=>(p.balonpasNama||[]).forEach(n=>sudahDibimbing.add(n)));
+  const balonpasAktif=D.anggota.filter(a=>a.role==='balonpas'&&a.status==='aktif');
+  const belumAdaPamong=balonpasAktif.filter(a=>!sudahDibimbing.has(a.nama));
+  if(C.pamong_edit(R)&&belumAdaPamong.length){
+    html+=`<div class="alert alert-warn" style="margin-bottom:10px">⚠️ ${belumAdaPamong.length} Balonpas belum punya pamong: ${belumAdaPamong.map(a=>esc(a.nama)).join(', ')}</div>`;
+  }
+  daftar.forEach(p=>{
+    html+=`<div class="item"><div class="item-head"><div><div class="item-title">👤 ${esc(p.pamongNama)}</div><div class="item-sub">Pamong (PPS Aktif ${D.config.tahunAktif})</div></div></div>
+    <div style="font-size:13px;margin-top:8px"><strong>Membimbing:</strong> ${(p.balonpasNama||[]).map(n=>esc(n)).join(', ')||'-'}</div>
+    ${C.pamong_edit(R)?`<div style="margin-top:8px;display:flex;gap:8px"><button class="btn btn-ghost btn-sm" onclick="modalPamong('${p.id}')">✏️ Edit</button><button class="btn btn-ghost btn-sm" style="color:#ef4444" onclick="hapusPamong('${p.id}')">🗑 Hapus</button></div>`:''}
+    </div>`;
+  });
+  return html;
+}
+function modalPamong(id){
+  const p=id?D.pamong.find(x=>x.id===id):null;
+  const pamongList=D.anggota.filter(a=>a.role==='pps_aktif'&&a.status==='aktif');
+  const balonpasList=D.anggota.filter(a=>a.role==='balonpas'&&a.status==='aktif');
+  if(!pamongList.length)return toast('Belum ada data PPS Aktif di daftar Anggota');
+  if(!balonpasList.length)return toast('Belum ada data Balonpas di daftar Anggota');
+  const optPamong=pamongList.map(a=>`<option value="${esc(a.nama)}"${p&&p.pamongNama===a.nama?' selected':''}>${esc(a.nama)}</option>`).join('');
+  const optBalonpas=(sel)=>`<option value="">— pilih —</option>`+balonpasList.map(a=>`<option value="${esc(a.nama)}"${sel===a.nama?' selected':''}>${esc(a.nama)}</option>`).join('');
+  openModal(`<div class="modal-title">${p?'Edit':'Buat'} Pasangan Pamong <button class="modal-close" onclick="closeModal()">×</button></div>
+  <div class="field"><label>Pamong (PPS Aktif)</label><select id="pm-pamong">${optPamong}</select></div>
+  <div class="field"><label>Balonpas 1</label><select id="pm-b1">${optBalonpas(p?.balonpasNama?.[0])}</select></div>
+  <div class="field"><label>Balonpas 2 (opsional)</label><select id="pm-b2">${optBalonpas(p?.balonpasNama?.[1])}</select></div>
+  <button class="btn btn-primary btn-full" onclick="simpanPamong('${id||''}')">💾 Simpan Pasangan</button>`);
+}
+function simpanPamong(id){
+  const pamongNama=document.getElementById('pm-pamong').value;
+  const b1=document.getElementById('pm-b1').value;
+  const b2=document.getElementById('pm-b2').value;
+  if(!pamongNama)return toast('Pilih pamong terlebih dahulu');
+  if(!b1&&!b2)return toast('Pilih minimal 1 Balonpas');
+  if(b1&&b2&&b1===b2)return toast('Balonpas 1 dan 2 tidak boleh sama');
+  const balonpasNama=[b1,b2].filter(Boolean);
+  if(id){
+    const p=D.pamong.find(x=>x.id===id);if(!p)return;
+    p.pamongNama=pamongNama;p.balonpasNama=balonpasNama;
+    save();closeModal();toast('Pasangan pamong diperbarui');
+  } else {
+    D.pamong.push({id:uid(),pamongNama,balonpasNama,dibuatOleh:RLBL[R],tglDibuat:Date.now()});
+    save();closeModal();toast('Pasangan pamong dibuat');
+  }
+  tabAnggota('pamong',null);
+}
+function hapusPamong(id){
+  if(!confirm('Hapus pasangan pamong ini?'))return;
+  tandaHapus('pamong',id);save();toast('Pasangan pamong dihapus');tabAnggota('pamong',null);
 }
 
 // ═══════════════════════════════════════════
@@ -4920,7 +5098,7 @@ async function cekDiagnostikSinkron(){
   const el=document.getElementById('diag-sinkron-hasil');
   if(!el)return;
   el.innerHTML='<p style="font-size:12px;margin-top:10px">⏳ Mengecek...</p>';
-  const DATA_KEYS_DIAG=['anggota','absensi','pelanggaran','pembinaanKhusus','proker','prokerTahunan','evaluasi','lomba','agenda','adat','info','kas','komando','pengumuman','pemetaan','samapta','materi','izin','paketSoal','hasilSimulasi','izinUlangSimulasi'];
+  const DATA_KEYS_DIAG=['anggota','absensi','pelanggaran','pembinaanKhusus','proker','prokerTahunan','evaluasi','lomba','agenda','adat','info','kas','komando','pengumuman','pemetaan','samapta','materi','izin','paketSoal','hasilSimulasi','izinUlangSimulasi','tugasPPB','pamong'];
   let html='';
   try{
     const t0=Date.now();
